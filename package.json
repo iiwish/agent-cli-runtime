@@ -1,0 +1,50 @@
+{
+  "name": "agent-cli-runtime",
+  "version": "0.1.0",
+  "description": "Local-first TypeScript runtime for scheduling Codex CLI, Claude Code, OpenCode, and compatible coding-agent CLIs.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "agent-runtime": "./dist/cli/main.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "docs/ssot.md",
+    "docs/compatibility.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "ci": "npm run typecheck && npm run lint && npm test && npm run build && npm audit --omit=dev && npm pack --dry-run",
+    "prepack": "npm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "agent",
+    "cli",
+    "codex",
+    "claude",
+    "opencode",
+    "runtime"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -1,0 +1,68 @@
+import type { AgentAdapterDef, BuildArgsInput, RuntimeModelOption } from "./adapter-types.js";
+import { CodexJsonParser } from "../parsers/codex-json.js";
+
+const DEFAULT_MODEL: RuntimeModelOption = { id: "default", label: "Default" };
+
+export function parseCodexDebugModels(stdout: string): RuntimeModelOption[] | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { models?: unknown }).models)) return null;
+  const seen = new Set<string>([DEFAULT_MODEL.id]);
+  const out = [DEFAULT_MODEL];
+  for (const model of (parsed as { models: unknown[] }).models) {
+    if (!model || typeof model !== "object") continue;
+    const entry = model as Record<string, unknown>;
+    if (entry.visibility === "hidden") continue;
+    const id = typeof entry.slug === "string" ? entry.slug : typeof entry.id === "string" ? entry.id : "";
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const label = typeof entry.display_name === "string" ? entry.display_name : id;
+    out.push({ id, label });
+  }
+  return out.length > 1 ? out : null;
+}
+
+export const codexAdapter: AgentAdapterDef = {
+  id: "codex",
+  displayName: "Codex CLI",
+  bin: "codex",
+  binEnvVar: "CODEX_BIN",
+  versionArgs: ["--version"],
+  listModels: {
+    args: ["debug", "models"],
+    timeoutMs: 5_000,
+    parse: (stdout) => parseCodexDebugModels(stdout),
+  },
+  fallbackModels: [
+    DEFAULT_MODEL,
+    { id: "gpt-5-codex", label: "gpt-5-codex" },
+    { id: "gpt-5", label: "gpt-5" },
+    { id: "o3", label: "o3" },
+    { id: "o4-mini", label: "o4-mini" },
+  ],
+  buildArgs(input: BuildArgsInput): string[] {
+    const args = ["exec", "--json", "--skip-git-repo-check"];
+    if (input.permissionPolicy === "danger-full-access") {
+      args.push("--sandbox", "danger-full-access");
+    } else if (input.permissionPolicy === "workspace-write") {
+      args.push("--sandbox", "workspace-write", "-c", "sandbox_workspace_write.network_access=true");
+    } else if (input.permissionPolicy === "read-only") {
+      args.push("--sandbox", "read-only");
+    }
+    args.push("-C", input.cwd);
+    for (const dir of input.extraAllowedDirs) args.push("--add-dir", dir);
+    if (input.model && input.model !== "default") args.push("--model", input.model);
+    if (input.reasoning && input.reasoning !== "default") {
+      args.push("-c", `model_reasoning_effort="${input.reasoning}"`);
+    }
+    return args;
+  },
+  promptTransport: { kind: "stdin", inputFormat: "text" },
+  stream: { create: () => new CodexJsonParser() },
+  capabilities: { streaming: true, tools: true, models: true },
+  defaults: { permissionPolicy: "agent-default" },
+};

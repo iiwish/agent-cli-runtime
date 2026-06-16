@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：Draft v0.1
+状态：MVP implemented v0.2
 负责人：local project
 最后更新：2026-06-16
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -76,6 +76,8 @@ nexu-io/open-design HEAD c54e49aae9d2dc8b044467187c081d5d7c50bebc
 
 - TypeScript/Node.js library API。
 - 一个薄 CLI wrapper，用于 smoke test 和简单本地调用。
+- 内存态 `RunScheduler`：状态机、event replay、cancel、timeout、run result classification。
+- 内存态 `GoalScheduler`：planner run -> JSON task graph -> dependency ordered task runs。
 - 内置三个 adapter：
   - Codex CLI
   - Claude Code
@@ -86,6 +88,7 @@ nexu-io/open-design HEAD c54e49aae9d2dc8b044467187c081d5d7c50bebc
 - 统一事件流，暴露为 `AsyncIterable<AgentEvent>`。
 - 通过 `AbortSignal` 和 child process signal 支持 cancellation。
 - 基础 timeout 和 inactivity guard。
+- task run 成功后执行 `validationCommands`，失败则 task/goal failed。
 - 每次 run 可选 `model`、`reasoning`、`env`、`extraAllowedDirs`。
 - parser fixture 和 fake CLI tests。
 
@@ -176,11 +179,18 @@ export interface AgentRuntime {
   detect(options?: DetectOptions): Promise<DetectedAgent[]>;
   detectStream(options?: DetectOptions): AsyncIterable<DetectedAgent>;
   run(request: RunRequest): Promise<RunHandle>;
+  createGoal(request: CreateGoalRequest): Promise<GoalHandle>;
+  cancelRun(runId: string): Promise<void>;
+  cancelGoal(goalId: string): Promise<void>;
   getAdapter(id: AgentId): AgentAdapterDef | null;
 }
 ```
 
 `run()` 在 child process 已启动、事件解析已挂载后返回。调用方消费 `handle.events`，直到收到 terminal `run_finished` event。run 开始后的 agent failure 应作为事件发出，而不是在 iterator 外层抛出。
+
+`createGoal()` 会先用 planner prompt 启动一次 run，收集 `text_delta` 作为 strict JSON task graph，校验后按依赖顺序串行执行 task。MVP 不做并发；任一 task failed 时 goal failed，除非 caller 设置 `continueOnFailure`。
+
+Task run 成功后，如果 task 带有 `validationCommands`，runtime 会在 task `cwd` 依次执行这些 shell commands；任一 command 非零退出则 task failed，validation stdout/stderr tail 会 redacted 后写入 task evidence。调用方应只对可信目标或可信 planner 开启自动 validation。
 
 ## 6. Adapter 定义
 
@@ -516,6 +526,7 @@ CLI 主要用于 smoke testing 和简单 local scripting。
 ```bash
 agent-runtime agents
 agent-runtime run --agent codex --cwd . --prompt "fix lint"
+agent-runtime goal --agent codex --cwd . --prompt "split and execute this objective"
 agent-runtime run --agent claude --cwd . --model sonnet --permission workspace-write --prompt-file prompt.md
 agent-runtime doctor
 ```
@@ -628,6 +639,12 @@ agent-runtime run --agent opencode --cwd /tmp/agent-runtime-smoke --prompt "summ
 - 添加 `--json` 和 `--stream jsonl`。
 - 补 usage 文档。
 
+### M6：Compatibility And Release Prep
+
+- 真实 Codex / Claude / OpenCode CLI compatibility matrix。
+- contribution guide、security policy、package publishing checklist。
+- 可选 disk-backed event log / goal evidence persistence。
+
 ## 19. 待定问题
 
 1. Runtime 是否只做 library-first，还是 post-MVP 保留 long-lived daemon mode？
@@ -642,8 +659,9 @@ agent-runtime run --agent opencode --cwd /tmp/agent-runtime-smoke --prompt "summ
 - library-first runtime，加一个小 CLI wrapper。
 - MVP adapters：Codex、Claude Code、OpenCode。
 - core 负责 process orchestration；adapter 负责 argv 和 parser mapping。
-- prompt transport 默认 stdin。
-- detection 使用 neutral temp cwd。
+- prompt transport 默认 stdin；Claude 使用 stdin JSONL。
+- detection 使用 neutral temp cwd；单 adapter 失败不影响整体。
 - permission escalation 必须显式。
+- GoalScheduler MVP 默认串行，基于 planner JSON task graph。
 - MVP 不做 cloud API fallback。
 - 不绑定 OpenDesign skill/plugin/artifact。

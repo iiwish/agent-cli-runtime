@@ -20,9 +20,9 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 
 ## Status
 
-This repository is in **pre-alpha design stage**.
+This repository is in **pre-alpha MVP stage**.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). Implementation comes next. Until the first package release, command examples below describe the target API and CLI shape rather than a published npm package.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with in-memory run and goal scheduling, fake CLI integration tests, and thin local smoke CLI commands.
 
 ## Why
 
@@ -53,7 +53,7 @@ Agent CLI Runtime is not:
 
 The runtime delegates the agent loop. It normalizes execution, not intelligence.
 
-## Target API
+## API
 
 ```ts
 import { createAgentRuntime } from "agent-cli-runtime";
@@ -78,16 +78,89 @@ for await (const event of run.events) {
 }
 ```
 
-## Target CLI
+Goals add a planner run before task execution:
+
+```ts
+const goal = await runtime.createGoal({
+  cwd: "/path/to/project",
+  objective: "Implement a focused parser regression fix.",
+  defaultAgentId: "codex",
+  permissionPolicy: "workspace-write",
+});
+
+for await (const event of goal.events) {
+  if (event.type === "task_started") console.log(event.taskId, event.runId);
+  if (event.type === "goal_finished") console.log(event.result);
+}
+```
+
+The public facade exposes:
+
+- `createAgentRuntime(options?)`
+- `runtime.detect(options?)`
+- `runtime.detectStream(options?)`
+- `runtime.run(request)`
+- `runtime.createGoal(request)`
+- `runtime.cancelRun(runId)`
+- `runtime.cancelGoal(goalId)`
+
+## Installation
+
+```bash
+npm install agent-cli-runtime
+```
+
+For local development from this repository:
+
+```bash
+npm ci
+npm run build
+node ./dist/cli/main.js agents --json
+```
+
+## CLI
 
 ```bash
 agent-runtime agents
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
+agent-runtime goal --agent codex --cwd . --prompt "split this objective into tasks and execute them"
 agent-runtime run --agent claude --cwd . --permission workspace-write --prompt-file task.md
 agent-runtime doctor
 ```
 
-The library API is primary. The CLI will be a thin wrapper over the same runtime.
+The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams.
+
+## Configuration
+
+Executable overrides:
+
+```bash
+export CODEX_BIN=/absolute/path/to/codex
+export CLAUDE_BIN=/absolute/path/to/claude
+export OPENCODE_BIN=/absolute/path/to/opencode
+```
+
+Proxy settings are inherited from the process environment:
+
+```bash
+export HTTPS_PROXY=http://127.0.0.1:7897
+export HTTP_PROXY=http://127.0.0.1:7897
+```
+
+Claude Code can also target Anthropic-compatible providers such as DeepSeek:
+
+```bash
+export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
+export ANTHROPIC_AUTH_TOKEN=<your-token>
+export ANTHROPIC_MODEL='deepseek-v4-pro[1m]'
+export ANTHROPIC_DEFAULT_OPUS_MODEL='deepseek-v4-pro[1m]'
+export ANTHROPIC_DEFAULT_SONNET_MODEL='deepseek-v4-pro[1m]'
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash
+export CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash
+export CLAUDE_CODE_EFFORT_LEVEL=max
+```
+
+See [docs/compatibility.md](./docs/compatibility.md) for the current real CLI smoke matrix.
 
 ## Runtime Model
 
@@ -119,9 +192,9 @@ The core runner owns process lifecycle, diagnostics, cancellation, timeout, reda
 
 | Adapter | Target binary | Prompt transport | Stream strategy | MVP status |
 | --- | --- | --- | --- | --- |
-| Codex CLI | `codex` | stdin | `codex exec --json` | Planned |
-| Claude Code | `claude` | stdin JSONL | `stream-json` | Planned |
-| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | Planned |
+| Codex CLI | `codex` | stdin | `codex exec --json` | Implemented MVP, real flags need ongoing compatibility smoke |
+| Claude Code | `claude` | stdin JSONL | `stream-json` | Implemented MVP, real flags need ongoing compatibility smoke |
+| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | Implemented MVP, real flags need ongoing compatibility smoke |
 
 Future adapters should be possible without changing the core runtime.
 
@@ -142,6 +215,8 @@ type AgentEvent =
   | { type: "run_finished"; result: "success" | "failed" | "cancelled" };
 ```
 
+Goal scheduling wraps run events with `goal_started`, `task_created`, `task_started`, `run_event`, `task_finished`, `goal_finished`, and `scheduler_error`.
+
 Adapter-specific raw events can be logged for debugging, but the public API should stay stable and small.
 
 ## Security Model
@@ -157,6 +232,7 @@ This project starts local processes on behalf of the caller. That is powerful an
 - Permission escalation must be explicit.
 - Logs and diagnostics must redact secret-looking env values and tokens.
 - A failed adapter must not collapse detection for other adapters.
+- Goal task `validationCommands` run in the task `cwd` after a successful agent run; failed validation marks the task and goal as failed.
 
 The runtime should never grant more authority than the caller requested.
 
@@ -168,12 +244,12 @@ It is not affiliated with OpenDesign, OpenCode, Anthropic, OpenAI, or any suppor
 
 ## Roadmap
 
-- M0: SSOT, README, license, project skeleton.
-- M1: core process runner with fake CLI tests.
-- M2: Codex adapter.
-- M3: Claude Code adapter.
-- M4: OpenCode adapter.
-- M5: CLI wrapper and `doctor` command.
+- M0: SSOT, README, license, project skeleton. Done.
+- M1: core process runner with fake CLI tests. Done.
+- M2: Codex adapter MVP. Done.
+- M3: Claude Code adapter MVP. Done.
+- M4: OpenCode adapter MVP. Done.
+- M5: CLI wrapper and `doctor` command. Done.
 - M6: public package, compatibility matrix, contribution guide, and security policy.
 
 ## Contributing
