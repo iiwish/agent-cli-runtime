@@ -5,16 +5,17 @@ import { createAgentRuntime } from "../index.js";
 
 interface ParsedArgs {
   command: string;
+  positional: string[];
   flags: Map<string, string | boolean>;
 }
 
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv.slice(2));
-  const runtime = createAgentRuntime();
   if (!parsed.command || parsed.command === "help" || parsed.flags.has("help")) {
     printHelp();
     return;
   }
+  const runtime = createAgentRuntime({ storageDir: stringFlag(parsed, "storage-dir") });
   if (parsed.command === "agents") {
     const agents = await runtime.detect({ includeUnavailable: true });
     output(parsed, agents);
@@ -26,6 +27,26 @@ async function main(): Promise<void> {
       ok: agents.some((agent) => agent.available),
       agents,
     });
+    return;
+  }
+  if (parsed.command === "runs") {
+    output(parsed, await runtime.listRuns({ status: runStatusFlag(parsed) }));
+    return;
+  }
+  if (parsed.command === "run-events") {
+    const runId = parsed.positional[0];
+    if (!runId) throw new Error("run-events requires a runId");
+    output(parsed, await runtime.getRunEvents(runId, { afterEventId: numberFlag(parsed, "after") }));
+    return;
+  }
+  if (parsed.command === "goals") {
+    output(parsed, await runtime.listGoals({ status: goalStatusFlag(parsed) }));
+    return;
+  }
+  if (parsed.command === "goal-events") {
+    const goalId = parsed.positional[0];
+    if (!goalId) throw new Error("goal-events requires a goalId");
+    output(parsed, await runtime.getGoalEvents(goalId, { afterEventId: numberFlag(parsed, "after") }));
     return;
   }
   if (parsed.command === "run") {
@@ -59,9 +80,13 @@ async function main(): Promise<void> {
 function parseArgs(argv: string[]): ParsedArgs {
   const [command = "help", ...rest] = argv;
   const flags = new Map<string, string | boolean>();
+  const positional: string[] = [];
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index];
-    if (!arg.startsWith("--")) continue;
+    if (!arg.startsWith("--")) {
+      positional.push(arg);
+      continue;
+    }
     const key = arg.slice(2);
     const next = rest[index + 1];
     if (!next || next.startsWith("--")) {
@@ -71,7 +96,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       index += 1;
     }
   }
-  return { command, flags };
+  return { command, positional, flags };
 }
 
 async function promptFromFlags(parsed: ParsedArgs): Promise<string> {
@@ -125,11 +150,23 @@ function permissionFlag(parsed: ParsedArgs) {
   return stringFlag(parsed, "permission") as never;
 }
 
+function runStatusFlag(parsed: ParsedArgs) {
+  return stringFlag(parsed, "status") as never;
+}
+
+function goalStatusFlag(parsed: ParsedArgs) {
+  return stringFlag(parsed, "status") as never;
+}
+
 function printHelp(): void {
   process.stdout.write(`agent-runtime agents [--json]
 agent-runtime doctor [--json]
 agent-runtime run --agent codex --cwd . --prompt "..." [--stream jsonl]
 agent-runtime goal --agent codex --cwd . --prompt "..." [--stream jsonl]
+agent-runtime runs --storage-dir .agent-runtime --json
+agent-runtime run-events <runId> --storage-dir .agent-runtime --after 10 --json
+agent-runtime goals --storage-dir .agent-runtime --json
+agent-runtime goal-events <goalId> --storage-dir .agent-runtime --after 10 --json
 `);
 }
 

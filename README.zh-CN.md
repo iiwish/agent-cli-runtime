@@ -22,7 +22,7 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 
 本仓库目前处于 **pre-alpha MVP stage**。
 
-SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 library-first Node.js/TypeScript MVP，包含内存态 run / goal 调度、fake CLI 集成测试，以及用于本地 smoke 的薄 CLI。
+SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 library-first Node.js/TypeScript MVP，默认 memory-only run / goal 调度，可选 disk backed replay storage，包含 fake CLI 集成测试，以及用于本地 smoke 的薄 CLI。
 
 ## 为什么需要它
 
@@ -94,6 +94,19 @@ for await (const event of goal.events) {
 }
 ```
 
+持久化是显式开启的：不传 `storageDir` 时，run 和 goal 仍然只保存在内存里；传入 `storageDir` 后，runtime 会写入可审计的 JSON manifest 和 JSONL replay events：
+
+```ts
+const runtime = createAgentRuntime({
+  storageDir: ".agent-runtime",
+});
+
+const runs = await runtime.listRuns({ status: "active" });
+const runEvents = await runtime.getRunEvents("run_123", { afterEventId: 10 });
+const goals = await runtime.listGoals();
+const goalEvents = await runtime.getGoalEvents("goal_123");
+```
+
 Public facade 暴露：
 
 - `createAgentRuntime(options?)`
@@ -103,6 +116,12 @@ Public facade 暴露：
 - `runtime.createGoal(request)`
 - `runtime.cancelRun(runId)`
 - `runtime.cancelGoal(goalId)`
+- `runtime.getRun(runId)`
+- `runtime.getRunEvents(runId, { afterEventId? })`
+- `runtime.listRuns({ status? })`
+- `runtime.getGoal(goalId)`
+- `runtime.getGoalEvents(goalId, { afterEventId? })`
+- `runtime.listGoals({ status? })`
 
 ## 安装
 
@@ -126,9 +145,25 @@ agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
 agent-runtime goal --agent codex --cwd . --prompt "split this objective into tasks and execute them"
 agent-runtime run --agent claude --cwd . --permission workspace-write --prompt-file task.md
 agent-runtime doctor
+agent-runtime runs --storage-dir .agent-runtime --json
+agent-runtime run-events run_123 --storage-dir .agent-runtime --after 10 --json
+agent-runtime goals --storage-dir .agent-runtime --json
+agent-runtime goal-events goal_123 --storage-dir .agent-runtime --after 10 --json
 ```
 
 Library API 是主入口。CLI 是同一套 runtime 之上的薄包装，并支持 `--json` 以及 run/goal 的 `--stream jsonl` event stream。
+
+磁盘布局保持简单、方便人工检查和 `tail`：
+
+```text
+.agent-runtime/
+  runs/<runId>/manifest.json
+  runs/<runId>/events.jsonl
+  goals/<goalId>/manifest.json
+  goals/<goalId>/events.jsonl
+```
+
+每一行 JSONL 都是 `{ "id": 1, "timestamp": 123, "event": {...} }`。event id 在单个 run 或 goal 内单调递增，replay 时保持不变。新的 runtime 指向同一个 `storageDir` 后可以直接读取 terminal run/goal；如果发现 `queued`、`running` 或 `planning` 的历史记录，会把它标记为 failed，并写入 `AGENT_RUNTIME_INTERRUPTED` diagnostic/event，避免重启后假装仍在执行。
 
 ## 配置
 
@@ -151,7 +186,6 @@ Claude Code 也可以接入 DeepSeek 这类 Anthropic-compatible provider：
 
 ```bash
 export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-export ANTHROPIC_AUTH_TOKEN=<your-token>
 export ANTHROPIC_MODEL='deepseek-v4-pro[1m]'
 export ANTHROPIC_DEFAULT_OPUS_MODEL='deepseek-v4-pro[1m]'
 export ANTHROPIC_DEFAULT_SONNET_MODEL='deepseek-v4-pro[1m]'
@@ -159,6 +193,8 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash
 export CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash
 export CLAUDE_CODE_EFFORT_LEVEL=max
 ```
+
+请在 shell 或进程管理器中设置 provider 文档要求的 Anthropic-compatible auth token 环境变量；不要把真实 token 写入 prompt、fixture、manifest 或已提交文档。
 
 当前真实 CLI smoke matrix 见 [docs/compatibility.md](./docs/compatibility.md)。
 
@@ -231,6 +267,7 @@ Adapter-specific raw events 可以进入 debug log，但 public API 应保持稳
 - `extraAllowedDirs` 必须显式指定。
 - Permission escalation 必须显式指定。
 - Logs 和 diagnostics 必须 redact secret-looking env values 和 tokens。
+- Disk backed storage 不写入 secret-bearing environment maps；diagnostics 以及 validation stdout/stderr 会先 redaction，再写入 manifest 或 events。
 - 单个 adapter 失败不能导致其他 adapter detection 一起失败。
 - Goal task 的 `validationCommands` 会在 agent run 成功后由 runtime 在 task `cwd` 执行；validation 失败会把 task 和 goal 标记为 failed。
 

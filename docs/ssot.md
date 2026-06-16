@@ -76,8 +76,9 @@ nexu-io/open-design HEAD c54e49aae9d2dc8b044467187c081d5d7c50bebc
 
 - TypeScript/Node.js library API。
 - 一个薄 CLI wrapper，用于 smoke test 和简单本地调用。
-- 内存态 `RunScheduler`：状态机、event replay、cancel、timeout、run result classification。
-- 内存态 `GoalScheduler`：planner run -> JSON task graph -> dependency ordered task runs。
+- 默认 memory-only `RunScheduler`：状态机、event replay、cancel、timeout、run result classification。
+- 默认 memory-only `GoalScheduler`：planner run -> JSON task graph -> dependency ordered task runs。
+- 可选 `storageDir` disk backed persistence：run/goal manifest JSON、events JSONL、terminal replay、重启 active 状态中断化。
 - 内置三个 adapter：
   - Codex CLI
   - Claude Code
@@ -143,6 +144,7 @@ export interface RuntimeOptions {
   env?: NodeJS.ProcessEnv;
   searchPath?: string[];
   homeDir?: string;
+  storageDir?: string;
   logger?: RuntimeLogger;
 }
 
@@ -182,6 +184,12 @@ export interface AgentRuntime {
   createGoal(request: CreateGoalRequest): Promise<GoalHandle>;
   cancelRun(runId: string): Promise<void>;
   cancelGoal(goalId: string): Promise<void>;
+  getRun(runId: string): Promise<RunRecord | null>;
+  getRunEvents(runId: string, options?: { afterEventId?: number }): Promise<ReplayEvent<AgentEvent>[]>;
+  listRuns(options?: { status?: 'active' | RunStatus }): Promise<RunRecord[]>;
+  getGoal(goalId: string): Promise<GoalRecord | null>;
+  getGoalEvents(goalId: string, options?: { afterEventId?: number }): Promise<ReplayEvent<SchedulerEvent>[]>;
+  listGoals(options?: { status?: 'active' | GoalStatus }): Promise<GoalRecord[]>;
   getAdapter(id: AgentId): AgentAdapterDef | null;
 }
 ```
@@ -191,6 +199,18 @@ export interface AgentRuntime {
 `createGoal()` 会先用 planner prompt 启动一次 run，收集 `text_delta` 作为 strict JSON task graph，校验后按依赖顺序串行执行 task。MVP 不做并发；任一 task failed 时 goal failed，除非 caller 设置 `continueOnFailure`。
 
 Task run 成功后，如果 task 带有 `validationCommands`，runtime 会在 task `cwd` 依次执行这些 shell commands；任一 command 非零退出则 task failed，validation stdout/stderr tail 会 redacted 后写入 task evidence。调用方应只对可信目标或可信 planner 开启自动 validation。
+
+`storageDir` 是 opt-in。未传时保持纯内存行为；传入时，runtime 在该目录下写入：
+
+```text
+<storageDir>/
+  runs/<runId>/manifest.json
+  runs/<runId>/events.jsonl
+  goals/<goalId>/manifest.json
+  goals/<goalId>/events.jsonl
+```
+
+`events.jsonl` 每行格式为 `{ "id": 1, "timestamp": 123, "event": {...} }`。`id` 在单个 run/goal 内单调递增，`getRunEvents()` / `getGoalEvents()` 支持 `afterEventId` 增量 replay。新的 runtime 指向同一 `storageDir` 时必须能读取 terminal run/goal 的 manifest 和 events；若加载到 `queued`、`running` 或 `planning` 的历史记录，必须标记为 failed，并写入 `AGENT_RUNTIME_INTERRUPTED` diagnostic/event，不能假装继续运行。
 
 ## 6. Adapter 定义
 
@@ -344,6 +364,15 @@ Parser 规则：
 - CLI 暴露 shell command execution 但不暴露通用 tool event 时，可 synthesize `tool_call`。
 - 只有真实 usage 可用时才 emit `usage`。
 - 默认不把 unknown raw event 暴露在 public contract；debug log 可保留。
+
+Replay 规则：
+
+- memory-only 默认仍保留内存 replay buffer，适合嵌入式短生命周期调用。
+- `storageDir` 模式同时 append 到 JSONL，并用 manifest JSON 保存 run/goal/task/evidence 当前快照。
+- manifest 写入使用 temp file + rename，避免半写入快照。
+- 读取损坏 JSONL 时保留已读事件，并通过 `AGENT_EVENT_LOG_CORRUPT` diagnostic/event 暴露问题，不让 detect/run API 因历史日志损坏整体崩溃。
+- Disk backed storage 不写入 secret-bearing env；diagnostics、stderr tail、validation stdout/stderr 写入前必须 redaction。
+- `.reference/` 只可阅读，不进入 package，也不进入 runtime storage 约定。
 
 ## 10. MVP Adapter 决策
 
@@ -529,6 +558,10 @@ agent-runtime run --agent codex --cwd . --prompt "fix lint"
 agent-runtime goal --agent codex --cwd . --prompt "split and execute this objective"
 agent-runtime run --agent claude --cwd . --model sonnet --permission workspace-write --prompt-file prompt.md
 agent-runtime doctor
+agent-runtime runs --storage-dir .agent-runtime --json
+agent-runtime run-events run_123 --storage-dir .agent-runtime --after 10 --json
+agent-runtime goals --storage-dir .agent-runtime --json
+agent-runtime goal-events goal_123 --storage-dir .agent-runtime --after 10 --json
 ```
 
 输出模式：
@@ -536,6 +569,8 @@ agent-runtime doctor
 - 默认 human-readable；
 - `--json` 输出单个 JSON summary；
 - `--stream jsonl` 输出 event stream。
+- `runs` / `goals` 支持 `--status active|<terminal-status>` 过滤。
+- `run-events` / `goal-events` 支持 `--after <eventId>` 增量 replay。
 
 Library API 是主入口。CLI 必须复用同一套 API，不走第二套逻辑。
 
@@ -553,6 +588,9 @@ Library API 是主入口。CLI 必须复用同一套 API，不走第二套逻辑
 - `AGENT_STREAM_PARSE_FAILED`
 - `AGENT_TIMEOUT`
 - `AGENT_CANCELLED`
+- `AGENT_RUNTIME_INTERRUPTED`
+- `AGENT_EVENT_LOG_CORRUPT`
+- `AGENT_EVENT_PERSIST_FAILED`
 
 Diagnostics 应包含：
 
@@ -584,6 +622,11 @@ Diagnostics 应包含：
 - long prompt through stdin；
 - cancellation；
 - timeout；
+- run events JSONL persistence 和 `afterEventId` replay；
+- terminal run/goal 可由新 runtime 从同一 `storageDir` 读取；
+- active run/goal 在新 runtime 加载时写入 interrupted diagnostic/event 并标记 failed；
+- goal task evidence 和 validation stdout/stderr redaction 后落盘；
+- CLI `runs` / `run-events` / `goals` / `goal-events` 可读取 storageDir；
 - model list probe 只写 temp cwd。
 
 真实 CLI 的手动 smoke test：
@@ -643,7 +686,7 @@ agent-runtime run --agent opencode --cwd /tmp/agent-runtime-smoke --prompt "summ
 
 - 真实 Codex / Claude / OpenCode CLI compatibility matrix。
 - contribution guide、security policy、package publishing checklist。
-- 可选 disk-backed event log / goal evidence persistence。
+- 可选 disk backed event log / goal evidence persistence。
 
 ## 19. 待定问题
 

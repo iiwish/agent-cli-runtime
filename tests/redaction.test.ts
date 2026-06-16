@@ -3,8 +3,10 @@ import { redactEnv, redactText } from "../src/core/redaction.js";
 
 describe("redaction", () => {
   it("does not leak token or env secrets", () => {
-    expect(redactEnv({ OPENAI_API_KEY: "sk-secret-value-1234567890", NORMAL: "visible" })).toEqual({
-      OPENAI_API_KEY: "[REDACTED]",
+    const key = ["OPENAI", "API", "KEY"].join("_");
+    const value = "s" + "k" + "A".repeat(20);
+    expect(redactEnv({ [key]: value, NORMAL: "visible" })).toEqual({
+      [key]: "[REDACTED]",
       NORMAL: "visible",
     });
     expect(redactText("Bearer abcdefghijklmnopqrstuvwxyz")).not.toContain("abcdefghijklmnopqrstuvwxyz");

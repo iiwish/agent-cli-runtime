@@ -24,6 +24,7 @@ export class GoalScheduler {
       cancel: async () => this.cancelGoal(goal.id),
     };
     void this.execute(goal.id, request).catch((error) => {
+      if (this.store.isTerminal(goal.id)) return;
       this.store.emit(goal.id, { type: "scheduler_error", code: "AGENT_EXECUTION_FAILED", message: error instanceof Error ? error.message : String(error) });
       this.finish(goal.id, "failed");
     });
@@ -38,6 +39,7 @@ export class GoalScheduler {
 
   private async execute(goalId: string, request: CreateGoalRequest): Promise<void> {
     this.store.emit(goalId, { type: "goal_started", goalId, objective: request.objective });
+    if (this.store.isTerminal(goalId)) return;
     const plannerText = await this.runAndCollectText(goalId, undefined, {
       agentId: request.plannerAgentId ?? request.defaultAgentId,
       cwd: request.cwd,
@@ -53,7 +55,9 @@ export class GoalScheduler {
     const tasks = validateTaskGraph(parsePlannerOutput(plannerText), request);
     this.store.setTasks(goalId, tasks);
     for (const task of tasks) this.store.emit(goalId, { type: "task_created", goalId, task });
+    if (this.store.isTerminal(goalId)) return;
     this.store.setStatus(goalId, "running");
+    if (this.store.isTerminal(goalId)) return;
 
     for (const task of dependencyOrder(tasks)) {
       if (this.cancelRequested.has(goalId)) {
@@ -62,7 +66,9 @@ export class GoalScheduler {
       }
       task.status = "running";
       this.store.updateTask(goalId, task);
+      if (this.store.isTerminal(goalId)) return;
       const result = await this.runTask(goalId, request, task);
+      if (this.store.isTerminal(goalId)) return;
       const validationResults = result === "success" && task.validationCommands?.length
         ? await runValidationCommands({
             commands: task.validationCommands,
@@ -86,7 +92,9 @@ export class GoalScheduler {
           : `Task ${task.id} finished with ${finalResult}.`,
       };
       this.store.updateTask(goalId, task);
+      if (this.store.isTerminal(goalId)) return;
       this.store.emit(goalId, { type: "task_finished", goalId, taskId: task.id, result: finalResult });
+      if (this.store.isTerminal(goalId)) return;
       if (finalResult !== "success" && !request.continueOnFailure) {
         this.blockDependents(goalId, tasks, task.id);
         return this.finish(goalId, finalResult === "cancelled" ? "cancelled" : "failed");
@@ -111,8 +119,16 @@ export class GoalScheduler {
     task.evidence = { runId: handle.runId, validationCommands: task.validationCommands ?? [], summary: "" };
     this.currentRuns.set(goalId, handle.runId);
     this.store.emit(goalId, { type: "task_started", goalId, taskId: task.id, runId: handle.runId });
+    if (this.store.isTerminal(goalId)) {
+      await handle.cancel();
+      return "failed";
+    }
     for await (const event of handle.events) {
       this.store.emit(goalId, { type: "run_event", goalId, taskId: task.id, runId: handle.runId, event });
+      if (this.store.isTerminal(goalId)) {
+        await handle.cancel();
+        break;
+      }
       if (event.type === "run_finished") result = event.result;
     }
     this.currentRuns.delete(goalId);
@@ -126,6 +142,10 @@ export class GoalScheduler {
     let result: RunResult = "failed";
     for await (const event of handle.events) {
       this.store.emit(goalId, { type: "run_event", goalId, taskId, runId: handle.runId, event });
+      if (this.store.isTerminal(goalId)) {
+        await handle.cancel();
+        break;
+      }
       if (event.type === "text_delta") text += event.text;
       if (event.type === "run_finished") result = event.result;
     }
@@ -153,6 +173,7 @@ export class GoalScheduler {
   }
 
   private finish(goalId: string, result: RunResult): void {
+    if (this.store.isTerminal(goalId)) return;
     this.store.setStatus(goalId, result === "success" ? "succeeded" : result === "cancelled" ? "canceled" : "failed", result);
     this.store.emit(goalId, { type: "goal_finished", goalId, result });
     this.currentRuns.delete(goalId);

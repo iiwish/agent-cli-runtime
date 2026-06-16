@@ -48,6 +48,7 @@ export class RunScheduler {
     }
 
     void this.execute(run.id, adapter, { ...request, cwd }).catch((error) => {
+      if (this.store.hasPersistenceFailed(run.id)) return;
       this.emitError(run.id, "AGENT_EXECUTION_FAILED", error instanceof Error ? error.message : String(error));
       this.finish(run.id, "failed", 1, null);
     });
@@ -93,7 +94,8 @@ export class RunScheduler {
       });
       const parser = adapter.stream.create();
       this.store.setStatus(runId, "running");
-      this.emit(runId, { type: "run_started", runId, agentId: adapter.id, cwd: request.cwd, model: request.model });
+      if (this.store.hasPersistenceFailed(runId)) return;
+      if (!this.emit(runId, { type: "run_started", runId, agentId: adapter.id, cwd: request.cwd, model: request.model })) return;
       const spawned = spawnProcess({
         command: resolution.selectedPath,
         args,
@@ -114,7 +116,10 @@ export class RunScheduler {
         for (const event of parser.parse(chunk.toString("utf8"))) {
           if (event.type === "error") sawParserError = true;
           if (isSubstantive(event)) sawSubstantiveEvent = true;
-          this.emit(runId, event);
+          if (!this.emit(runId, event)) {
+            void this.active.get(runId)?.process?.cancel();
+            break;
+          }
         }
       });
       spawned.child.stderr.on("data", (chunk: Buffer) => {
@@ -125,7 +130,7 @@ export class RunScheduler {
       for (const event of parser.flush()) {
         if (event.type === "error") sawParserError = true;
         if (isSubstantive(event)) sawSubstantiveEvent = true;
-        this.emit(runId, event);
+        if (!this.emit(runId, event)) return;
       }
       if (active?.timeout) clearTimeout(active.timeout);
       if (active?.cancelRequested) {
@@ -167,15 +172,17 @@ export class RunScheduler {
     this.active.delete(runId);
   }
 
-  private emit(runId: string, event: AgentEventInput): void {
+  private emit(runId: string, event: AgentEventInput): boolean {
     this.store.append(runId, withTimestamp<AgentEvent>(event));
+    return !this.store.hasPersistenceFailed(runId);
   }
 
-  private emitError(runId: string, code: RuntimeErrorCode, message: string, retryable = false): void {
-    this.emit(runId, { type: "error", code, message, retryable });
+  private emitError(runId: string, code: RuntimeErrorCode, message: string, retryable = false): boolean {
+    return this.emit(runId, { type: "error", code, message, retryable });
   }
 
   private finish(runId: string, result: RunResult, exitCode: number | null, signal: string | null): void {
+    if (this.store.hasPersistenceFailed(runId)) return;
     this.store.setStatus(runId, result === "success" ? "succeeded" : result === "cancelled" ? "canceled" : "failed", { exitCode, signal });
     this.emit(runId, { type: "run_finished", result, exitCode, signal });
   }

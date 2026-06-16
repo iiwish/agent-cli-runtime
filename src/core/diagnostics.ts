@@ -9,7 +9,10 @@ export type RuntimeErrorCode =
   | "AGENT_STREAM_PARSE_FAILED"
   | "AGENT_TIMEOUT"
   | "AGENT_CANCELLED"
-  | "AGENT_TASK_GRAPH_INVALID";
+  | "AGENT_TASK_GRAPH_INVALID"
+  | "AGENT_RUNTIME_INTERRUPTED"
+  | "AGENT_EVENT_LOG_CORRUPT"
+  | "AGENT_EVENT_PERSIST_FAILED";
 
 export interface RuntimeDiagnostic {
   code: RuntimeErrorCode | string;

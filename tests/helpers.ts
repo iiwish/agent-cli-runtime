@@ -52,7 +52,9 @@ process.stdin.on("end", () => {
   else if (input.includes("structured-error")) {
     console.log(JSON.stringify({ type: "error", message: "structured boom" }));
   } else if (input.includes("Return strict JSON")) {
-    const validationCommand = input.includes("bad-validation")
+    const validationCommand = input.includes("secret-validation")
+      ? "node -e \\"console.log('s' + 'k' + 'A'.repeat(20)); console.error('Bearer ' + 'B'.repeat(20))\\""
+      : input.includes("bad-validation")
       ? "node -e \\"process.exit(7)\\""
       : "node -e \\"process.exit(0)\\"";
     console.log(JSON.stringify({ tasks: [

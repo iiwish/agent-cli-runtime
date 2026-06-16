@@ -11,7 +11,7 @@ export type {
   RuntimeModelOption,
   StreamParser,
 } from "./adapters/adapter-types.js";
-export type { AgentEvent, RuntimeUsage, SchedulerEvent } from "./core/events.js";
+export type { AgentEvent, ReplayEvent, RuntimeUsage, SchedulerEvent } from "./core/events.js";
 export type { RuntimeDiagnostic, RuntimeErrorCode } from "./core/diagnostics.js";
 export type { CreateGoalRequest, GoalHandle, PlannerOutput, ScheduledTask, TaskEvidence } from "./goals/goal-types.js";
 export type { RunHandle, RunRequest, RuntimeContextBlock, RuntimeOptions, RuntimeSessionRef } from "./runs/run-types.js";

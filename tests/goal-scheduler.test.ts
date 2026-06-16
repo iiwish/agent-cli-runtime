@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { delimiter } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path, { delimiter } from "node:path";
 import { createAgentRuntime } from "../src/index.js";
+import { GoalStore } from "../src/goals/goal-store.js";
 import { dependencyOrder, parsePlannerOutput, validateTaskGraph } from "../src/goals/task-graph.js";
+import type { FileStorage } from "../src/storage/storage-types.js";
 import { fakeAdapter, fakeCliBody, tempDir, writeExecutable } from "./helpers.js";
+
+const execFileP = promisify(execFile);
 
 async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
   const out: T[] = [];
@@ -54,4 +61,115 @@ describe("GoalScheduler", () => {
     expect(events.some((event) => event.type === "task_finished" && event.taskId === "T001" && event.result === "failed")).toBe(true);
     expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "failed" });
   });
+
+  it("persists goal events, tasks, and redacted validation evidence", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    const storageDir = await tempDir("agent-runtime-storage-");
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir], storageDir });
+    const handle = await runtime.createGoal({ cwd, objective: "secret-validation", defaultAgentId: "fake" });
+    await collect(handle.events);
+
+    const secret = "s" + "k" + "A".repeat(20);
+    const bearer = "Bearer " + "B".repeat(20);
+    const manifest = await readFile(path.join(storageDir, "goals", handle.goalId, "manifest.json"), "utf8");
+    const replayed = await runtime.getGoalEvents(handle.goalId, { afterEventId: 1 });
+    const goal = await runtime.getGoal(handle.goalId);
+    expect(replayed.every((record) => record.id > 1)).toBe(true);
+    expect(goal?.tasks[0]?.evidence?.validationResults?.[0]?.stdout).toBe("[REDACTED]\n");
+    expect(goal?.tasks[0]?.evidence?.validationResults?.[0]?.stderr).toBe("[REDACTED]\n");
+    expect(manifest).not.toContain(secret);
+    expect(manifest).not.toContain(bearer);
+  });
+
+  it("loads terminal goals from a new runtime using the same storage dir", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    const storageDir = await tempDir("agent-runtime-storage-");
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir], storageDir });
+    const handle = await runtime.createGoal({ cwd, objective: "ship mvp", defaultAgentId: "fake" });
+    await collect(handle.events);
+
+    const restarted = createAgentRuntime({ storageDir });
+    expect(await restarted.getGoal(handle.goalId)).toMatchObject({ id: handle.goalId, status: "succeeded" });
+    const goals = await restarted.listGoals({ status: "succeeded" });
+    expect(goals.map((goal) => goal.id)).toContain(handle.goalId);
+  });
+
+  it("marks active goals as failed with a diagnostic event when storage is loaded", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const goalId = "goal_active_test";
+    const goalDir = path.join(storageDir, "goals", goalId);
+    await mkdir(goalDir, { recursive: true });
+    await writeFile(path.join(goalDir, "manifest.json"), JSON.stringify({
+      id: goalId,
+      cwd: await tempDir(),
+      objective: "active",
+      status: "running",
+      tasks: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }), "utf8");
+    await writeFile(path.join(goalDir, "events.jsonl"), `${JSON.stringify({ id: 1, timestamp: Date.now(), event: { type: "goal_started", goalId, objective: "active", timestamp: Date.now() } })}\n`, "utf8");
+
+    const runtime = createAgentRuntime({ storageDir });
+    const goal = await runtime.getGoal(goalId);
+    const events = await runtime.getGoalEvents(goalId);
+    expect(goal).toMatchObject({ id: goalId, status: "failed", result: "failed" });
+    expect(events.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
+    expect(events.at(-1)?.event).toMatchObject({ type: "goal_finished", result: "failed" });
+  });
+
+  it("CLI reads persisted runs and goals from storage dir", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    const storageDir = await tempDir("agent-runtime-storage-");
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir], storageDir });
+    const runHandle = await runtime.run({ agentId: "fake", cwd, prompt: "cli-run" });
+    await collect(runHandle.events);
+    const goalHandle = await runtime.createGoal({ cwd, objective: "ship mvp", defaultAgentId: "fake" });
+    await collect(goalHandle.events);
+
+    await execFileP("npm", ["run", "build"], { cwd: path.resolve(import.meta.dirname, "..") });
+    const cli = path.resolve(import.meta.dirname, "..", "dist", "cli", "main.js");
+    const runs = JSON.parse((await execFileP(process.execPath, [cli, "runs", "--storage-dir", storageDir, "--json"])).stdout);
+    const runEvents = JSON.parse((await execFileP(process.execPath, [cli, "run-events", runHandle.runId, "--storage-dir", storageDir, "--after", "1", "--json"])).stdout);
+    const goals = JSON.parse((await execFileP(process.execPath, [cli, "goals", "--storage-dir", storageDir, "--json"])).stdout);
+    const goalEvents = JSON.parse((await execFileP(process.execPath, [cli, "goal-events", goalHandle.goalId, "--storage-dir", storageDir, "--after", "1", "--json"])).stdout);
+    expect(runs.map((run: { id: string }) => run.id)).toContain(runHandle.runId);
+    expect(runEvents.every((event: { id: number }) => event.id > 1)).toBe(true);
+    expect(goals.map((goal: { id: string }) => goal.id)).toContain(goalHandle.goalId);
+    expect(goalEvents.every((event: { id: number }) => event.id > 1)).toBe(true);
+  });
+
+  it("fails a goal and emits diagnostics when event persistence fails", async () => {
+    const store = new GoalStore(throwingGoalEventStorage());
+    const goal = store.create({ cwd: await tempDir(), objective: "persist goal", defaultAgentId: "fake" });
+    const pendingEvents = collect(store.events(goal.id));
+
+    store.emit(goal.id, { type: "goal_started", goalId: goal.id, objective: goal.objective });
+
+    const record = store.get(goal.id);
+    const events = await pendingEvents;
+    expect(record).toMatchObject({ status: "failed", result: "failed" });
+    expect(events.some((event) => event.type === "scheduler_error" && event.code === "AGENT_EVENT_PERSIST_FAILED")).toBe(true);
+    expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "failed" });
+    expect(record).not.toHaveProperty("persistenceFailed");
+  });
 });
+
+function throwingGoalEventStorage(): FileStorage {
+  return {
+    listRuns: () => [],
+    writeRunManifest: () => undefined,
+    appendRunEvent: () => undefined,
+    listGoals: () => [],
+    writeGoalManifest: () => undefined,
+    appendGoalEvent: () => {
+      throw new Error("disk full");
+    },
+  };
+}

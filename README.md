@@ -22,7 +22,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 
 This repository is in **pre-alpha MVP stage**.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with in-memory run and goal scheduling, fake CLI integration tests, and thin local smoke CLI commands.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional disk backed replay storage, fake CLI integration tests, and thin local smoke CLI commands.
 
 ## Why
 
@@ -94,6 +94,19 @@ for await (const event of goal.events) {
 }
 ```
 
+Persistence is opt-in. Without `storageDir`, runs and goals stay memory-only. With `storageDir`, manifests and replay events are written as auditable JSON files:
+
+```ts
+const runtime = createAgentRuntime({
+  storageDir: ".agent-runtime",
+});
+
+const runs = await runtime.listRuns({ status: "active" });
+const runEvents = await runtime.getRunEvents("run_123", { afterEventId: 10 });
+const goals = await runtime.listGoals();
+const goalEvents = await runtime.getGoalEvents("goal_123");
+```
+
 The public facade exposes:
 
 - `createAgentRuntime(options?)`
@@ -103,6 +116,12 @@ The public facade exposes:
 - `runtime.createGoal(request)`
 - `runtime.cancelRun(runId)`
 - `runtime.cancelGoal(goalId)`
+- `runtime.getRun(runId)`
+- `runtime.getRunEvents(runId, { afterEventId? })`
+- `runtime.listRuns({ status? })`
+- `runtime.getGoal(goalId)`
+- `runtime.getGoalEvents(goalId, { afterEventId? })`
+- `runtime.listGoals({ status? })`
 
 ## Installation
 
@@ -126,9 +145,25 @@ agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
 agent-runtime goal --agent codex --cwd . --prompt "split this objective into tasks and execute them"
 agent-runtime run --agent claude --cwd . --permission workspace-write --prompt-file task.md
 agent-runtime doctor
+agent-runtime runs --storage-dir .agent-runtime --json
+agent-runtime run-events run_123 --storage-dir .agent-runtime --after 10 --json
+agent-runtime goals --storage-dir .agent-runtime --json
+agent-runtime goal-events goal_123 --storage-dir .agent-runtime --after 10 --json
 ```
 
 The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams.
+
+Disk storage layout is intentionally simple and tail-friendly:
+
+```text
+.agent-runtime/
+  runs/<runId>/manifest.json
+  runs/<runId>/events.jsonl
+  goals/<goalId>/manifest.json
+  goals/<goalId>/events.jsonl
+```
+
+Each JSONL line is `{ "id": 1, "timestamp": 123, "event": {...} }`. Event ids are monotonic per run or goal and are preserved for replay. When a new runtime opens a `storageDir`, terminal runs/goals are readable immediately; runs/goals found in `queued`, `running`, or `planning` are marked failed with an `AGENT_RUNTIME_INTERRUPTED` diagnostic/event so they never pretend to still be active after a process restart.
 
 ## Configuration
 
@@ -151,7 +186,6 @@ Claude Code can also target Anthropic-compatible providers such as DeepSeek:
 
 ```bash
 export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-export ANTHROPIC_AUTH_TOKEN=<your-token>
 export ANTHROPIC_MODEL='deepseek-v4-pro[1m]'
 export ANTHROPIC_DEFAULT_OPUS_MODEL='deepseek-v4-pro[1m]'
 export ANTHROPIC_DEFAULT_SONNET_MODEL='deepseek-v4-pro[1m]'
@@ -159,6 +193,8 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash
 export CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash
 export CLAUDE_CODE_EFFORT_LEVEL=max
 ```
+
+Set the provider's documented Anthropic-compatible auth token environment variable in your shell or process manager; do not place real tokens in prompts, fixtures, manifests, or committed docs.
 
 See [docs/compatibility.md](./docs/compatibility.md) for the current real CLI smoke matrix.
 
@@ -231,6 +267,7 @@ This project starts local processes on behalf of the caller. That is powerful an
 - `extraAllowedDirs` must be explicit.
 - Permission escalation must be explicit.
 - Logs and diagnostics must redact secret-looking env values and tokens.
+- Disk backed storage does not write secret-bearing environment maps. Diagnostics and validation stdout/stderr are redacted before they are written to manifests or events.
 - A failed adapter must not collapse detection for other adapters.
 - Goal task `validationCommands` run in the task `cwd` after a successful agent run; failed validation marks the task and goal as failed.
 

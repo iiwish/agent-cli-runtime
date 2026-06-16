@@ -19,6 +19,7 @@ export interface RuntimeOptions {
   env?: NodeJS.ProcessEnv;
   searchPath?: string[];
   homeDir?: string;
+  storageDir?: string;
   logger?: RuntimeLogger;
 }
 

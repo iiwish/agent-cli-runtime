@@ -44,7 +44,6 @@ Runtime notes:
 
 ```bash
 export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-export ANTHROPIC_AUTH_TOKEN=<your-token>
 export ANTHROPIC_MODEL='deepseek-v4-pro[1m]'
 export ANTHROPIC_DEFAULT_OPUS_MODEL='deepseek-v4-pro[1m]'
 export ANTHROPIC_DEFAULT_SONNET_MODEL='deepseek-v4-pro[1m]'
@@ -52,6 +51,8 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash
 export CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash
 export CLAUDE_CODE_EFFORT_LEVEL=max
 ```
+
+Set the provider's documented Anthropic-compatible auth token environment variable outside committed docs and fixtures.
 
 ### OpenCode
 
@@ -109,7 +110,7 @@ node ./dist/cli/main.js goal \
 
 ## Known MVP Gaps
 
-- This package does not persist run or goal events to disk.
+- Disk backed run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
 - Real CLI auth and model availability depend on the user's local installation.
 - Runtime-side validation executes shell commands supplied by task graphs; callers should only use it with trusted objectives or trusted planners.
 - Parser coverage is fixture-based plus local smoke; more real stream captures should be added before a stable release.
