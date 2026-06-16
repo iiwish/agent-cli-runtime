@@ -11,6 +11,14 @@ import type { RunHandle, RunRecord, RunRequest, RuntimeOptions } from "../runs/r
 import type { AgentEvent, SchedulerEvent } from "./events.js";
 import { JsonFileStorage } from "../storage/file-storage.js";
 import type { RunStatus } from "../runs/run-result.js";
+import {
+  exportDiagnosticsBundle,
+  inspectStoreDirectory,
+  type DiagnosticsBundle,
+  type ExportDiagnosticsRequest,
+  type InspectStoreOptions,
+  type StoreHealth,
+} from "../storage/store-inspection.js";
 
 export interface AgentRuntime {
   detect(options?: DetectOptions): Promise<DetectedAgent[]>;
@@ -28,6 +36,8 @@ export interface AgentRuntime {
   replayGoalEvents(goalId: string, options?: { afterEventId?: number }): Promise<Array<ReplayEvent<SchedulerEvent>>>;
   getGoalEvents(goalId: string, options?: { afterEventId?: number }): Promise<Array<ReplayEvent<SchedulerEvent>>>;
   listGoals(options?: { status?: "active" | GoalRecord["status"] }): Promise<GoalRecord[]>;
+  inspectStore(options?: InspectStoreOptions): Promise<StoreHealth>;
+  exportDiagnostics(request: ExportDiagnosticsRequest): Promise<DiagnosticsBundle>;
   getAdapter(id: AgentId): AgentAdapterDef | null;
 }
 
@@ -62,6 +72,13 @@ export function createAgentRuntime(options: RuntimeOptions = {}): AgentRuntime {
     replayGoalEvents: async (goalId, eventOptions) => goalStore.replay(goalId, eventOptions?.afterEventId),
     getGoalEvents: async (goalId, eventOptions) => goalStore.replay(goalId, eventOptions?.afterEventId),
     listGoals: async (listOptions) => goalStore.list(listOptions),
+    inspectStore: async (inspectOptions) => inspectStoreDirectory(requiredStorageDir(inspectOptions?.storageDir ?? options.storageDir)),
+    exportDiagnostics: async (request) => exportDiagnosticsBundle(request, requiredStorageDir(request.storageDir ?? options.storageDir)),
     getAdapter: (id) => registry.get(id),
   };
+}
+
+function requiredStorageDir(storageDir: string | undefined): string {
+  if (!storageDir) throw new Error("storageDir is required for store inspection and diagnostics export");
+  return storageDir;
 }

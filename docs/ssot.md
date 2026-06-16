@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P1-3 planner contract and CLI conformance hardening
+状态：P1-4 durable store health and diagnostics bundle hardening
 负责人：local project
 最后更新：2026-06-16
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -191,6 +191,8 @@ export interface AgentRuntime {
   getGoal(goalId: string): Promise<GoalRecord | null>;
   replayGoalEvents(goalId: string, options?: { afterEventId?: number }): Promise<ReplayEvent<SchedulerEvent>[]>;
   listGoals(options?: { status?: 'active' | GoalStatus }): Promise<GoalRecord[]>;
+  inspectStore(options?: { storageDir?: string }): Promise<StoreHealth>;
+  exportDiagnostics(request: ExportDiagnosticsRequest): Promise<DiagnosticsBundle>;
   getAdapter(id: AgentId): AgentAdapterDef | null;
 }
 ```
@@ -299,8 +301,21 @@ P1-1 durable store 可靠性要求：
 - manifest JSON 使用 temp file + rename 原子写入。
 - event JSONL append 前必须 redaction；manifest、diagnostics、validation stdout/stderr 写入前也必须 redaction。
 - 单个损坏 manifest 以 failed record 形式加载，并通过 `AGENT_STORE_RECORD_CORRUPT` diagnostic 暴露，不能阻塞其他 records。
-- 单个损坏 JSONL line 保留已读事件，并通过 `AGENT_EVENT_LOG_CORRUPT` diagnostic/event 暴露。
+- 单个损坏 JSONL line 保留已读事件，并通过 `AGENT_EVENT_LOG_CORRUPT` diagnostic/event 暴露；diagnostic 只记录 file、line、reason、retained event count，不保存原始坏行。
 - 重启后 terminal run/goal 可查询 status、result、diagnostics 并 replay events；active run/goal 被中断化，而不是 resume 一个已失去 child process 的内存状态。
+- 加载 corrupt manifest 时不得静默覆盖原始坏文件；health scan 仍应能报告 corrupt manifest。
+
+P1-4 storage health / diagnostics bundle contract：
+
+- `runtime.inspectStore({ storageDir? })` 和 CLI `agent-runtime store-health --storage-dir <dir> --json` 扫描磁盘 store，返回 run/goal 总数、corrupt manifests、corrupt event logs、partial tails、active/interrupted records、一致性 warnings 和 diagnostic summary。
+- partial/corrupt JSONL tail 必须保留有效 prefix replay，并在 health 中报告 file、line、reason、retained event count；不得把完整损坏行写入 diagnostics。
+- terminal manifest 缺少 terminal event 时报告 `AGENT_STORE_TERMINAL_EVENT_MISSING` warning。
+- event log 有 terminal event 但 manifest status 非 terminal 时报告 `AGENT_STORE_TERMINAL_EVENT_MANIFEST_MISMATCH` warning；health scan 不自动静默改写 manifest。
+- `runtime.exportDiagnostics(request)` 和 CLI `agent-runtime diagnostics run|goal <id> --storage-dir <dir> --json [--out <file>]` 导出 redacted JSON bundle。
+- diagnostics bundle 包含 schema version、subject、redacted manifest、event summary、diagnostics、consistency warnings、goal task attempt evidence 和 environment-safe adapter summary；它不导出完整 event payload、不导出完整 env dump。
+- `--out <file>` 使用 temp file + rename 原子写入。
+- P1-4 不实现 destructive repair；未来若加入 repair，默认必须 dry-run，真实修改必须显式 `--repair`。
+- health、bundle 和未来 repair diagnostics 均走统一 redaction：token、Bearer value、auth-token env assignment、secret-looking value、绝对私密路径都不得泄露。
 
 ## 6. Adapter 定义
 
@@ -764,11 +779,14 @@ Diagnostics 应包含：
 - retryable task failure 在 `maxAttempts > 1` 且 code 命中 `retryableErrorCodes` 时产生多次 attempt evidence；non-retryable failure 不重试；
 - `cancelGoal()` 同时覆盖 running run 和 queued/ready pending tasks；
 - partial/corrupt JSONL tail line replay 可读 prefix，并产生 `AGENT_EVENT_LOG_CORRUPT`；
+- store health scan 覆盖 empty store、corrupt run/goal manifest、partial JSONL tail、terminal manifest/event 不一致、active/interrupted records 和 redaction；
+- diagnostics bundle 覆盖 run/goal manifest、event summary、diagnostics、goal task attempt evidence、`--out` 原子写入和 redaction；
 - planner fenced JSON / surrounding prose 可提取；multiple JSON、malformed JSON、非法 task graph 字段类型以 `AGENT_TASK_GRAPH_INVALID` 进入 `scheduler_error` 并使 goal failed；
 - parser conformance fixtures 覆盖 Codex / Claude / OpenCode 的 normal output、structured error、usage、tool/file event、partial line 和 unknown event；
 - adapter `buildArgs` contract 覆盖长 prompt 不进入 argv，以及 cwd/model/permission/session/extra dir 映射；
 - CLI `smoke --mode detection` / `smoke --mode fixtures` 不联网、不启动真实 agent write run；Claude auth missing 对 doctor 是 expected diagnostic，不导致整体失败；
 - CLI `runs` / `goals` / `run-status` / `goal-status` / `replay-run` / `replay-goal` 可读取 storageDir；
+- CLI `store-health` / `diagnostics run` / `diagnostics goal --out` 可读取 storageDir 并输出 redacted evidence；
 - model list probe 只写 temp cwd。
 
 真实 CLI 的手动 smoke test：
@@ -859,6 +877,17 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - adapter `buildArgs` contract 明确 long prompt 不进入 argv，并覆盖 cwd/model/permission/session/extra dir 映射。
 - CLI 新增 `smoke`：detection only、offline parser fixture、显式 opt-in real read-only smoke。`--mode real` 默认关闭，不进入 `npm test` 或 CI。
 - `doctor` 把 Claude auth missing 作为 expected diagnostic；只要有可用 adapter，整体 `ok` 不因此失败。
+
+### P1-4：Durable Store Health And Diagnostics Bundle Hardening
+
+- 新增 runtime facade：`inspectStore()` 和 `exportDiagnostics()`；package root value export 仍只暴露 `createAgentRuntime`，新增能力只通过类型和 facade 暴露。
+- 新增 CLI：`store-health --storage-dir <dir> --json`、`diagnostics run <runId> --storage-dir <dir> --json [--out <file>]`、`diagnostics goal <goalId> --storage-dir <dir> --json [--out <file>]`。
+- `store-health` 报告 corrupt manifests、corrupt event logs、partial tails、active/interrupted records、terminal manifest/event consistency warnings 和 diagnostic summary。
+- JSONL recovery 继续保留 valid prefix；partial/corrupt tail diagnostics 不写原始坏行。
+- diagnostics bundle 输出 redacted manifest、event summary、diagnostics、goal attempt evidence 和 environment-safe adapter summary；不输出完整 env dump 或完整 event payload。
+- corrupt manifest reload 不再静默覆盖原始坏 manifest，避免把 evidence 当作自动 repair 消掉。
+- `--out` 使用原子 temp-file-and-rename 写入。
+- repair 仍不做 destructive mutation；若后续添加，默认 dry-run，真实修复必须显式 `--repair`。
 
 ## 19. 待定问题
 

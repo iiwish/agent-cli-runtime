@@ -156,12 +156,6 @@ export class GoalStore {
         if (!goal.diagnostics.some((item) => item.code === "AGENT_STORE_RECORD_CORRUPT")) {
           goal.diagnostics.push(diagnostic("AGENT_STORE_RECORD_CORRUPT", snapshot.manifestError.message));
         }
-        this.emit(goal.id, {
-          type: "scheduler_error",
-          code: "AGENT_STORE_RECORD_CORRUPT",
-          message: snapshot.manifestError.message,
-          retryable: false,
-        });
       }
       if (snapshot.eventsError) {
         this.emit(goal.id, {
@@ -171,7 +165,7 @@ export class GoalStore {
         });
       }
       if (!isTerminalGoal(goal.status)) this.markInterrupted(goal);
-      else this.tryPersistManifest(goal);
+      else if (!snapshot.manifestError) this.tryPersistManifest(goal);
     }
   }
 

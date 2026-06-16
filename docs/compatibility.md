@@ -1,9 +1,9 @@
 # Agent CLI Compatibility Matrix
 
-Status: P1-3 planner contract and CLI conformance hardening over P0-5 compatibility baseline
+Status: P1-4 durable store health and diagnostics bundle hardening over P0-5 compatibility baseline
 Last updated: 2026-06-16
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-3 hardened planner/task graph validation, scheduler error classification, adapter build-args contracts, offline parser conformance fixtures, and the explicit `smoke` harness. It did not rerun authenticated real-agent write smokes beyond detection/doctor and offline fixture modes.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-4 hardened durable store health scanning, corrupt/partial JSONL diagnostics, manifest/event consistency warnings, and redacted diagnostics bundle export. It did not rerun authenticated real-agent write smokes beyond detection/doctor and offline fixture modes.
 
 ## Summary
 
@@ -110,6 +110,9 @@ node ./dist/cli/main.js replay-run run_123 --storage-dir .agent-runtime --jsonl
 node ./dist/cli/main.js goals --storage-dir .agent-runtime --json
 node ./dist/cli/main.js goal-status goal_123 --storage-dir .agent-runtime --json
 node ./dist/cli/main.js replay-goal goal_123 --storage-dir .agent-runtime --jsonl
+node ./dist/cli/main.js store-health --storage-dir .agent-runtime --json
+node ./dist/cli/main.js diagnostics run run_123 --storage-dir .agent-runtime --json
+node ./dist/cli/main.js diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
 ```
 
 Optional real non-mutating run smoke, only when the relevant local CLI auth is available. This is disabled unless `--allow-real-run` is present; without `--cwd`, it uses an isolated temp directory and `read-only` permission:
@@ -177,8 +180,9 @@ node ./dist/cli/main.js goal \
 ## Known MVP Gaps
 
 - Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
-- P1-3 verifies planner schema validation, parser fixture conformance, adapter argv construction, and smoke harness guardrails through tests. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
-- JSONL append is still a simple append-only file, not fsync-backed and not segmented. P1-2 verifies corrupt/partial tail prefix replay plus `AGENT_EVENT_LOG_CORRUPT`, but a host crash can still lose the final in-flight line.
+- P1-4 verifies store health, diagnostics bundle export, redaction, and manifest/event consistency through tests. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
+- JSONL append is still a simple append-only file, not fsync-backed and not segmented. P1-4 verifies corrupt/partial tail prefix replay plus explicit health diagnostics, but a host crash can still lose the final in-flight line.
+- There is still no long-lived daemon, WAL, fsync group commit, segment compaction, or automatic destructive repair.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
 - CLI remains a thin local smoke/scripting wrapper over the library API, not a daemon or long-lived service.
 - Real CLI auth and model availability depend on the user's local installation.
@@ -267,6 +271,34 @@ Covered behavior:
 - Codex / Claude / OpenCode `buildArgs` tests confirm long prompts stay out of argv while cwd/model/permission/session/extra dir mappings remain explicit;
 - `smoke --mode detection` and `smoke --mode fixtures` are offline-safe; `smoke --mode real` requires `--allow-real-run`;
 - Claude auth missing remains an expected `doctor` diagnostic and does not fail the overall doctor result when the adapter itself is available;
+- package root value exports remain limited to `createAgentRuntime`;
+- `npm pack --dry-run` excludes `.reference/`, test fixtures/secrets, and real smoke output.
+
+## P1-4 Store Health And Diagnostics Bundle Evidence
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run ci
+node ./dist/cli/main.js store-health --storage-dir <tmp> --json
+node ./dist/cli/main.js smoke --mode fixtures --json
+node ./dist/cli/main.js doctor --json
+```
+
+Covered behavior:
+
+- empty store health returns `ok: true`;
+- corrupt run and goal manifests do not crash runtime load and remain visible to health scan;
+- corrupt/partial run JSONL keeps the replayable prefix and reports file, line, reason, and retained event count without storing the raw bad line;
+- terminal manifest missing terminal event and terminal event with non-terminal manifest are reported as warnings, not auto-repaired;
+- run diagnostics bundle contains redacted manifest, event summary, diagnostics, and environment-safe adapter summary;
+- goal diagnostics bundle includes redacted task attempt evidence;
+- `diagnostics ... --out <file>` writes a valid redacted bundle via atomic temp-file-and-rename;
+- health and bundle output redact token-looking values, Bearer values, auth-token assignments, and absolute private paths;
 - package root value exports remain limited to `createAgentRuntime`;
 - `npm pack --dry-run` excludes `.reference/`, test fixtures/secrets, and real smoke output.
 

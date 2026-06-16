@@ -187,6 +187,9 @@ The public facade exposes:
 - `runtime.getGoal(goalId)`
 - `runtime.replayGoalEvents(goalId, { afterEventId? })`
 - `runtime.listGoals({ status? })`
+- `runtime.inspectStore({ storageDir? })`
+- `runtime.exportDiagnostics({ kind: "run", runId, storageDir? })`
+- `runtime.exportDiagnostics({ kind: "goal", goalId, storageDir? })`
 - `runtime.getAdapter(id)`
 
 ### API Contract Boundary
@@ -232,6 +235,9 @@ agent-runtime replay-run run_123 --storage-dir .agent-runtime --after 10 --jsonl
 agent-runtime goals --storage-dir .agent-runtime --json
 agent-runtime goal-status goal_123 --storage-dir .agent-runtime --json
 agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jsonl
+agent-runtime store-health --storage-dir .agent-runtime --json
+agent-runtime diagnostics run run_123 --storage-dir .agent-runtime --json
+agent-runtime diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
 ```
 
 The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams. For run/goal commands, `--json` prints the final run or goal record. `--stream jsonl --diagnostics` keeps the event stream and appends a redacted `run_summary` or `goal_summary` line after the terminal event.
@@ -252,7 +258,11 @@ Disk storage layout is intentionally simple and tail-friendly:
   goals/<goalId>/events.jsonl
 ```
 
-Each JSONL line is `{ "id": 1, "sequence": 1, "runId": "run_123", "timestamp": 123, "event": {...} }` or the same shape with `goalId`. Event ids/sequences are monotonic per run or goal and are preserved for stable replay. `runtime.shutdown(reason?)` cancels active runs/goals and waits briefly for terminal events before returning. When a new runtime opens a `storageDir`, terminal runs/goals are readable immediately; runs/goals found in `queued`, `running`, or `planning` are marked failed with an `AGENT_RUNTIME_INTERRUPTED` diagnostic/event so they never pretend to still be active after a process restart. A corrupt manifest or JSONL line is isolated to that record and reported through `AGENT_STORE_RECORD_CORRUPT` or `AGENT_EVENT_LOG_CORRUPT` diagnostics instead of failing runtime initialization.
+Each JSONL line is `{ "id": 1, "sequence": 1, "runId": "run_123", "timestamp": 123, "event": {...} }` or the same shape with `goalId`. Event ids/sequences are monotonic per run or goal and are preserved for stable replay. `runtime.shutdown(reason?)` cancels active runs/goals and waits briefly for terminal events before returning. When a new runtime opens a `storageDir`, terminal runs/goals are readable immediately; runs/goals found in `queued`, `running`, or `planning` are marked failed with an `AGENT_RUNTIME_INTERRUPTED` diagnostic/event so they never pretend to still be active after a process restart. A corrupt manifest or JSONL line is isolated to that record and reported through `AGENT_STORE_RECORD_CORRUPT` or `AGENT_EVENT_LOG_CORRUPT` diagnostics instead of failing runtime initialization. Corrupt manifests are not silently rewritten during load, so later health scans can still see the original damaged record.
+
+`store-health` scans the on-disk store without launching an agent. It reports run/goal totals, corrupt manifests, corrupt event logs, partial JSONL tails with retained prefix counts, interrupted historical records, and consistency warnings. Terminal manifests without terminal events and non-terminal manifests with terminal events are reported as warnings; the runtime does not silently reconcile them.
+
+Diagnostics bundles are redacted JSON evidence packets for one run or goal. A bundle includes the sanitized manifest, an event summary rather than full event payloads, diagnostics, goal task attempt evidence when present, and an environment-safe adapter summary. `--out <file>` writes the bundle with a temp-file-and-rename atomic write. Bundles and health output do not include raw corrupt JSONL lines, tokens, Bearer values, auth-token environment assignments, full environment dumps, or absolute private paths.
 
 ## Configuration
 

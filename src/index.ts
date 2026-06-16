@@ -31,3 +31,12 @@ export type {
 } from "./goals/goal-types.js";
 export type { RunHandle, RunRecord, RunRequest, RuntimeContextBlock, RuntimeOptions, RuntimeSessionRef } from "./runs/run-types.js";
 export type { RunResult, RunStatus } from "./runs/run-result.js";
+export type {
+  DiagnosticsBundle,
+  ExportDiagnosticsRequest,
+  InspectStoreOptions,
+  StoreHealth,
+  StoreHealthIssue,
+  StoreHealthSummary,
+  StoreHealthWarning,
+} from "./storage/store-inspection.js";

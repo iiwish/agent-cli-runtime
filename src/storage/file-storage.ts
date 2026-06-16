@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFile
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, ReplayEvent, SchedulerEvent } from "../core/events.js";
-import { redactText, redactValue } from "../core/redaction.js";
+import { redactUnknown } from "../core/redaction.js";
 import type { GoalRecord } from "../goals/goal-types.js";
 import type { RunRecord } from "../runs/run-types.js";
 import { appendJsonl, readJsonl } from "./jsonl-store.js";
@@ -24,6 +24,7 @@ export class JsonFileStorage implements FileStorage {
         manifestError: manifest.error,
         events: events.records.map((record) => normalizeReplayEvent(record, { runId })),
         eventsError: events.error,
+        eventsIssue: events.issue,
       };
     });
   }
@@ -47,6 +48,7 @@ export class JsonFileStorage implements FileStorage {
         manifestError: manifest.error,
         events: events.records.map((record) => normalizeReplayEvent(record, { goalId })),
         eventsError: events.error,
+        eventsIssue: events.issue,
       };
     });
   }
@@ -185,18 +187,7 @@ function atomicWriteJson(file: string, value: unknown): void {
 }
 
 function sanitizeForStorage<T>(value: T): T {
-  return sanitizeUnknown(value) as T;
-}
-
-function sanitizeUnknown(value: unknown, key = ""): unknown {
-  if (typeof value === "string") return redactValue(key, redactText(value));
-  if (Array.isArray(value)) return value.map((item) => sanitizeUnknown(item, key));
-  if (!value || typeof value !== "object") return value;
-  const out: Record<string, unknown> = {};
-  for (const [childKey, childValue] of Object.entries(value)) {
-    out[childKey] = sanitizeUnknown(childValue, childKey);
-  }
-  return out;
+  return redactUnknown(value);
 }
 
 function normalizeReplayEvent<T>(record: ReplayEvent<T>, scope: { runId?: string; goalId?: string }): ReplayEvent<T> {

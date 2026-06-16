@@ -168,7 +168,7 @@ export class RunStore {
       }
       this.runs.set(run.id, run);
       if (!isTerminal(run.status)) this.markInterrupted(run);
-      else this.tryPersistManifest(run);
+      else if (!snapshot.manifestError) this.tryPersistManifest(run);
     }
   }
 

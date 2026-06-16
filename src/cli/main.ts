@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createAgentRuntime } from "../index.js";
 import { redactText } from "../core/redaction.js";
 import { runParserFixtureCases } from "../smoke/parser-fixtures.js";
+import { atomicWriteJsonFile, exportDiagnosticsBundle, inspectStoreDirectory } from "../storage/store-inspection.js";
 
 interface ParsedArgs {
   command: string;
@@ -16,6 +17,15 @@ async function main(): Promise<void> {
   const parsed = parseArgs(process.argv.slice(2));
   if (!parsed.command || parsed.command === "help" || parsed.flags.has("help")) {
     printHelp();
+    return;
+  }
+  if (parsed.command === "store-health") {
+    const storageDir = requiredStringFlag(parsed, "storage-dir", "store-health requires --storage-dir <dir>");
+    output(parsed, inspectStoreDirectory(path.resolve(storageDir)));
+    return;
+  }
+  if (parsed.command === "diagnostics") {
+    await runDiagnosticsCommand(parsed);
     return;
   }
   const runtime = createAgentRuntime({ storageDir: stringFlag(parsed, "storage-dir") });
@@ -96,6 +106,24 @@ async function main(): Promise<void> {
     return;
   }
   throw new Error(`Unknown command: ${parsed.command}`);
+}
+
+async function runDiagnosticsCommand(parsed: ParsedArgs): Promise<void> {
+  const kind = parsed.positional[0];
+  const id = parsed.positional[1];
+  if (kind !== "run" && kind !== "goal") throw new Error("diagnostics requires run or goal");
+  if (!id) throw new Error(`diagnostics ${kind} requires an id`);
+  const storageDir = path.resolve(requiredStringFlag(parsed, "storage-dir", "diagnostics requires --storage-dir <dir>"));
+  const bundle = kind === "run"
+    ? exportDiagnosticsBundle({ kind, runId: id }, storageDir)
+    : exportDiagnosticsBundle({ kind, goalId: id }, storageDir);
+  const out = stringFlag(parsed, "out");
+  if (out) {
+    const outFile = path.resolve(out);
+    await mkdir(path.dirname(outFile), { recursive: true });
+    atomicWriteJsonFile(outFile, bundle);
+  }
+  output(parsed, bundle);
 }
 
 async function runSmoke(parsed: ParsedArgs): Promise<void> {
@@ -227,6 +255,12 @@ function stringFlag(parsed: ParsedArgs, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function requiredStringFlag(parsed: ParsedArgs, key: string, message: string): string {
+  const value = stringFlag(parsed, key);
+  if (!value) throw new Error(message);
+  return value;
+}
+
 function numberFlag(parsed: ParsedArgs, key: string): number | undefined {
   const value = stringFlag(parsed, key);
   if (!value) return undefined;
@@ -280,6 +314,9 @@ agent-runtime replay-run <runId> [--storage-dir <dir>] [--after <eventId>] [--js
 agent-runtime goals [--storage-dir <dir>] [--status active|planning|running|succeeded|failed|canceled] [--json]
 agent-runtime goal-status <goalId> [--storage-dir <dir>] [--json]
 agent-runtime replay-goal <goalId> [--storage-dir <dir>] [--after <eventId>] [--jsonl]
+agent-runtime store-health --storage-dir <dir> [--json]
+agent-runtime diagnostics run <runId> --storage-dir <dir> [--json] [--out <file>]
+agent-runtime diagnostics goal <goalId> --storage-dir <dir> [--json] [--out <file>]
 `);
 }
 

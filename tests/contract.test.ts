@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path, { delimiter } from "node:path";
 import { createAgentRuntime } from "../src/index.js";
 import type {
@@ -19,6 +20,10 @@ import type {
   RuntimeDiagnostic,
   RuntimeOptions,
   SchedulerEvent,
+  DiagnosticsBundle,
+  ExportDiagnosticsRequest,
+  InspectStoreOptions,
+  StoreHealth,
 } from "../src/index.js";
 import { tempDir, writeExecutable } from "./helpers.js";
 
@@ -44,6 +49,10 @@ describe("public contract", () => {
       schedulerEvent: SchedulerEvent;
       replay: ReplayEvent<AgentEvent>;
       diagnostic: RuntimeDiagnostic;
+      inspectStoreOptions: InspectStoreOptions;
+      storeHealth: StoreHealth;
+      diagnosticsRequest: ExportDiagnosticsRequest;
+      diagnosticsBundle: DiagnosticsBundle;
     };
     const smoke = undefined as unknown as PublicApiSmoke;
     expect(typeof createAgentRuntime).toBe("function");
@@ -70,8 +79,12 @@ describe("public contract", () => {
       "goals",
       "goal-status",
       "replay-goal",
+      "store-health",
+      "diagnostics run",
+      "diagnostics goal",
       "--json",
       "--jsonl",
+      "--out",
       "--stream jsonl",
       "--diagnostics",
       "--storage-dir",
@@ -212,6 +225,60 @@ process.exit(0);
       expect(output).toContain("[REDACTED]");
       expect(output).not.toContain(secretAgent);
     }
+  }, 30_000);
+
+  it("writes diagnostics bundles through --out without leaking secrets", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_cli_bundle";
+    const runDir = path.join(storageDir, "runs", runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: "/tmp/private-cli-tail",
+      status: "failed",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: 1,
+      signal: null,
+      error: "Bearer " + "B".repeat(20),
+      errorCode: "AGENT_EXECUTION_FAILED",
+      diagnostics: [{ code: "AGENT_EXECUTION_FAILED", message: "ANTHROPIC_AUTH_TOKEN=secret-value" }],
+    }), "utf8");
+    await writeFile(path.join(runDir, "events.jsonl"), "", "utf8");
+    const outFile = path.join(await tempDir("agent-runtime-out-"), "bundle.json");
+    const health = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "store-health",
+      "--storage-dir",
+      storageDir,
+      "--json",
+    ])).stdout) as StoreHealth;
+
+    const stdout = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "diagnostics",
+      "run",
+      runId,
+      "--storage-dir",
+      storageDir,
+      "--json",
+      "--out",
+      outFile,
+    ])).stdout) as DiagnosticsBundle;
+    const writtenText = await readFile(outFile, "utf8");
+    const written = JSON.parse(writtenText) as DiagnosticsBundle;
+    const leftovers = await readdir(path.dirname(outFile));
+
+    expect(health).toMatchObject({ totals: { runs: 1, goals: 0 } });
+    expect(written).toMatchObject({ subject: { kind: "run", id: runId } });
+    expect(stdout.subject).toEqual(written.subject);
+    expect(leftovers).toEqual(["bundle.json"]);
+    expect(writtenText).toContain("[REDACTED]");
+    expect(writtenText).not.toContain("Bearer");
+    expect(writtenText).not.toContain("ANTHROPIC_AUTH_TOKEN");
+    expect(writtenText).not.toContain("private-cli-tail");
   }, 30_000);
 
   it("keeps reference material out of the npm package dry-run", async () => {

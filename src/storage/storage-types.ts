@@ -6,6 +6,15 @@ import type { AgentEvent, SchedulerEvent } from "../core/events.js";
 export interface JsonlReadResult<T> {
   records: Array<ReplayEvent<T>>;
   error?: Error;
+  issue?: JsonlReadIssue;
+}
+
+export interface JsonlReadIssue {
+  file: string;
+  line: number;
+  reason: string;
+  retainedEventCount: number;
+  partialTail: boolean;
 }
 
 export interface StoredRunSnapshot {
@@ -13,6 +22,7 @@ export interface StoredRunSnapshot {
   events: Array<ReplayEvent<AgentEvent>>;
   manifestError?: Error;
   eventsError?: Error;
+  eventsIssue?: JsonlReadIssue;
 }
 
 export interface StoredGoalSnapshot {
@@ -20,6 +30,7 @@ export interface StoredGoalSnapshot {
   events: Array<ReplayEvent<SchedulerEvent>>;
   manifestError?: Error;
   eventsError?: Error;
+  eventsIssue?: JsonlReadIssue;
 }
 
 export interface FileStorage {
