@@ -22,7 +22,7 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 
 本仓库目前处于 **pre-alpha MVP stage**。
 
-SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 library-first Node.js/TypeScript MVP，默认 memory-only run / goal 调度，可选 durable local replay storage，包含内置 CLI compatibility profiles、真实 stream parser fixtures、fake CLI 集成测试，以及带 redacted diagnostics 的本地 smoke / query 薄 CLI。
+SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 library-first Node.js/TypeScript MVP，默认 memory-only run / goal 调度，可选 durable local replay storage，包含内置 CLI compatibility profiles、强化后的 planner/task-graph validation、真实 stream parser fixtures、fake CLI 集成测试，以及带 redacted diagnostics 的本地 smoke / query 薄 CLI。
 
 ## 为什么需要它
 
@@ -101,6 +101,33 @@ for await (const event of goal.events) {
 ```
 
 task 只有在所有 dependencies 都 `succeeded` 后才会进入 ready。默认 `maxConcurrentTasks: 1`，保持保守串行语义；在 `createGoal()` 或 `createAgentRuntime()` 上配置后，互不冲突的 ready tasks 才会并发执行。`retryPolicy` 默认 `{ maxAttempts: 1 }`；只有 terminal error code 命中 `retryableErrorCodes` 的失败才会重试。cancel 和 validation failure 默认不重试，除非 caller 显式把对应 error code 加进 retry policy。
+
+Planner output 会在任何 task 启动前先被校验。主路径仍是 strict JSON，但 runtime 可以从 Markdown fenced code 或短的 surrounding prose 中提取唯一一个 JSON object。多个 JSON objects、malformed JSON、缺少 `tasks` 或字段类型非法时，planning 会以 `AGENT_TASK_GRAPH_INVALID` 写入 `scheduler_error`，goal 最终为 `failed`；这些错误不会被误报成 task failure 或 adapter unavailable。Diagnostics 保持简短，不会把超长 planner 原文完整写入输出。
+
+Task graph schema：
+
+```json
+{
+  "tasks": [
+    {
+      "id": "T001",
+      "title": "短标题",
+      "objective": "自包含任务目标",
+      "dependencies": [],
+      "allowedFiles": ["src/example.ts"],
+      "validationCommands": ["npm test"],
+      "agentId": "codex",
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "retryableErrorCodes": ["AGENT_TIMEOUT"],
+        "backoffMs": 250
+      }
+    }
+  ]
+}
+```
+
+`id`、`title`、`objective` 和每个 `dependencies` item 都必须是 string。`dependencies`、`allowedFiles`、`validationCommands` 和 `retryPolicy.retryableErrorCodes` 必须是 string array。`agentId` 如存在必须是 string。task-level `retryPolicy` 如存在，必须包含正整数 `maxAttempts`、string array `retryableErrorCodes` 和非负 number `backoffMs`。
 
 每个 task evidence 会记录 attempts：
 
@@ -190,6 +217,8 @@ node ./dist/cli/main.js agents --json
 
 ```bash
 agent-runtime agents
+agent-runtime smoke --mode detection --json
+agent-runtime smoke --mode fixtures --json
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
 agent-runtime goal --agent codex --cwd . --prompt "split this objective into tasks and execute them"
 agent-runtime goal --agent codex --cwd . --prompt "run independent fixes" --max-concurrent-tasks 2 --max-attempts 2 --retryable-error-codes AGENT_TIMEOUT,AGENT_EXECUTION_FAILED
@@ -206,6 +235,12 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 ```
 
 Library API 是主入口。CLI 是同一套 runtime 之上的薄包装，并支持 `--json` 以及 run/goal 的 `--stream jsonl` event stream。对 run/goal 命令，`--json` 输出最终 run 或 goal record；`--stream jsonl --diagnostics` 保留事件流，并在 terminal event 后追加一行 redacted `run_summary` 或 `goal_summary`。
+
+`agent-runtime smoke` 有三个模式：
+
+- `--mode detection` 只执行本地 executable/model/auth detection。
+- `--mode fixtures` 离线 dry-run Codex、Claude、OpenCode 的内置 parser conformance fixtures，不启动真实 CLI。
+- `--mode real` 会执行一次真实的非写入 read-only run，但必须同时显式传入 `--allow-real-run` 和 `--agent <id>`。未传 `--cwd` 时使用隔离临时目录，默认 prompt 会要求 agent 不编辑文件。
 
 磁盘布局保持简单、方便人工检查和 `tail`：
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import path from "node:path";
+import path, { delimiter } from "node:path";
 import { createAgentRuntime } from "../src/index.js";
 import type {
   AgentAdapterDef,
@@ -20,7 +20,7 @@ import type {
   RuntimeOptions,
   SchedulerEvent,
 } from "../src/index.js";
-import { tempDir } from "./helpers.js";
+import { tempDir, writeExecutable } from "./helpers.js";
 
 const execFileP = promisify(execFile);
 const root = path.resolve(import.meta.dirname, "..");
@@ -61,6 +61,7 @@ describe("public contract", () => {
     for (const word of [
       "agents",
       "doctor",
+      "smoke",
       "run",
       "goal",
       "runs",
@@ -80,9 +81,51 @@ describe("public contract", () => {
       "--max-attempts",
       "--retryable-error-codes",
       "--retry-backoff-ms",
+      "--allow-real-run",
     ]) {
       expect(stdout).toContain(word);
     }
+  }, 30_000);
+
+  it("runs offline parser fixture smoke through the CLI", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const smoke = JSON.parse((await execFileP(process.execPath, [cli, "smoke", "--mode", "fixtures", "--json"])).stdout);
+    expect(smoke).toMatchObject({ ok: true, mode: "fixtures" });
+    expect(smoke.fixtures).toHaveLength(18);
+  }, 30_000);
+
+  it("keeps Claude auth missing as a doctor diagnostic without failing doctor", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    await writeExecutable(binDir, "claude", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") {
+  console.log("2.1.178 (Claude Code)");
+  process.exit(0);
+}
+if (args[0] === "-p" && args[1] === "--help") {
+  console.log("--include-partial-messages\\n--add-dir");
+  process.exit(0);
+}
+if (args[0] === "auth" && args[1] === "status") {
+  console.log(JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }));
+  process.exit(0);
+}
+process.exit(0);
+`);
+    const doctor = JSON.parse((await execFileP(process.execPath, [cli, "doctor", "--json"], {
+      env: {
+        ...process.env,
+        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        CLAUDE_BIN: path.join(binDir, "claude"),
+        CODEX_BIN: path.join(binDir, "missing-codex"),
+        OPENCODE_BIN: path.join(binDir, "missing-opencode"),
+      },
+    })).stdout);
+    const claude = doctor.agents.find((agent: { id: string }) => agent.id === "claude");
+    expect(doctor.ok).toBe(true);
+    expect(claude).toMatchObject({ available: true, authStatus: "missing" });
+    expect(claude.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "auth_missing" })]));
   }, 30_000);
 
   it("prints final run records and JSONL diagnostics without requiring a real CLI", async () => {

@@ -59,6 +59,11 @@ function itemCompleted(item: Record<string, unknown>): AgentEventInput[] {
     const id = stringAt(item, "id") ?? stringAt(item, "tool_call_id") ?? "tool";
     return [{ type: "tool_result", id, output: item.output, isError: Boolean(item.is_error) }];
   }
+  if (itemType === "file_event" || itemType === "file_change") {
+    const path = stringAt(item, "path");
+    if (!path) return [];
+    return [{ type: "file_event", path, action: fileAction(item.action) }];
+  }
   return [];
 }
 
@@ -86,6 +91,10 @@ function usageFrom(value: unknown): RuntimeUsage | null {
 function stringAt(value: Record<string, unknown>, key: string): string | undefined {
   const raw = value[key];
   return typeof raw === "string" && raw ? raw : undefined;
+}
+
+function fileAction(value: unknown): "created" | "updated" | "deleted" | "unknown" {
+  return value === "created" || value === "updated" || value === "deleted" ? value : "unknown";
 }
 
 function errorMessage(value: Record<string, unknown>, fallback: string): string {

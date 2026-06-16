@@ -31,6 +31,39 @@ describe("GoalScheduler", () => {
     expect(dependencyOrder(tasks).map((task) => task.id)).toEqual(["T001", "T002"]);
   });
 
+  it("parses planner JSON from a markdown fence or surrounding prose", async () => {
+    const output = parsePlannerOutput([
+      "Here is the plan:",
+      "```json",
+      JSON.stringify({ tasks: [{ id: "T001", title: "One", objective: "Do one", dependencies: [] }] }),
+      "```",
+    ].join("\n"));
+    const proseOutput = parsePlannerOutput(`Plan follows:\n${JSON.stringify({ tasks: [{ id: "T002", title: "Two", objective: "Do two", dependencies: [] }] })}\nThanks.`);
+    expect(output.tasks[0]?.id).toBe("T001");
+    expect(proseOutput.tasks[0]?.id).toBe("T002");
+  });
+
+  it("rejects multiple or malformed planner JSON objects clearly", async () => {
+    expect(() => parsePlannerOutput('{"tasks":[]} {"tasks":[]}')).toThrow(/multiple JSON objects|not valid JSON/u);
+    expect(() => parsePlannerOutput("Plan: { not valid json")).toThrow(/malformed|not valid JSON/u);
+  });
+
+  it("rejects invalid task graph field types during validation", async () => {
+    const request = { cwd: "/tmp", objective: "x", defaultAgentId: "fake" };
+    expect(() => validateTaskGraph({ tasks: [{ id: "T001", title: "Bad", objective: "bad", dependencies: [123] } as never] }, request)).toThrow(/Task T001 field dependencies\[0\] must be a string/u);
+    expect(() => validateTaskGraph({ tasks: [{ id: "T001", title: "Bad", objective: "bad", dependencies: [], allowedFiles: "src" } as never] }, request)).toThrow(/Task T001 field allowedFiles must be a string\[\]/u);
+    expect(() => validateTaskGraph({ tasks: [{ id: "T001", title: "Bad", objective: "bad", dependencies: [], validationCommands: [123] } as never] }, request)).toThrow(/Task T001 field validationCommands\[0\] must be a string/u);
+    expect(() => validateTaskGraph({ tasks: [{ id: "T001", title: "Bad", objective: "bad", dependencies: [], agentId: 7 } as never] }, request)).toThrow(/Task T001 field agentId must be a string/u);
+  });
+
+  it("rejects invalid retryPolicy fields during task graph validation", async () => {
+    const request = { cwd: "/tmp", objective: "x", defaultAgentId: "fake" };
+    const base = { id: "T001", title: "Retry", objective: "retry", dependencies: [] };
+    expect(() => validateTaskGraph({ tasks: [{ ...base, retryPolicy: { maxAttempts: 0, retryableErrorCodes: [], backoffMs: 0 } }] }, request)).toThrow(/Task T001 field retryPolicy.maxAttempts must be a positive integer/u);
+    expect(() => validateTaskGraph({ tasks: [{ ...base, retryPolicy: { maxAttempts: 1, retryableErrorCodes: "AGENT_TIMEOUT", backoffMs: 0 } } as never] }, request)).toThrow(/retryPolicy.*retryableErrorCodes must be a string\[\]/u);
+    expect(() => validateTaskGraph({ tasks: [{ ...base, retryPolicy: { maxAttempts: 1, retryableErrorCodes: [], backoffMs: -1 } }] }, request)).toThrow(/Task T001 field retryPolicy.backoffMs must be a non-negative number/u);
+  });
+
   it("runs goal planner and tasks end-to-end", async () => {
     const dir = await tempDir();
     const cwd = await tempDir();
@@ -161,6 +194,21 @@ describe("GoalScheduler", () => {
     const events = await collect(handle.events);
     expect(events.some((event) => event.type === "task_finished" && event.taskId === "T001" && event.result === "failed")).toBe(true);
     expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "failed" });
+  });
+
+  it("classifies planner validation failure as scheduler_error and fails the goal", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({ cwd, objective: "invalid-task-graph", defaultAgentId: "fake" });
+    const events = await collect(handle.events);
+    const goal = await runtime.getGoal(handle.goalId);
+
+    expect(events.some((event) => event.type === "scheduler_error" && event.code === "AGENT_TASK_GRAPH_INVALID" && event.message.includes("Task T001 field validationCommands"))).toBe(true);
+    expect(events.some((event) => event.type === "task_started")).toBe(false);
+    expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "failed" });
+    expect(goal).toMatchObject({ status: "failed", result: "failed", diagnostics: [{ code: "AGENT_TASK_GRAPH_INVALID" }] });
   });
 
   it("cancels the current task run, marks pending tasks canceled, and finishes the goal", async () => {

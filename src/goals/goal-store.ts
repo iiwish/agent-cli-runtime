@@ -83,6 +83,10 @@ export class GoalStore {
     const goal = this.mustGet(goalId);
     const stamped = withTimestamp<SchedulerEvent>(event);
     if (goal.persistenceFailed) return goalReplayRecord(goal, stamped);
+    if (event.type === "scheduler_error") {
+      goal.diagnostics.push(diagnostic(event.code, event.message, { retryable: event.retryable }));
+      goal.updatedAt = Date.now();
+    }
     const record = goalReplayRecord(goal, stamped);
     goal.nextEventId += 1;
     goal.events.push(record);

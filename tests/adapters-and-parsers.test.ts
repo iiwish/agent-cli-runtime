@@ -4,6 +4,7 @@ import { claudeAdapter } from "../src/adapters/claude.js";
 import { codexAdapter } from "../src/adapters/codex.js";
 import { opencodeAdapter } from "../src/adapters/opencode.js";
 import { preparePromptTransport } from "../src/runs/prompt-transport.js";
+import { runParserFixtureCases } from "../src/smoke/parser-fixtures.js";
 
 describe("MVP adapters", () => {
   it("declares compatibility profiles for Codex, Claude, and OpenCode", () => {
@@ -96,12 +97,22 @@ describe("MVP adapters", () => {
     expect(args).not.toContain(prompt);
   });
 
-  it("keeps long prompts out of argv by using stdin transport", async () => {
+  it("keeps long prompts out of argv by using stdin transport for all built-in adapters", async () => {
     const prompt = "x".repeat(128 * 1024);
-    const prepared = await preparePromptTransport(codexAdapter.promptTransport, prompt);
-    const args = codexAdapter.buildArgs({ prompt, cwd: "/tmp/project", extraAllowedDirs: [], permissionPolicy: "agent-default" });
-    expect(prepared.stdinData).toBe(prompt);
-    expect(args.join("\u0000")).not.toContain(prompt);
+    for (const adapter of [codexAdapter, claudeAdapter, opencodeAdapter]) {
+      const prepared = await preparePromptTransport(adapter.promptTransport, prompt);
+      const args = adapter.buildArgs({ prompt, cwd: "/tmp/project", extraAllowedDirs: [], permissionPolicy: "agent-default" });
+      expect(prepared.stdinData).toContain(prompt);
+      expect(args.join("\u0000")).not.toContain(prompt);
+    }
+  });
+
+  it("passes built-in parser conformance fixtures, including partial and unknown events", () => {
+    const results = runParserFixtureCases();
+    expect(results).toHaveLength(18);
+    expect(results.every((result) => result.ok)).toBe(true);
+    expect(results.filter((result) => result.name === "partial line").every((result) => result.eventTypes.length === 1)).toBe(true);
+    expect(results.filter((result) => result.name === "unknown event").every((result) => result.eventTypes.length === 0)).toBe(true);
   });
 
   it("parses Codex JSON while ignoring noisy non-JSON lines", () => {

@@ -22,7 +22,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 
 This repository is in **pre-alpha MVP stage**.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional durable local replay storage, compatibility profiles for the built-in CLIs, real-stream parser fixtures, fake CLI integration tests, and thin local smoke/query CLI commands with redacted diagnostics.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional durable local replay storage, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, real-stream parser fixtures, fake CLI integration tests, and thin local smoke/query CLI commands with redacted diagnostics.
 
 ## Why
 
@@ -101,6 +101,33 @@ for await (const event of goal.events) {
 ```
 
 Goal scheduling uses a dependency-aware ready queue. A task can start only after all dependencies have succeeded. The conservative default is `maxConcurrentTasks: 1`, preserving serial dependency-order execution; set `maxConcurrentTasks` on `createGoal()` or `createAgentRuntime()` to allow independent ready tasks to run in parallel. `retryPolicy` defaults to `{ maxAttempts: 1 }`; only failures whose terminal error code is listed in `retryableErrorCodes` are retried. Cancellation and validation failures are not retried unless the caller explicitly includes their error code.
+
+Planner output is validated before any task starts. The preferred planner response is strict JSON, but the runtime can extract one JSON object from a Markdown fenced block or short surrounding prose. Multiple JSON objects, malformed JSON, missing `tasks`, or invalid field types fail planning with `AGENT_TASK_GRAPH_INVALID` as a `scheduler_error` and the goal finishes as `failed`; they are not reported as task failures or adapter unavailability. Diagnostics are concise and do not echo oversized planner output.
+
+Task graph schema:
+
+```json
+{
+  "tasks": [
+    {
+      "id": "T001",
+      "title": "Short title",
+      "objective": "Self-contained task objective",
+      "dependencies": [],
+      "allowedFiles": ["src/example.ts"],
+      "validationCommands": ["npm test"],
+      "agentId": "codex",
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "retryableErrorCodes": ["AGENT_TIMEOUT"],
+        "backoffMs": 250
+      }
+    }
+  ]
+}
+```
+
+`id`, `title`, `objective`, and every `dependencies` item must be strings. `dependencies`, `allowedFiles`, `validationCommands`, and `retryPolicy.retryableErrorCodes` must be string arrays when present. `agentId` must be a string when present. A task-level `retryPolicy` must include a positive integer `maxAttempts`, a string-array `retryableErrorCodes`, and a non-negative numeric `backoffMs`.
 
 Task evidence records every attempt:
 
@@ -190,6 +217,8 @@ node ./dist/cli/main.js agents --json
 
 ```bash
 agent-runtime agents
+agent-runtime smoke --mode detection --json
+agent-runtime smoke --mode fixtures --json
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
 agent-runtime goal --agent codex --cwd . --prompt "split this objective into tasks and execute them"
 agent-runtime goal --agent codex --cwd . --prompt "run independent fixes" --max-concurrent-tasks 2 --max-attempts 2 --retryable-error-codes AGENT_TIMEOUT,AGENT_EXECUTION_FAILED
@@ -206,6 +235,12 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 ```
 
 The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams. For run/goal commands, `--json` prints the final run or goal record. `--stream jsonl --diagnostics` keeps the event stream and appends a redacted `run_summary` or `goal_summary` line after the terminal event.
+
+`agent-runtime smoke` has three modes:
+
+- `--mode detection` runs local executable/model/auth detection only.
+- `--mode fixtures` dry-runs built-in parser conformance fixtures for Codex, Claude, and OpenCode without launching real CLIs.
+- `--mode real` launches one real non-mutating read-only run, but only when `--allow-real-run` and `--agent <id>` are both supplied. Without `--cwd`, it uses an isolated temp directory and the default prompt asks the agent not to edit files.
 
 Disk storage layout is intentionally simple and tail-friendly:
 

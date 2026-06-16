@@ -79,6 +79,12 @@ process.stdin.on("end", () => {
       ] }));
       return;
     }
+    if (input.includes("invalid-task-graph")) {
+      console.log(JSON.stringify({ tasks: [
+        { id: "T001", title: "Invalid", objective: "invalid", dependencies: [], validationCommands: "npm test" }
+      ] }));
+      return;
+    }
     if (input.includes("fail-upstream")) {
       console.log(JSON.stringify({ tasks: [
         { id: "T001", title: "Upstream failure", objective: "fail-task", dependencies: [] },

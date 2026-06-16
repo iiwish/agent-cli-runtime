@@ -1,9 +1,9 @@
 # Agent CLI Compatibility Matrix
 
-Status: P1-2 goal scheduling hardening over P0-5 compatibility baseline
+Status: P1-3 planner contract and CLI conformance hardening over P0-5 compatibility baseline
 Last updated: 2026-06-16
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-2 hardened GoalScheduler semantics: dependency-aware ready queue, configurable `maxConcurrentTasks`, task attempt events/evidence, retry policy, queued/running cancellation consistency, shutdown cleanup, and partial JSONL prefix replay diagnostics. It did not rerun authenticated real-agent write smokes beyond detection/doctor commands.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-3 hardened planner/task graph validation, scheduler error classification, adapter build-args contracts, offline parser conformance fixtures, and the explicit `smoke` harness. It did not rerun authenticated real-agent write smokes beyond detection/doctor and offline fixture modes.
 
 ## Summary
 
@@ -92,6 +92,13 @@ Detect installed agents:
 ```bash
 node ./dist/cli/main.js agents --json
 node ./dist/cli/main.js doctor --json
+node ./dist/cli/main.js smoke --mode detection --json
+```
+
+Dry-run parser conformance fixtures without launching real agent CLIs:
+
+```bash
+node ./dist/cli/main.js smoke --mode fixtures --json
 ```
 
 Durable store query/replay smoke with fake or test-generated records:
@@ -105,7 +112,17 @@ node ./dist/cli/main.js goal-status goal_123 --storage-dir .agent-runtime --json
 node ./dist/cli/main.js replay-goal goal_123 --storage-dir .agent-runtime --jsonl
 ```
 
-Local non-mutating run smoke, only when the relevant local CLI auth is available:
+Optional real non-mutating run smoke, only when the relevant local CLI auth is available. This is disabled unless `--allow-real-run` is present; without `--cwd`, it uses an isolated temp directory and `read-only` permission:
+
+```bash
+node ./dist/cli/main.js smoke \
+  --mode real \
+  --agent codex \
+  --allow-real-run \
+  --json
+```
+
+Equivalent lower-level run command:
 
 ```bash
 tmp="$(mktemp -d /tmp/agent-runtime-run-smoke.XXXXXX)"
@@ -160,13 +177,13 @@ node ./dist/cli/main.js goal \
 ## Known MVP Gaps
 
 - Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
-- P1-2 verifies scheduling, attempts, retry, cancellation, shutdown, and replay behavior through fake CLI integration tests and CLI query/replay tests. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
+- P1-3 verifies planner schema validation, parser fixture conformance, adapter argv construction, and smoke harness guardrails through tests. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
 - JSONL append is still a simple append-only file, not fsync-backed and not segmented. P1-2 verifies corrupt/partial tail prefix replay plus `AGENT_EVENT_LOG_CORRUPT`, but a host crash can still lose the final in-flight line.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
 - CLI remains a thin local smoke/scripting wrapper over the library API, not a daemon or long-lived service.
 - Real CLI auth and model availability depend on the user's local installation.
 - Runtime-side validation executes shell commands supplied by task graphs; callers should only use it with trusted objectives or trusted planners.
-- Parser coverage is fixture-based plus local smoke; more real stream captures should be added before a stable release.
+- Parser coverage is fixture-based plus prior local smoke captures; more real stream captures should be added before a stable release.
 - P0-4 Codex smoke is now diagnosable but still not stable in this environment: one run produced final text/usage within 30s after reconnect events, while the latest run timed out after only `thread.started`/`turn.started`; timeout diagnostics prove the stdin/profile path started and captured local startup stderr rather than leaving the failure opaque.
 - P0-4 OpenCode non-mutating run smoke still times out with zero parsed events; stdin prompt support for `opencode run --format json` remains unverified in `1.15.6`.
 - Claude Code run/goal smoke is blocked by local auth until `claude auth status` reports a logged-in account or a supported Anthropic-compatible provider env is supplied.
@@ -223,6 +240,35 @@ Covered behavior:
 - corrupt/partial JSONL logs replay the valid prefix and surface `AGENT_EVENT_LOG_CORRUPT`;
 - package root value exports remain limited to `createAgentRuntime`;
 - `npm pack --dry-run` excludes `.reference/` and test fixtures/secrets.
+
+## P1-3 Planner And CLI Conformance Evidence
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run ci
+node ./dist/cli/main.js agents --json
+node ./dist/cli/main.js doctor --json
+node ./dist/cli/main.js smoke --mode detection --json
+node ./dist/cli/main.js smoke --mode fixtures --json
+```
+
+Covered behavior:
+
+- task graph validation rejects invalid `dependencies`, `allowedFiles`, `validationCommands`, `agentId`, and task-level `retryPolicy` field types with task id and field name in the error;
+- planner Markdown fenced JSON and surrounding prose with one JSON object are accepted;
+- multiple JSON objects and malformed JSON fail clearly without swallowing unrelated text or emitting oversized raw planner output;
+- planner parse/validation failure emits `scheduler_error` with `AGENT_TASK_GRAPH_INVALID`, writes goal diagnostics, and finishes the goal as failed without task attempts;
+- Codex / Claude / OpenCode parser conformance fixtures cover normal output, structured error, usage, tool/file event, partial line, and unknown event;
+- Codex / Claude / OpenCode `buildArgs` tests confirm long prompts stay out of argv while cwd/model/permission/session/extra dir mappings remain explicit;
+- `smoke --mode detection` and `smoke --mode fixtures` are offline-safe; `smoke --mode real` requires `--allow-real-run`;
+- Claude auth missing remains an expected `doctor` diagnostic and does not fail the overall doctor result when the adapter itself is available;
+- package root value exports remain limited to `createAgentRuntime`;
+- `npm pack --dry-run` excludes `.reference/`, test fixtures/secrets, and real smoke output.
 
 ## P0-4 Detection Evidence
 

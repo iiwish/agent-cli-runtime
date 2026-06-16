@@ -34,6 +34,9 @@ export class OpenCodeJsonParser implements StreamParser {
       const usage = usageFrom(isRecord(part.tokens) ? part.tokens : null);
       return usage ? [{ type: "usage", usage, costUsd: typeof part.cost === "number" ? part.cost : undefined }] : [];
     }
+    if (value.type === "file" && typeof part.path === "string") {
+      return [{ type: "file_event", path: part.path, action: fileAction(part.action) }];
+    }
     if (value.type === "error") {
       return [{ type: "error", code: "AGENT_EXECUTION_FAILED", message: errorMessage(value, "OpenCode error") }];
     }
@@ -60,4 +63,8 @@ function errorMessage(value: Record<string, unknown>, fallback: string): string 
   if (isRecord(value.error) && typeof value.error.message === "string") return value.error.message;
   if (typeof value.error === "string" && value.error) return value.error;
   return fallback;
+}
+
+function fileAction(value: unknown): "created" | "updated" | "deleted" | "unknown" {
+  return value === "created" || value === "updated" || value === "deleted" ? value : "unknown";
 }

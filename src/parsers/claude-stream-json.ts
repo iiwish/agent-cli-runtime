@@ -68,6 +68,8 @@ function contentEvents(content: unknown): AgentEventInput[] {
       events.push({ type: "tool_call", id: part.id, name: part.name, input: part.input });
     } else if (part.type === "tool_result" && typeof part.tool_use_id === "string") {
       events.push({ type: "tool_result", id: part.tool_use_id, output: part.content, isError: Boolean(part.is_error) });
+    } else if (part.type === "file_event" && typeof part.path === "string") {
+      events.push({ type: "file_event", path: part.path, action: fileAction(part.action) });
     }
   }
   return events;
@@ -87,4 +89,8 @@ function errorMessage(value: Record<string, unknown>, fallback: string): string 
   if (typeof value.message === "string" && value.message) return value.message;
   if (isRecord(value.error) && typeof value.error.message === "string") return value.error.message;
   return fallback;
+}
+
+function fileAction(value: unknown): "created" | "updated" | "deleted" | "unknown" {
+  return value === "created" || value === "updated" || value === "deleted" ? value : "unknown";
 }

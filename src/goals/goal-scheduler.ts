@@ -1,7 +1,7 @@
 import { GoalStore } from "./goal-store.js";
 import type { CreateGoalRequest, GoalHandle, ScheduledTask, TaskAttemptEvidence, TaskRetryPolicy, ValidationCommandResult } from "./goal-types.js";
 import { createPlannerPrompt, createTaskPrompt } from "./planner-prompts.js";
-import { parsePlannerOutput, validateTaskGraph } from "./task-graph.js";
+import { parsePlannerOutput, TaskGraphError, validateTaskGraph } from "./task-graph.js";
 import { runValidationCommands } from "./validation-runner.js";
 import type { RunScheduler } from "../runs/run-scheduler.js";
 import type { RunResult } from "../runs/run-result.js";
@@ -33,7 +33,13 @@ export class GoalScheduler {
         this.finish(goal.id, "cancelled");
         return;
       }
-      this.store.emit(goal.id, { type: "scheduler_error", code: "AGENT_EXECUTION_FAILED", message: error instanceof Error ? error.message : String(error) });
+      const code = error instanceof TaskGraphError ? error.code : "AGENT_EXECUTION_FAILED";
+      this.store.emit(goal.id, {
+        type: "scheduler_error",
+        code,
+        message: error instanceof Error ? error.message : String(error),
+        retryable: false,
+      });
       this.finish(goal.id, "failed");
     });
     return handle;

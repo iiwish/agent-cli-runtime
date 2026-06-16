@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { createAgentRuntime } from "../index.js";
 import { redactText } from "../core/redaction.js";
+import { runParserFixtureCases } from "../smoke/parser-fixtures.js";
 
 interface ParsedArgs {
   command: string;
@@ -28,6 +30,10 @@ async function main(): Promise<void> {
       ok: agents.some((agent) => agent.available),
       agents,
     });
+    return;
+  }
+  if (parsed.command === "smoke") {
+    await runSmoke(parsed);
     return;
   }
   if (parsed.command === "runs") {
@@ -90,6 +96,49 @@ async function main(): Promise<void> {
     return;
   }
   throw new Error(`Unknown command: ${parsed.command}`);
+}
+
+async function runSmoke(parsed: ParsedArgs): Promise<void> {
+  const mode = stringFlag(parsed, "mode") ?? "detection";
+  const agent = stringFlag(parsed, "agent") ?? "all";
+  if (mode === "detection") {
+    const runtime = createAgentRuntime({ storageDir: stringFlag(parsed, "storage-dir") });
+    const agents = await runtime.detect({ includeUnavailable: true });
+    output(parsed, {
+      ok: agents.some((item) => item.available),
+      mode,
+      agents: agent === "all" ? agents : agents.filter((item) => item.id === agent),
+    });
+    return;
+  }
+  if (mode === "fixtures") {
+    const fixtures = runParserFixtureCases(agent);
+    output(parsed, {
+      ok: fixtures.length > 0 && fixtures.every((fixture) => fixture.ok),
+      mode,
+      fixtures,
+    });
+    return;
+  }
+  if (mode === "real") {
+    if (!parsed.flags.has("allow-real-run")) {
+      throw new Error("smoke --mode real requires --allow-real-run");
+    }
+    if (agent === "all") throw new Error("smoke --mode real requires --agent <id>");
+    const runtime = createAgentRuntime({ storageDir: stringFlag(parsed, "storage-dir") });
+    const cwd = path.resolve(stringFlag(parsed, "cwd") ?? await mkdtemp(path.join(os.tmpdir(), "agent-runtime-real-smoke-")));
+    const prompt = stringFlag(parsed, "prompt") ?? `Reply exactly: agent-runtime ${agent} smoke ok. Do not edit files.`;
+    const handle = await runtime.run({
+      agentId: agent,
+      cwd,
+      prompt,
+      permissionPolicy: "read-only",
+      timeoutMs: numberFlag(parsed, "timeout-ms") ?? 30_000,
+    });
+    await streamRun(parsed, handle.events, "run_summary", () => runtime.getRun(handle.runId));
+    return;
+  }
+  throw new Error("--mode must be one of: detection, fixtures, real");
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -222,6 +271,7 @@ function enumFlag(parsed: ParsedArgs, key: string, allowed: string[]): string | 
 function printHelp(): void {
   process.stdout.write(`agent-runtime agents [--json] [--storage-dir <dir>]
 agent-runtime doctor [--json] [--storage-dir <dir>]
+agent-runtime smoke [--mode detection|fixtures|real] [--agent all|codex|claude|opencode] [--allow-real-run] [--cwd <dir>] [--timeout-ms <ms>] [--json] [--storage-dir <dir>]
 agent-runtime run --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--model <id>] [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime goal --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--permission <policy>] [--timeout-ms <ms>] [--max-concurrent-tasks <n>] [--max-attempts <n>] [--retryable-error-codes <codes>] [--retry-backoff-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime runs [--storage-dir <dir>] [--status active|queued|running|succeeded|failed|canceled] [--json]
