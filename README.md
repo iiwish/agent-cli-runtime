@@ -116,6 +116,7 @@ The public facade exposes:
 - `runtime.createGoal(request)`
 - `runtime.cancelRun(runId)`
 - `runtime.cancelGoal(goalId)`
+- `runtime.shutdown(reason?)`
 - `runtime.getRun(runId)`
 - `runtime.getRunEvents(runId, { afterEventId? })`
 - `runtime.listRuns({ status? })`
@@ -163,7 +164,7 @@ Disk storage layout is intentionally simple and tail-friendly:
   goals/<goalId>/events.jsonl
 ```
 
-Each JSONL line is `{ "id": 1, "timestamp": 123, "event": {...} }`. Event ids are monotonic per run or goal and are preserved for replay. When a new runtime opens a `storageDir`, terminal runs/goals are readable immediately; runs/goals found in `queued`, `running`, or `planning` are marked failed with an `AGENT_RUNTIME_INTERRUPTED` diagnostic/event so they never pretend to still be active after a process restart.
+Each JSONL line is `{ "id": 1, "timestamp": 123, "event": {...} }`. Event ids are monotonic per run or goal and are preserved for replay. `runtime.shutdown(reason?)` cancels active runs/goals and waits briefly for terminal events before returning. When a new runtime opens a `storageDir`, terminal runs/goals are readable immediately; runs/goals found in `queued`, `running`, or `planning` are marked failed with an `AGENT_RUNTIME_INTERRUPTED` diagnostic/event so they never pretend to still be active after a process restart.
 
 ## Configuration
 
@@ -222,7 +223,7 @@ Each adapter owns only the details that truly vary by CLI:
 - stream parser;
 - permission-policy mapping.
 
-The core runner owns process lifecycle, diagnostics, cancellation, timeout, redaction, and event delivery.
+The core runner owns process lifecycle, process-tree best-effort termination, diagnostics, cancellation, timeout, shutdown, redaction, and event delivery.
 
 ## MVP Adapters
 
@@ -248,7 +249,7 @@ type AgentEvent =
   | { type: "tool_result"; id: string; output?: unknown; isError?: boolean }
   | { type: "usage"; usage: RuntimeUsage; costUsd?: number }
   | { type: "error"; code: RuntimeErrorCode; message: string; retryable?: boolean }
-  | { type: "run_finished"; result: "success" | "failed" | "cancelled" };
+  | { type: "run_finished"; result: "success" | "failed" | "cancelled"; exitCode?: number | null; signal?: string | null };
 ```
 
 Goal scheduling wraps run events with `goal_started`, `task_created`, `task_started`, `run_event`, `task_finished`, `goal_finished`, and `scheduler_error`.

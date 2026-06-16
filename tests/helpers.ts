@@ -35,6 +35,10 @@ export function fakeAdapter(init: Partial<AgentAdapterDef> = {}): AgentAdapterDe
 }
 
 export const fakeCliBody = `
+process.on("SIGTERM", () => {
+  if (process.env.FAKE_IGNORE_SIGTERM === "1") return;
+  process.exit(143);
+});
 const args = process.argv.slice(2);
 if (args[0] === "--version") {
   console.log("fake 1.0.0");
@@ -48,21 +52,40 @@ let input = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", chunk => input += chunk);
 process.stdin.on("end", () => {
-  if (input.includes("cancel")) setInterval(() => {}, 1000);
-  else if (input.includes("structured-error")) {
-    console.log(JSON.stringify({ type: "error", message: "structured boom" }));
-  } else if (input.includes("Return strict JSON")) {
+  if (input.includes("Return strict JSON")) {
+    const firstTaskObjective = input.includes("cancel-first") ? "cancel" : "do first";
+    const taskObjective = input.includes("task-timeout") ? "cancel" : input.includes("fail-task") ? "fail-task" : "do second";
     const validationCommand = input.includes("secret-validation")
       ? "node -e \\"console.log('s' + 'k' + 'A'.repeat(20)); console.error('Bearer ' + 'B'.repeat(20))\\""
       : input.includes("bad-validation")
       ? "node -e \\"process.exit(7)\\""
       : "node -e \\"process.exit(0)\\"";
     console.log(JSON.stringify({ tasks: [
-      { id: "T001", title: "First", objective: "do first", dependencies: [], validationCommands: [validationCommand] },
-      { id: "T002", title: "Second", objective: input.includes("fail-task") ? "fail-task" : "do second", dependencies: ["T001"], validationCommands: ["node -e \\"process.exit(0)\\""] }
+      { id: "T001", title: "First", objective: firstTaskObjective, dependencies: [], validationCommands: [validationCommand] },
+      { id: "T002", title: "Second", objective: taskObjective, dependencies: ["T001"], validationCommands: ["node -e \\"process.exit(0)\\""] }
     ] }));
+  } else if (input.includes("cancel-then-output")) {
+    setTimeout(() => console.log("late success"), 250);
+    setInterval(() => {}, 1000);
+  } else if (input.includes("tree-child")) {
+    const { spawn } = require("node:child_process");
+    const fs = require("node:fs");
+    const marker = input.match(/MARKER:([^\\s]+)/)?.[1];
+    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { detached: false, stdio: "ignore" });
+    child.unref();
+    if (marker) fs.writeFileSync(marker, String(child.pid));
+    setInterval(() => {}, 1000);
+  } else if (input.includes("close-error-race")) {
+    console.log("ok:race");
+    process.exit(0);
+  } else if (input.includes("cancel")) setInterval(() => {}, 1000);
+  else if (input.includes("structured-error")) {
+    console.log(JSON.stringify({ type: "error", message: "structured boom" }));
   } else if (input.includes("fail-task")) {
     console.log("task failed");
+    process.exit(2);
+  } else if (input.includes("secret-stderr")) {
+    console.error("token sk" + "A".repeat(20));
     process.exit(2);
   } else {
     console.log("ok:" + input.length);

@@ -19,6 +19,7 @@ export interface AgentRuntime {
   createGoal(request: CreateGoalRequest): Promise<GoalHandle>;
   cancelRun(runId: string): Promise<void>;
   cancelGoal(goalId: string): Promise<void>;
+  shutdown(reason?: string): Promise<void>;
   getRun(runId: string): Promise<RunRecord | null>;
   getRunEvents(runId: string, options?: { afterEventId?: number }): Promise<Array<ReplayEvent<AgentEvent>>>;
   listRuns(options?: { status?: "active" | RunStatus }): Promise<RunRecord[]>;
@@ -45,6 +46,10 @@ export function createAgentRuntime(options: RuntimeOptions = {}): AgentRuntime {
     createGoal: (request) => goalScheduler.createGoal(request),
     cancelRun: (runId) => runScheduler.cancelRun(runId),
     cancelGoal: (goalId) => goalScheduler.cancelGoal(goalId),
+    shutdown: async (reason) => {
+      await goalScheduler.shutdown(reason);
+      await runScheduler.shutdown(reason);
+    },
     getRun: async (runId) => runStore.get(runId),
     getRunEvents: async (runId, eventOptions) => runStore.replay(runId, eventOptions?.afterEventId),
     listRuns: async (listOptions) => runStore.list(listOptions),

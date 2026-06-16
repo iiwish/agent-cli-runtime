@@ -25,6 +25,11 @@ export class GoalScheduler {
     };
     void this.execute(goal.id, request).catch((error) => {
       if (this.store.isTerminal(goal.id)) return;
+      if (this.cancelRequested.has(goal.id)) {
+        this.cancelPendingFromStore(goal.id);
+        this.finish(goal.id, "cancelled");
+        return;
+      }
       this.store.emit(goal.id, { type: "scheduler_error", code: "AGENT_EXECUTION_FAILED", message: error instanceof Error ? error.message : String(error) });
       this.finish(goal.id, "failed");
     });
@@ -33,8 +38,29 @@ export class GoalScheduler {
 
   async cancelGoal(goalId: string): Promise<void> {
     this.cancelRequested.add(goalId);
+    this.cancelPendingFromStore(goalId);
     const runId = this.currentRuns.get(goalId);
     if (runId) await this.runScheduler.cancelRun(runId);
+  }
+
+  async shutdown(reason = "Runtime shutdown", graceMs = 2_000): Promise<void> {
+    const goalIds = this.store.list({ status: "active" }).map((goal) => goal.id);
+    await Promise.all(goalIds.map((goalId) => this.cancelGoal(goalId)));
+    await Promise.race([
+      waitFor(() => goalIds.every((goalId) => this.store.isTerminal(goalId))),
+      delay(graceMs),
+    ]);
+    for (const goalId of goalIds) {
+      if (this.store.isTerminal(goalId)) continue;
+      this.store.emit(goalId, {
+        type: "scheduler_error",
+        code: "AGENT_CANCELLED",
+        message: reason,
+        retryable: false,
+      });
+      this.cancelPendingFromStore(goalId);
+      this.finish(goalId, "cancelled");
+    }
   }
 
   private async execute(goalId: string, request: CreateGoalRequest): Promise<void> {
@@ -123,15 +149,18 @@ export class GoalScheduler {
       await handle.cancel();
       return "failed";
     }
-    for await (const event of handle.events) {
-      this.store.emit(goalId, { type: "run_event", goalId, taskId: task.id, runId: handle.runId, event });
-      if (this.store.isTerminal(goalId)) {
-        await handle.cancel();
-        break;
+    try {
+      for await (const event of handle.events) {
+        this.store.emit(goalId, { type: "run_event", goalId, taskId: task.id, runId: handle.runId, event });
+        if (this.store.isTerminal(goalId)) {
+          await handle.cancel();
+          break;
+        }
+        if (event.type === "run_finished") result = event.result;
       }
-      if (event.type === "run_finished") result = event.result;
+    } finally {
+      this.currentRuns.delete(goalId);
     }
-    this.currentRuns.delete(goalId);
     return this.cancelRequested.has(goalId) ? "cancelled" : result;
   }
 
@@ -140,16 +169,20 @@ export class GoalScheduler {
     this.currentRuns.set(goalId, handle.runId);
     let text = "";
     let result: RunResult = "failed";
-    for await (const event of handle.events) {
-      this.store.emit(goalId, { type: "run_event", goalId, taskId, runId: handle.runId, event });
-      if (this.store.isTerminal(goalId)) {
-        await handle.cancel();
-        break;
+    try {
+      for await (const event of handle.events) {
+        this.store.emit(goalId, { type: "run_event", goalId, taskId, runId: handle.runId, event });
+        if (this.store.isTerminal(goalId)) {
+          await handle.cancel();
+          break;
+        }
+        if (event.type === "text_delta") text += event.text;
+        if (event.type === "run_finished") result = event.result;
       }
-      if (event.type === "text_delta") text += event.text;
-      if (event.type === "run_finished") result = event.result;
+    } finally {
+      this.currentRuns.delete(goalId);
     }
-    this.currentRuns.delete(goalId);
+    if (this.cancelRequested.has(goalId)) return "";
     if (result !== "success") throw new Error(`Planner run failed with ${result}`);
     return text;
   }
@@ -161,6 +194,12 @@ export class GoalScheduler {
         this.store.updateTask(goalId, task);
       }
     }
+  }
+
+  private cancelPendingFromStore(goalId: string): void {
+    const goal = this.store.get(goalId);
+    if (!goal) return;
+    this.cancelPending(goalId, goal.tasks);
   }
 
   private blockDependents(goalId: string, tasks: ScheduledTask[], failedTaskId: string): void {
@@ -179,4 +218,15 @@ export class GoalScheduler {
     this.currentRuns.delete(goalId);
     this.cancelRequested.delete(goalId);
   }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+  });
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  while (!predicate()) await delay(20);
 }

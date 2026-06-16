@@ -3,7 +3,9 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path, { delimiter } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { createAgentRuntime } from "../src/index.js";
+import type { SchedulerEvent } from "../src/core/events.js";
 import { GoalStore } from "../src/goals/goal-store.js";
 import { dependencyOrder, parsePlannerOutput, validateTaskGraph } from "../src/goals/task-graph.js";
 import type { FileStorage } from "../src/storage/storage-types.js";
@@ -60,6 +62,66 @@ describe("GoalScheduler", () => {
     const events = await collect(handle.events);
     expect(events.some((event) => event.type === "task_finished" && event.taskId === "T001" && event.result === "failed")).toBe(true);
     expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "failed" });
+  });
+
+  it("cancels the current task run, marks pending tasks canceled, and finishes the goal", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({ cwd, objective: "cancel-first", defaultAgentId: "fake" });
+    const events: SchedulerEvent[] = [];
+    for await (const event of handle.events) {
+      events.push(event);
+      if (event.type === "task_started" && event.taskId === "T001") {
+        setTimeout(() => void handle.cancel(), 25);
+      }
+    }
+
+    const goal = await runtime.getGoal(handle.goalId);
+    expect(goal).toMatchObject({ status: "canceled", result: "cancelled" });
+    expect(goal?.tasks.find((task) => task.id === "T001")).toMatchObject({ status: "canceled" });
+    expect(goal?.tasks.find((task) => task.id === "T002")).toMatchObject({ status: "canceled" });
+    expect(events.some((event) => event.type === "task_finished" && event.taskId === "T001" && event.result === "cancelled")).toBe(true);
+    expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "cancelled" });
+  });
+
+  it("records task timeout in task evidence and fails the goal", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({ cwd, objective: "task-timeout", defaultAgentId: "fake", taskTimeoutMs: 500 });
+    const events = await collect(handle.events);
+    const goal = await runtime.getGoal(handle.goalId);
+    const timedOutTask = goal?.tasks.find((task) => task.id === "T002");
+    expect(events.some((event) => event.type === "run_event" && event.event.type === "error" && event.event.code === "AGENT_TIMEOUT")).toBe(true);
+    expect(timedOutTask).toMatchObject({ status: "failed" });
+    expect(timedOutTask?.evidence).toMatchObject({ result: "failed" });
+    expect(events.some((event) => event.type === "task_finished" && event.taskId === "T002" && event.result === "failed")).toBe(true);
+    expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "failed" });
+  });
+
+  it("shutdown cancels active goals and clears active state", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    const storageDir = await tempDir("agent-runtime-storage-");
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir], storageDir });
+    const handle = await runtime.createGoal({ cwd, objective: "cancel-first", defaultAgentId: "fake" });
+    const events: SchedulerEvent[] = [];
+    for await (const event of handle.events) {
+      events.push(event);
+      if (event.type === "task_started" && event.taskId === "T001") {
+        setTimeout(() => void runtime.shutdown("test shutdown"), 25);
+      }
+    }
+    await delay(25);
+    expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "cancelled" });
+    expect(await runtime.getGoal(handle.goalId)).toMatchObject({ status: "canceled", result: "cancelled" });
+    expect(await runtime.listGoals({ status: "active" })).toEqual([]);
+    const restarted = createAgentRuntime({ storageDir });
+    expect(await restarted.getGoal(handle.goalId)).toMatchObject({ status: "canceled" });
   });
 
   it("persists goal events, tasks, and redacted validation evidence", async () => {

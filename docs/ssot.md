@@ -184,6 +184,7 @@ export interface AgentRuntime {
   createGoal(request: CreateGoalRequest): Promise<GoalHandle>;
   cancelRun(runId: string): Promise<void>;
   cancelGoal(goalId: string): Promise<void>;
+  shutdown(reason?: string): Promise<void>;
   getRun(runId: string): Promise<RunRecord | null>;
   getRunEvents(runId: string, options?: { afterEventId?: number }): Promise<ReplayEvent<AgentEvent>[]>;
   listRuns(options?: { status?: 'active' | RunStatus }): Promise<RunRecord[]>;
@@ -199,6 +200,8 @@ export interface AgentRuntime {
 `createGoal()` 会先用 planner prompt 启动一次 run，收集 `text_delta` 作为 strict JSON task graph，校验后按依赖顺序串行执行 task。MVP 不做并发；任一 task failed 时 goal failed，除非 caller 设置 `continueOnFailure`。
 
 Task run 成功后，如果 task 带有 `validationCommands`，runtime 会在 task `cwd` 依次执行这些 shell commands；任一 command 非零退出则 task failed，validation stdout/stderr tail 会 redacted 后写入 task evidence。调用方应只对可信目标或可信 planner 开启自动 validation。
+
+`shutdown(reason?)` 用于 library caller 主动收尾：runtime 会 cancel 所有 active goals/runs，尽力终止子进程树，并短暂等待它们写入 terminal manifest/events。若进程重启而不是显式 shutdown，`storageDir` reload 仍沿用 interrupted recovery：历史 active run/goal 标记为 failed 并写入 `AGENT_RUNTIME_INTERRUPTED`。
 
 `storageDir` 是 opt-in。未传时保持纯内存行为；传入时，runtime 在该目录下写入：
 
