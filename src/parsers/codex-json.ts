@@ -15,7 +15,7 @@ export class CodexJsonParser implements StreamParser {
 
   private parseLine(line: string): AgentEventInput[] {
     const value = safeJsonParse(line);
-    if (!isRecord(value)) return [{ type: "text_delta", text: `${line}\n` }];
+    if (!isRecord(value)) return [];
     const type = stringAt(value, "type");
     if (type === "thread.started") return [{ type: "status", label: "initializing" }];
     if (type === "turn.started") return [{ type: "status", label: "running" }];

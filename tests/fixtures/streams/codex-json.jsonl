@@ -1,0 +1,5 @@
+Warning: using experimental stream
+{"type":"thread.started"}
+{"type":"item.completed","item":{"type":"agent_message","text":"hello"}}
+{"type":"error","message":"boom"}
+not json

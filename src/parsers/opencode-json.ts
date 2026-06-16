@@ -15,7 +15,7 @@ export class OpenCodeJsonParser implements StreamParser {
 
   private parseLine(line: string): AgentEventInput[] {
     const value = safeJsonParse(line);
-    if (!isRecord(value)) return [{ type: "text_delta", text: `${line}\n` }];
+    if (!isRecord(value)) return [];
     const part = isRecord(value.part) ? value.part : {};
     if (value.type === "step_start") return [{ type: "status", label: "running" }];
     if (value.type === "text" && typeof part.text === "string") return [{ type: "text_delta", text: part.text }];

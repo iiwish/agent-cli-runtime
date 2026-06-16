@@ -16,7 +16,7 @@ export class ClaudeStreamJsonParser implements StreamParser {
 
   private parseLine(line: string): AgentEventInput[] {
     const value = safeJsonParse(line);
-    if (!isRecord(value)) return [{ type: "text_delta", text: `${line}\n` }];
+    if (!isRecord(value)) return [];
     if (value.type === "system") return this.status("initializing");
     if (value.type === "result") {
       const usage = usageFrom(value.usage);

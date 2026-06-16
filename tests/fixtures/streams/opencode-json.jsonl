@@ -1,0 +1,7 @@
+WARNING provider fallback
+{"type":"step_start"}
+{"type":"text","part":{"text":"yo"}}
+{"type":"tool_use","part":{"callID":"call_1","tool":"bash","state":{"input":"{\"cmd\":\"pwd\"}","status":"completed","output":"ok"}}}
+{"type":"step_finish","part":{"tokens":{"input":3,"output":4,"reasoning":1},"cost":0.01}}
+{"type":"error","error":"bad request"}
+not json

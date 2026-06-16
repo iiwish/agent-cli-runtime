@@ -1,0 +1,7 @@
+Warning: telemetry disabled
+{"type":"system"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"hi"},{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"/tmp/redacted.txt"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}}
+{"type":"result","usage":{"input_tokens":5,"output_tokens":7,"cache_read_input_tokens":2}}
+{"type":"error","error":{"message":"auth required"}}
+not json

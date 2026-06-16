@@ -3,6 +3,7 @@ export type { AgentRuntime } from "./core/runtime.js";
 export type {
   AgentAdapterDef,
   AgentCapabilities,
+  AdapterCompatibilityProfile,
   AgentId,
   BuildArgsInput,
   DetectedAgent,

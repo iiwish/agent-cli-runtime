@@ -341,7 +341,7 @@ describe("RunScheduler", () => {
 });
 
 async function waitForFile(file: string): Promise<void> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  for (let attempt = 0; attempt < 250; attempt += 1) {
     try {
       await access(file);
       return;

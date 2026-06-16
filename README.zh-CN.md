@@ -22,7 +22,7 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 
 本仓库目前处于 **pre-alpha MVP stage**。
 
-SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 library-first Node.js/TypeScript MVP，默认 memory-only run / goal 调度，可选 disk backed replay storage，包含 fake CLI 集成测试，以及用于本地 smoke 的薄 CLI。
+SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 library-first Node.js/TypeScript MVP，默认 memory-only run / goal 调度，可选 disk backed replay storage，包含内置 CLI compatibility profiles、parser fixtures、fake CLI 集成测试，以及用于本地 smoke 的薄 CLI。
 
 ## 为什么需要它
 
@@ -218,6 +218,7 @@ flowchart LR
 
 - binary names 和 env overrides；
 - version、auth、capability、model probes；
+- verified / unverified invocation flags 的 compatibility profile notes；
 - argv construction；
 - prompt transport；
 - stream parser；
@@ -229,9 +230,9 @@ Core runner 负责 process lifecycle、process-tree best-effort termination、di
 
 | Adapter | Target binary | Prompt transport | Stream strategy | MVP status |
 | --- | --- | --- | --- | --- |
-| Codex CLI | `codex` | stdin | `codex exec --json` | MVP 已实现，真实 flags 仍需持续 smoke 验证 |
-| Claude Code | `claude` | stdin JSONL | `stream-json` | MVP 已实现，真实 flags 仍需持续 smoke 验证 |
-| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | MVP 已实现，真实 flags 仍需持续 smoke 验证 |
+| Codex CLI | `codex` | stdin | `codex exec --json` | P0-3 已记录 detection/model probe baseline；本地 run smoke timeout |
+| Claude Code | `claude` | stdin JSONL | `stream-json` | P0-3 已记录 detection baseline；本地 auth missing |
+| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P0-3 已记录 detection/model probe baseline；本地 run smoke timeout |
 
 未来新增 adapter 应该不需要改 core runtime。
 
@@ -270,6 +271,8 @@ Adapter-specific raw events 可以进入 debug log，但 public API 应保持稳
 - Logs 和 diagnostics 必须 redact secret-looking env values 和 tokens。
 - Disk backed storage 不写入 secret-bearing environment maps；diagnostics 以及 validation stdout/stderr 会先 redaction，再写入 manifest 或 events。
 - 单个 adapter 失败不能导致其他 adapter detection 一起失败。
+- Detection probe diagnostics 会分类为 `not_installed`、`not_executable`、`auth_missing`、`network_error`、`unsupported_flag` 或 `probe_failed`。
+- JSON stream parser 会忽略空行、warning、log 和非 JSON 噪声行；用户可见正文只来自结构化 CLI text 字段。
 - Goal task 的 `validationCommands` 会在 agent run 成功后由 runtime 在 task `cwd` 执行；validation 失败会把 task 和 goal 标记为 failed。
 
 Runtime 不应授予超过 caller 明确请求的权限。

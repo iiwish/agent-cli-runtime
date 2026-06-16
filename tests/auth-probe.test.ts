@@ -26,5 +26,33 @@ if (process.argv[2] === "auth") { console.log(JSON.stringify({ loggedIn: false }
       { includeUnavailable: true },
     );
     expect(agents[0]).toMatchObject({ available: true, authStatus: "missing" });
+    expect(agents[0]?.diagnostics).toEqual([expect.objectContaining({ code: "auth_missing", probe: "auth" })]);
+  });
+
+  it("classifies auth probe failures without leaking secrets", async () => {
+    const dir = await tempDir();
+    await writeExecutable(dir, "auth-fail-agent", `
+if (process.argv[2] === "--version") { console.log("auth 1.0.0"); process.exit(0); }
+if (process.argv[2] === "auth") { console.error("Authentication required. Bearer " + "C".repeat(20)); process.exit(1); }
+`);
+    const adapter = fakeAdapter({
+      id: "auth-fail",
+      bin: "auth-fail-agent",
+      authProbe: {
+        args: ["auth", "status"],
+        parse() {
+          return "unknown";
+        },
+      },
+    });
+    const agents = await detectAgents(
+      { adapters: [adapter], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` } },
+      { includeUnavailable: true },
+    );
+    expect(agents[0]).toMatchObject({ available: true, authStatus: "missing" });
+    expect(agents[0]?.diagnostics).toEqual([
+      expect.objectContaining({ code: "auth_missing", probe: "auth", stderrTail: expect.stringContaining("[REDACTED]") }),
+    ]);
+    expect(JSON.stringify(agents[0]?.diagnostics)).not.toContain("Bearer C");
   });
 });

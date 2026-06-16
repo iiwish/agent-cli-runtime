@@ -6,7 +6,7 @@ const DEFAULT_MODEL: RuntimeModelOption = { id: "default", label: "Default" };
 export function parseCodexDebugModels(stdout: string): RuntimeModelOption[] | null {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(stdout);
+    parsed = JSON.parse(extractJsonPayload(stdout));
   } catch {
     return null;
   }
@@ -24,6 +24,13 @@ export function parseCodexDebugModels(stdout: string): RuntimeModelOption[] | nu
     out.push({ id, label });
   }
   return out.length > 1 ? out : null;
+}
+
+function extractJsonPayload(stdout: string): string {
+  const trimmed = stdout.trim();
+  if (trimmed.startsWith("{")) return trimmed;
+  const jsonLine = trimmed.split(/\r?\n/u).find((line) => line.trim().startsWith("{"));
+  return jsonLine?.trim() ?? trimmed;
 }
 
 export const codexAdapter: AgentAdapterDef = {
@@ -65,4 +72,26 @@ export const codexAdapter: AgentAdapterDef = {
   stream: { create: () => new CodexJsonParser() },
   capabilities: { streaming: true, tools: true, models: true },
   defaults: { permissionPolicy: "agent-default" },
+  compatibility: {
+    executableNames: ["codex"],
+    versionProbe: { args: ["--version"], timeoutMs: 3_000 },
+    modelProbe: { args: ["debug", "models"], timeoutMs: 5_000 },
+    authProbe: null,
+    defaultArgs: ["exec", "--json", "--skip-git-repo-check", "-C", "<cwd>"],
+    knownFlags: [
+      { flag: "--json", mapsTo: "streamFormat" },
+      { flag: "-C", mapsTo: "cwd" },
+      { flag: "--sandbox", mapsTo: "permissionPolicy" },
+      { flag: "--add-dir", mapsTo: "extraAllowedDirs" },
+      { flag: "--model", mapsTo: "model" },
+      { flag: "-c model_reasoning_effort", mapsTo: "reasoning" },
+      { flag: "--skip-git-repo-check", mapsTo: "defaultArgs" },
+    ],
+    promptTransport: "stdin:text",
+    streamFormat: "codex-json",
+    capabilityNotes: [
+      "Default prompt transport is stdin; prompts are not placed in argv.",
+      "Auth is treated as CLI-managed; no stable non-mutating auth probe is currently used by this adapter.",
+    ],
+  },
 };

@@ -22,7 +22,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 
 This repository is in **pre-alpha MVP stage**.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional disk backed replay storage, fake CLI integration tests, and thin local smoke CLI commands.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional disk backed replay storage, compatibility profiles for the built-in CLIs, parser fixtures, fake CLI integration tests, and thin local smoke CLI commands.
 
 ## Why
 
@@ -218,6 +218,7 @@ Each adapter owns only the details that truly vary by CLI:
 
 - binary names and env overrides;
 - version, auth, capability, and model probes;
+- compatibility profile notes for verified and unverified invocation flags;
 - argv construction;
 - prompt transport;
 - stream parser;
@@ -229,9 +230,9 @@ The core runner owns process lifecycle, process-tree best-effort termination, di
 
 | Adapter | Target binary | Prompt transport | Stream strategy | MVP status |
 | --- | --- | --- | --- | --- |
-| Codex CLI | `codex` | stdin | `codex exec --json` | Implemented MVP, real flags need ongoing compatibility smoke |
-| Claude Code | `claude` | stdin JSONL | `stream-json` | Implemented MVP, real flags need ongoing compatibility smoke |
-| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | Implemented MVP, real flags need ongoing compatibility smoke |
+| Codex CLI | `codex` | stdin | `codex exec --json` | P0-3 detection/model probe baseline recorded; local run smoke timed out |
+| Claude Code | `claude` | stdin JSONL | `stream-json` | P0-3 detection baseline recorded; local auth missing |
+| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P0-3 detection/model probe baseline recorded; local run smoke timed out |
 
 Future adapters should be possible without changing the core runtime.
 
@@ -270,6 +271,8 @@ This project starts local processes on behalf of the caller. That is powerful an
 - Logs and diagnostics must redact secret-looking env values and tokens.
 - Disk backed storage does not write secret-bearing environment maps. Diagnostics and validation stdout/stderr are redacted before they are written to manifests or events.
 - A failed adapter must not collapse detection for other adapters.
+- Detection probe diagnostics are classified as `not_installed`, `not_executable`, `auth_missing`, `network_error`, `unsupported_flag`, or `probe_failed`.
+- JSON stream parsers ignore empty, warning, log, and non-JSON noise lines; user-visible text is emitted only from structured CLI text fields.
 - Goal task `validationCommands` run in the task `cwd` after a successful agent run; failed validation marks the task and goal as failed.
 
 The runtime should never grant more authority than the caller requested.

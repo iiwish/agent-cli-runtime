@@ -77,6 +77,18 @@ export interface AgentRunDefaults {
   permissionPolicy?: PermissionPolicy;
 }
 
+export interface AdapterCompatibilityProfile {
+  executableNames: string[];
+  versionProbe: ProbeCommand;
+  modelProbe?: (ProbeCommand & { needsVerification?: boolean; notes?: string }) | null;
+  authProbe?: (ProbeCommand & { needsVerification?: boolean; notes?: string }) | null;
+  defaultArgs: string[];
+  knownFlags: Array<{ flag: string; mapsTo: string; needsVerification?: boolean; notes?: string }>;
+  promptTransport: string;
+  streamFormat: string;
+  capabilityNotes: string[];
+}
+
 export interface AgentAdapterDef {
   id: AgentId;
   displayName: string;
@@ -95,6 +107,7 @@ export interface AgentAdapterDef {
   env?: Record<string, string>;
   capabilities?: AgentCapabilityHints;
   defaults?: AgentRunDefaults;
+  compatibility?: AdapterCompatibilityProfile;
 }
 
 export interface DetectedAgent {

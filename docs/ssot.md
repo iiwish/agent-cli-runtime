@@ -241,6 +241,7 @@ export interface AgentAdapterDef {
   env?: Record<string, string>;
   capabilities: AgentCapabilityHints;
   defaults?: AgentRunDefaults;
+  compatibility?: AdapterCompatibilityProfile;
 }
 
 export type PromptTransport =
@@ -261,6 +262,8 @@ export interface BuildArgsInput {
 ```
 
 Adapter module 不直接 spawn process；它只描述 core runner 如何 spawn。
+
+P0-3 起，内置 adapter 还会声明 lightweight compatibility profile，用来记录真实 CLI invocation 基线，而不是把未验证 flags 混进默认路径。Profile 覆盖 executable names、version/model/auth probe、default args、known flags、prompt transport、stream format 和 capability notes；不确定的 flags 必须标记 `needsVerification`，或只作为 fallback/documentation 记录。
 
 ## 7. 检测契约
 
@@ -303,6 +306,8 @@ export interface DetectedAgent {
 - 不执行 login flow。
 - 不修改 CLI config。
 - model-list failure 不等于 adapter unavailable。
+- version/model/auth probe diagnostics 必须 redaction，并按 `not_installed`、`not_executable`、`auth_missing`、`network_error`、`unsupported_flag`、`probe_failed` 这类原因分类。
+- model probe parser 必须过滤空行、warning/log line 和明显非模型行；解析失败时回退到 static fallback model hints，并保留 diagnostic。
 - `detectStream()` 服务渐进式 UI；`detect()` 服务脚本和普通 library caller。
 
 ## 8. Run 生命周期
@@ -366,6 +371,7 @@ Parser 规则：
 - CLI 暴露 tool call/result 时要映射出来。
 - CLI 暴露 shell command execution 但不暴露通用 tool event 时，可 synthesize `tool_call`。
 - 只有真实 usage 可用时才 emit `usage`。
+- JSON stream parser 只从结构化 JSON events 产出 normalized events；空行、warning、日志和非 JSON 行默认作为噪声忽略，不伪装成 assistant text。
 - 默认不把 unknown raw event 暴露在 public contract；debug log 可保留。
 
 Replay 规则：
@@ -395,6 +401,7 @@ codex exec --json --skip-git-repo-check --sandbox workspace-write -c sandbox_wor
 - Sandbox：默认 `workspace-write`；只有显式 `permissionPolicy` 才允许升级。
 - Parser：消费 Codex JSON events，映射 thread/turn status、command execution、agent messages、errors、usage。
 - Detection：支持 `CODEX_BIN`；probe `codex --version`；可选 probe `codex debug models`。
+- Compatibility：P0-3 本机检测通过，`codex debug models` live model source 可用；auth probe 暂无稳定非变更命令，状态为 `unknown`。
 
 ### Claude Code
 
@@ -413,13 +420,14 @@ claude -p --input-format stream-json --output-format stream-json --verbose
 - Permission：通过 `permissionPolicy` 暴露；不要把 bypass mode 作为全局默认。
 - Parser：使用 Claude stream-json parser，映射 status、text、thinking、tool calls、tool results、usage。
 - Detection：支持 `CLAUDE_BIN`；如后续明确需要，可加入兼容 fork fallback binary。
+- Compatibility：P0-3 本机检测通过，但 `claude auth status` 返回 `loggedIn:false`，runtime 分类为 `auth_missing`；live model probe 暂不启用，使用 fallback aliases。
 
 ### OpenCode
 
 默认 invocation shape：
 
 ```bash
-opencode run --format json
+opencode run --format json --dir <cwd>
 ```
 
 说明：
@@ -428,6 +436,7 @@ opencode run --format json
 - Binary candidates：`opencode-cli`，然后 `opencode`。
 - Model：选择模型时追加 `-m <id>`。
 - Detection：支持 `OPENCODE_BIN`；probe `opencode models`，timeout 要比普通 version probe 更长。
+- Compatibility：P0-3 本机 `opencode-cli` 不存在，fallback 到 `/opt/homebrew/bin/opencode`；live model source 可用。`read-only` / `workspace-write` 权限映射保持未验证，不进入默认 argv。
 - Env：清理继承自 parent OpenCode process 的 runtime/session env keys，避免污染。
 - Permission：通过 `permissionPolicy` 暴露；只有显式请求时才传递 skip-permission flags。
 - Parser：映射 step start、text deltas、tool use/result、structured stdout errors、usage。

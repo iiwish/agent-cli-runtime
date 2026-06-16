@@ -4,12 +4,26 @@ import { OpenCodeJsonParser } from "../parsers/opencode-json.js";
 const DEFAULT_MODEL: RuntimeModelOption = { id: "default", label: "Default" };
 
 export function parseLineSeparatedModels(stdout: string): RuntimeModelOption[] | null {
+  const seen = new Set<string>([DEFAULT_MODEL.id]);
   const models = stdout
     .split(/\r?\n/u)
     .map((line) => line.trim())
-    .filter(Boolean)
+    .filter(isModelLine)
+    .filter((id) => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
     .map((id) => ({ id, label: id }));
   return models.length > 0 ? [DEFAULT_MODEL, ...models] : null;
+}
+
+function isModelLine(line: string): boolean {
+  if (!line) return false;
+  if (/^(warn|warning|info|debug|trace|error)\b/i.test(line)) return false;
+  if (/\s/u.test(line)) return false;
+  if (line.startsWith("{") || line.startsWith("[") || line.startsWith("-")) return false;
+  return /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/iu.test(line) || /^[a-z][a-z0-9._:-]{2,}$/iu.test(line);
 }
 
 export function cleanOpenCodeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -50,4 +64,24 @@ export const opencodeAdapter: AgentAdapterDef = {
   env: {},
   capabilities: { streaming: true, tools: true, models: true },
   defaults: { permissionPolicy: "agent-default" },
+  compatibility: {
+    executableNames: ["opencode-cli", "opencode"],
+    versionProbe: { args: ["--version"], timeoutMs: 3_000 },
+    modelProbe: { args: ["models"], timeoutMs: 15_000 },
+    authProbe: null,
+    defaultArgs: ["run", "--format", "json", "--dir", "<cwd>"],
+    knownFlags: [
+      { flag: "run", mapsTo: "runMode" },
+      { flag: "--format json", mapsTo: "streamFormat" },
+      { flag: "--dir", mapsTo: "cwd" },
+      { flag: "-m", mapsTo: "model" },
+      { flag: "--dangerously-skip-permissions", mapsTo: "headless-auto" },
+    ],
+    promptTransport: "stdin:text",
+    streamFormat: "opencode-json",
+    capabilityNotes: [
+      "Default prompt transport is stdin; prompts are not placed in argv.",
+      "Read-only/workspace-write permission mappings are left to OpenCode defaults until stable flags are verified.",
+    ],
+  },
 };
