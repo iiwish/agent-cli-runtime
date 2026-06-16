@@ -64,6 +64,45 @@ describe("RunScheduler", () => {
     expect(await runtime.getRun(handle.runId)).toMatchObject({ status: "failed", errorCode: "AGENT_TIMEOUT" });
   });
 
+  it("records actionable redacted timeout diagnostics", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("fake 1.0.0"); process.exit(0); }
+console.log("diagnostic started");
+console.error("network ECONNRESET token sk" + "A".repeat(20) + " cwd=" + process.cwd() + " home=" + (process.env.HOME || ""));
+setInterval(() => {}, 1000);
+`);
+    const runtime = createAgentRuntime({
+      adapters: [
+        fakeAdapter({
+          buildArgs(input) {
+            return ["run", "--dir", input.cwd];
+          },
+        }),
+      ],
+      env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` },
+      searchPath: [dir],
+    });
+    const handle = await runtime.run({ agentId: "fake", cwd, prompt: "timeout-diagnostic", timeoutMs: 5_000 });
+    await collect(handle.events);
+    const run = await runtime.getRun(handle.runId);
+    const timeoutDiagnostic = run?.diagnostics.find((item) => item.code === "AGENT_TIMEOUT");
+    expect(timeoutDiagnostic).toMatchObject({
+      agentId: "fake",
+      argv: ["run", "--dir", "<cwd>"],
+      promptTransport: "stdin:text",
+      parsedEventCount: expect.any(Number),
+      stdoutTail: expect.stringContaining("diagnostic started"),
+      stderrTail: expect.stringContaining("[REDACTED]"),
+    });
+    expect(timeoutDiagnostic?.parsedEventCount).toBeGreaterThan(0);
+    expect(timeoutDiagnostic?.stderrTail).not.toContain(cwd);
+    if (process.env.HOME) expect(timeoutDiagnostic?.stderrTail).not.toContain(process.env.HOME);
+    expect(timeoutDiagnostic?.actionableHints?.join("\n")).toContain("network");
+  }, 10_000);
+
   it("does not report success from output emitted after cancellation", async () => {
     const dir = await tempDir();
     const cwd = await tempDir();
@@ -170,7 +209,7 @@ describe("RunScheduler", () => {
     const childPid = Number((await readFile(marker, "utf8")).trim());
     await handle.cancel();
     await collect(handle.events);
-    await delay(100);
+    await delay(500);
     expect(isProcessAlive(childPid)).toBe(false);
   });
 

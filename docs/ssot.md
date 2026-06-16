@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：MVP implemented v0.2
+状态：MVP implemented v0.3
 负责人：local project
 最后更新：2026-06-16
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -372,6 +372,7 @@ Parser 规则：
 - CLI 暴露 shell command execution 但不暴露通用 tool event 时，可 synthesize `tool_call`。
 - 只有真实 usage 可用时才 emit `usage`。
 - JSON stream parser 只从结构化 JSON events 产出 normalized events；空行、warning、日志和非 JSON 行默认作为噪声忽略，不伪装成 assistant text。
+- 已知 transient 状态不能冒充 fatal error；例如 Codex `Reconnecting... n/5` 在最终成功前可能以 structured `error` frame 出现，P0-4 起解析为 `status: reconnecting`。
 - 默认不把 unknown raw event 暴露在 public contract；debug log 可保留。
 
 Replay 规则：
@@ -402,6 +403,7 @@ codex exec --json --skip-git-repo-check --sandbox workspace-write -c sandbox_wor
 - Parser：消费 Codex JSON events，映射 thread/turn status、command execution、agent messages、errors、usage。
 - Detection：支持 `CODEX_BIN`；probe `codex --version`；可选 probe `codex debug models`。
 - Compatibility：P0-3 本机检测通过，`codex debug models` live model source 可用；auth probe 暂无稳定非变更命令，状态为 `unknown`。
+- P0-4：真实 smoke 发现 `Reconnecting... n/5` 可在最终正文和 usage 前出现，parser 不再把这类 transient reconnect 当作 run failure。
 
 ### Claude Code
 
@@ -437,6 +439,7 @@ opencode run --format json --dir <cwd>
 - Model：选择模型时追加 `-m <id>`。
 - Detection：支持 `OPENCODE_BIN`；probe `opencode models`，timeout 要比普通 version probe 更长。
 - Compatibility：P0-3 本机 `opencode-cli` 不存在，fallback 到 `/opt/homebrew/bin/opencode`；live model source 可用。`read-only` / `workspace-write` 权限映射保持未验证，不进入默认 argv。
+- P0-4：本机 `opencode run --help` 只声明 positional `message..`，没有声明 stdin prompt；runtime 仍保持 stdin 作为安全默认，并在真实 smoke timeout 时给出 profile/stdin diagnostic，而不是默认把 prompt 放进 argv。
 - Env：清理继承自 parent OpenCode process 的 runtime/session env keys，避免污染。
 - Permission：通过 `permissionPolicy` 暴露；只有显式请求时才传递 skip-permission flags。
 - Parser：映射 step start、text deltas、tool use/result、structured stdout errors、usage。
@@ -579,8 +582,8 @@ agent-runtime goal-events goal_123 --storage-dir .agent-runtime --after 10 --jso
 输出模式：
 
 - 默认 human-readable；
-- `--json` 输出单个 JSON summary；
-- `--stream jsonl` 输出 event stream。
+- `--json` 输出单个 JSON summary；run/goal 输出最终 run/goal record。
+- `--stream jsonl` 输出 event stream；run/goal 可加 `--diagnostics` 在 terminal event 后追加 redacted summary。
 - `runs` / `goals` 支持 `--status active|<terminal-status>` 过滤。
 - `run-events` / `goal-events` 支持 `--after <eventId>` 增量 replay。
 
@@ -609,8 +612,12 @@ Diagnostics 应包含：
 - agent id；
 - executable path 或 searched locations；
 - probe command kind，而不是完整 secret-bearing env；
+- sanitized argv（不得包含 prompt；`cwd` 等路径应替换为 `<cwd>` 或 `~`）；
+- prompt transport 和 stream format；
+- parsed event count；
 - exit code 或 signal；
 - redact 后的 stderr/stdout tail；
+- actionable hints，例如 unsupported flag、auth/network、interactive wait、parser/profile mismatch；
 - retryability。
 
 ## 17. 测试策略

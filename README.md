@@ -22,7 +22,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 
 This repository is in **pre-alpha MVP stage**.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional disk backed replay storage, compatibility profiles for the built-in CLIs, parser fixtures, fake CLI integration tests, and thin local smoke CLI commands.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional disk backed replay storage, compatibility profiles for the built-in CLIs, real-stream parser fixtures, fake CLI integration tests, and thin local smoke CLI commands with redacted diagnostics.
 
 ## Why
 
@@ -145,6 +145,8 @@ agent-runtime agents
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
 agent-runtime goal --agent codex --cwd . --prompt "split this objective into tasks and execute them"
 agent-runtime run --agent claude --cwd . --permission workspace-write --prompt-file task.md
+agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --json
+agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --stream jsonl --diagnostics
 agent-runtime doctor
 agent-runtime runs --storage-dir .agent-runtime --json
 agent-runtime run-events run_123 --storage-dir .agent-runtime --after 10 --json
@@ -152,7 +154,7 @@ agent-runtime goals --storage-dir .agent-runtime --json
 agent-runtime goal-events goal_123 --storage-dir .agent-runtime --after 10 --json
 ```
 
-The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams.
+The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams. For run/goal commands, `--json` prints the final run or goal record. `--stream jsonl --diagnostics` keeps the event stream and appends a redacted `run_summary` or `goal_summary` line after the terminal event.
 
 Disk storage layout is intentionally simple and tail-friendly:
 
@@ -230,9 +232,9 @@ The core runner owns process lifecycle, process-tree best-effort termination, di
 
 | Adapter | Target binary | Prompt transport | Stream strategy | MVP status |
 | --- | --- | --- | --- | --- |
-| Codex CLI | `codex` | stdin | `codex exec --json` | P0-3 detection/model probe baseline recorded; local run smoke timed out |
-| Claude Code | `claude` | stdin JSONL | `stream-json` | P0-3 detection baseline recorded; local auth missing |
-| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P0-3 detection/model probe baseline recorded; local run smoke timed out |
+| Codex CLI | `codex` | stdin | `codex exec --json` | P0-4 detection/model probe baseline recorded; timeout diagnostics classify local network/plugin startup stalls; transient reconnect events are parsed as status |
+| Claude Code | `claude` | stdin JSONL | `stream-json` | P0-4 detection baseline recorded; local auth still missing |
+| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P0-4 detection/model probe baseline recorded; local run smoke timeout is classified with profile/stdin diagnostics |
 
 Future adapters should be possible without changing the core runtime.
 
@@ -273,6 +275,7 @@ This project starts local processes on behalf of the caller. That is powerful an
 - A failed adapter must not collapse detection for other adapters.
 - Detection probe diagnostics are classified as `not_installed`, `not_executable`, `auth_missing`, `network_error`, `unsupported_flag`, or `probe_failed`.
 - JSON stream parsers ignore empty, warning, log, and non-JSON noise lines; user-visible text is emitted only from structured CLI text fields.
+- Timeout diagnostics include sanitized argv/profile labels, parsed event counts, stdout/stderr tails, and actionable hints; prompts are still kept out of argv.
 - Goal task `validationCommands` run in the task `cwd` after a successful agent run; failed validation marks the task and goal as failed.
 
 The runtime should never grant more authority than the caller requested.

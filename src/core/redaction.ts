@@ -1,6 +1,6 @@
 const SECRET_KEY_RE = /(token|secret|password|passwd|apikey|api_key|authorization|auth|credential|session|cookie)/i;
 const SECRET_VALUE_RE =
-  /\b((?:sk|pk|ghp|github_pat|xox[baprs]|ya29|claude|codex|opencode)[A-Za-z0-9_\-]{12,}|Bearer\s+[A-Za-z0-9._\-]{12,})\b/g;
+  /\b((?:sk|pk)-[A-Za-z0-9_\-]{12,}|(?:sk|pk)[A-Z0-9_\-]{12,}|(?:claude|codex|opencode)-[A-Za-z0-9_\-]{12,}|(?:claude|codex|opencode)[A-Z0-9_\-]{12,}|(?:ghp|github_pat|xox[baprs]|ya29)[A-Za-z0-9_\-]{12,}|Bearer\s+[A-Za-z0-9._\-]{12,})\b/g;
 const SECRET_ASSIGNMENT_RE =
   /((?:"|')?[A-Za-z0-9_.-]*(?:token|secret|password|passwd|apikey|api_key|api-key|authorization|credential|session|cookie)[A-Za-z0-9_.-]*(?:"|')?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi;
 

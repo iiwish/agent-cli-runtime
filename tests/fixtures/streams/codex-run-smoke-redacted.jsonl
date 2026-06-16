@@ -1,0 +1,7 @@
+Reading prompt from stdin...
+{"type":"thread.started","thread_id":"thread_redacted"}
+{"type":"turn.started"}
+2026-06-16T09:02:33Z  WARN codex_core_plugins::manifest: ignored local plugin path=~/.codex/plugins/redacted/plugin.json
+{"type":"error","message":"Reconnecting... 2/5 (stream disconnected before completion: Connection refused (os error 61))"}
+{"type":"item.completed","item":{"type":"agent_message","text":"agent-runtime codex smoke ok"}}
+{"type":"turn.completed","usage":{"input_tokens":11,"output_tokens":6,"reasoning_tokens":1}}

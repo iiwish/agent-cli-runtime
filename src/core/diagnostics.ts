@@ -19,12 +19,17 @@ export interface RuntimeDiagnostic {
   message: string;
   agentId?: string;
   path?: string;
+  argv?: string[];
+  promptTransport?: string;
+  streamFormat?: string;
+  parsedEventCount?: number;
+  stdoutTail?: string;
   searchedLocations?: string[];
   probe?: string;
   exitCode?: number | null;
   signal?: NodeJS.Signals | string | null;
-  stdoutTail?: string;
   stderrTail?: string;
+  actionableHints?: string[];
   retryable?: boolean;
 }
 

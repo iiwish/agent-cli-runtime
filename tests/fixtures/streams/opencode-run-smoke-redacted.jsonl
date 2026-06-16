@@ -1,0 +1,4 @@
+WARNING provider startup log redacted
+{"type":"step_start","part":{"id":"step_redacted"}}
+{"type":"text","part":{"text":"agent-runtime opencode smoke ok"}}
+{"type":"step_finish","part":{"tokens":{"input":7,"output":5,"reasoning":2},"cost":0.001}}

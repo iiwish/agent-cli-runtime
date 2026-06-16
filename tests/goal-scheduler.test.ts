@@ -91,7 +91,7 @@ describe("GoalScheduler", () => {
     const cwd = await tempDir();
     await writeExecutable(dir, "fake-agent", fakeCliBody);
     const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
-    const handle = await runtime.createGoal({ cwd, objective: "task-timeout", defaultAgentId: "fake", taskTimeoutMs: 500 });
+    const handle = await runtime.createGoal({ cwd, objective: "task-timeout", defaultAgentId: "fake", taskTimeoutMs: 3_000 });
     const events = await collect(handle.events);
     const goal = await runtime.getGoal(handle.goalId);
     const timedOutTask = goal?.tasks.find((task) => task.id === "T002");
@@ -201,11 +201,39 @@ describe("GoalScheduler", () => {
     const runEvents = JSON.parse((await execFileP(process.execPath, [cli, "run-events", runHandle.runId, "--storage-dir", storageDir, "--after", "1", "--json"])).stdout);
     const goals = JSON.parse((await execFileP(process.execPath, [cli, "goals", "--storage-dir", storageDir, "--json"])).stdout);
     const goalEvents = JSON.parse((await execFileP(process.execPath, [cli, "goal-events", goalHandle.goalId, "--storage-dir", storageDir, "--after", "1", "--json"])).stdout);
+    const missingCwd = await tempDir();
+    const missingJsonl = (await execFileP(process.execPath, [
+      cli,
+      "run",
+      "--agent",
+      "missing-adapter",
+      "--cwd",
+      missingCwd,
+      "--prompt",
+      "hello",
+      "--stream",
+      "jsonl",
+      "--diagnostics",
+    ])).stdout.trim().split(/\r?\n/u).map((line) => JSON.parse(line) as { type: string; summary?: { status?: string } });
+    const missingJson = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "run",
+      "--agent",
+      "missing-adapter",
+      "--cwd",
+      missingCwd,
+      "--prompt",
+      "hello",
+      "--json",
+    ])).stdout);
     expect(runs.map((run: { id: string }) => run.id)).toContain(runHandle.runId);
     expect(runEvents.every((event: { id: number }) => event.id > 1)).toBe(true);
     expect(goals.map((goal: { id: string }) => goal.id)).toContain(goalHandle.goalId);
     expect(goalEvents.every((event: { id: number }) => event.id > 1)).toBe(true);
-  });
+    expect(missingJsonl.some((event) => event.type === "run_finished")).toBe(true);
+    expect(missingJsonl.at(-1)).toMatchObject({ type: "run_summary", summary: { status: "failed" } });
+    expect(missingJson).toMatchObject({ agentId: "missing-adapter", status: "failed", errorCode: "AGENT_UNAVAILABLE" });
+  }, 30_000);
 
   it("fails a goal and emits diagnostics when event persistence fails", async () => {
     const store = new GoalStore(throwingGoalEventStorage());

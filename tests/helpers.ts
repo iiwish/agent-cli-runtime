@@ -75,6 +75,10 @@ process.stdin.on("end", () => {
     child.unref();
     if (marker) fs.writeFileSync(marker, String(child.pid));
     setInterval(() => {}, 1000);
+  } else if (input.includes("timeout-diagnostic")) {
+    console.log("diagnostic started");
+    console.error("network ECONNRESET token sk" + "A".repeat(20) + " cwd=" + process.cwd() + " home=" + (process.env.HOME || ""));
+    setInterval(() => {}, 1000);
   } else if (input.includes("close-error-race")) {
     console.log("ok:race");
     process.exit(0);

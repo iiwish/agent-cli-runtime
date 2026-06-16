@@ -1,6 +1,6 @@
 # Agent CLI Compatibility Matrix
 
-Status: P0-3 real CLI compatibility baseline
+Status: P0-4 real CLI run smoke and invocation profile baseline
 Last updated: 2026-06-16
 
 This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee.
@@ -9,9 +9,9 @@ This matrix records the CLI versions and behaviors that have been verified with 
 
 | Adapter | CLI path | CLI version tested | Detection | Run smoke | Goal smoke | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Codex CLI | `/Applications/Codex.app/Contents/Resources/codex` | `codex-cli 0.140.0-alpha.2` | Pass | Timeout in 30s non-mutating runtime smoke | Not run in P0-3 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. |
-| Claude Code | `/opt/homebrew/bin/claude` | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P0-3 | `claude auth status` returned `loggedIn:false`, `authMethod:none`, `apiProvider:firstParty`. |
-| OpenCode | `/opt/homebrew/bin/opencode` | `1.15.6` | Pass | Timeout in 30s non-mutating runtime smoke | Not run in P0-3 | `opencode-cli` was not installed; fallback `opencode` was used. Live model probe passed. |
+| Codex CLI | `/Applications/Codex.app/Contents/Resources/codex` | `codex-cli 0.140.0-alpha.2` | Pass | Classified: mixed local behavior. One non-mutating run produced text/usage within 30s but exposed transient reconnect events; subsequent 30s smoke timed out after startup events and local plugin warnings. | Not run in P0-4 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. Timeout diagnostics now show sanitized argv/profile, parsed event count, stdout/stderr tails, and startup diagnostic hints. |
+| Claude Code | `/opt/homebrew/bin/claude` | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P0-4 | `claude auth status` returned `loggedIn:false`, `authMethod:none`, `apiProvider:firstParty`. |
+| OpenCode | `/opt/homebrew/bin/opencode` | `1.15.6` | Pass | Classified timeout in 30s non-mutating runtime smoke | Not run in P0-4 | `opencode-cli` was not installed; fallback `opencode` was used. Live model probe passed. `opencode run --help` documents positional `message..`, not stdin prompt; runtime keeps stdin as safe default and reports this as an invocation profile gap. |
 
 ## Verified Invocation Shapes
 
@@ -30,6 +30,8 @@ Runtime notes:
 - reasoning effort: `-c model_reasoning_effort="<effort>"`
 - auth probe: no stable non-mutating auth probe is enabled; auth status is `unknown`
 - model probe: `codex debug models`; parser keeps only model `slug`/`display_name` and ignores hidden models
+- parser note: transient `Reconnecting... n/5` structured error frames are normalized to `status: reconnecting`; they are not fatal if the run later emits text/usage and exits `0`
+- P0-4 timeout classification: stdin/profile started successfully when `thread.started` and `turn.started` were parsed. The latest local timeout evidence shows local plugin manifest warnings before the runtime deadline; an earlier direct run also showed redacted `chatgpt.com` plugin/analytics request failures.
 
 ### Claude Code
 
@@ -74,6 +76,7 @@ Runtime notes:
 - headless-auto policy: `--dangerously-skip-permissions`
 - model probe: `opencode models`
 - read-only and workspace-write are left to OpenCode defaults until stable permission flags are verified
+- P0-4 timeout classification: no structured JSON events were parsed before timeout; the installed help output only documents positional `message..`, so stdin prompt support remains unverified for this version. Do not switch the default to argv prompt without a safe non-argv transport decision.
 
 ## Smoke Commands
 
@@ -101,7 +104,22 @@ node ./dist/cli/main.js run \
   --permission read-only \
   --timeout-ms 30000 \
   --stream jsonl \
+  --diagnostics \
   --prompt "Reply exactly: agent-runtime codex smoke ok. Do not edit files."
+```
+
+Equivalent OpenCode smoke:
+
+```bash
+tmp="$(mktemp -d /tmp/agent-runtime-run-smoke.XXXXXX)"
+node ./dist/cli/main.js run \
+  --agent opencode \
+  --cwd "$tmp" \
+  --permission read-only \
+  --timeout-ms 30000 \
+  --stream jsonl \
+  --diagnostics \
+  --prompt "Reply exactly: agent-runtime opencode smoke ok. Do not edit files."
 ```
 
 Run smoke in an isolated temp directory:
@@ -134,10 +152,11 @@ node ./dist/cli/main.js goal \
 - Real CLI auth and model availability depend on the user's local installation.
 - Runtime-side validation executes shell commands supplied by task graphs; callers should only use it with trusted objectives or trusted planners.
 - Parser coverage is fixture-based plus local smoke; more real stream captures should be added before a stable release.
-- P0-3 local non-mutating run smoke did not establish a successful run baseline for Codex or OpenCode; both hit the 30s runtime timeout in this environment.
+- P0-4 Codex smoke is now diagnosable but still not stable in this environment: one run produced final text/usage within 30s after reconnect events, while the latest run timed out after only `thread.started`/`turn.started`; timeout diagnostics prove the stdin/profile path started and captured local startup stderr rather than leaving the failure opaque.
+- P0-4 OpenCode non-mutating run smoke still times out with zero parsed events; stdin prompt support for `opencode run --format json` remains unverified in `1.15.6`.
 - Claude Code run/goal smoke is blocked by local auth until `claude auth status` reports a logged-in account or a supported Anthropic-compatible provider env is supplied.
 
-## P0-3 Detection Evidence
+## P0-4 Detection Evidence
 
 Commands run from this repository after `npm run build`:
 
@@ -153,3 +172,19 @@ Observed results:
 - OpenCode: available via fallback binary `opencode`, live models source, auth status `unknown`, diagnostics empty.
 
 Version, model, auth, and capability probe diagnostics are redacted before being returned by detection. Probe cwd is a neutral temp directory, not the caller project.
+
+## P0-4 Run Smoke Evidence
+
+Commands run from this repository after `npm run build`:
+
+```bash
+node ./dist/cli/main.js run --agent codex --permission read-only --timeout-ms 30000 --stream jsonl --diagnostics --cwd "$tmp" --prompt "Reply exactly: agent-runtime codex smoke ok. Do not edit files."
+node ./dist/cli/main.js run --agent opencode --permission read-only --timeout-ms 30000 --stream jsonl --diagnostics --cwd "$tmp" --prompt "Reply exactly: agent-runtime opencode smoke ok. Do not edit files."
+claude auth status
+```
+
+Observed results:
+
+- Codex: latest run timed out after 30s with `parsedEventCount: 2` (`thread.started`, `turn.started`), sanitized argv `["exec","--json","--skip-git-repo-check","--sandbox","read-only","-C","<cwd>"]`, and startup diagnostics rather than a prompt transport mismatch. A preceding run emitted the expected final text and usage but was previously misclassified because transient reconnect frames were treated as fatal; this is fixed by the parser fixture.
+- OpenCode: timed out after 30s with `parsedEventCount: 0`, sanitized argv `["run","--format","json","--dir","<cwd>"]`, exitCode `0` after timeout, and hints for interactive/model/auth wait or unsupported stdin profile.
+- Claude Code: `claude auth status` returned `loggedIn:false`, `authMethod:none`, `apiProvider:firstParty`; run smoke remains auth-blocked.

@@ -59,7 +59,7 @@ async function main(): Promise<void> {
       permissionPolicy: permissionFlag(parsed),
       timeoutMs: numberFlag(parsed, "timeout-ms"),
     });
-    await streamRun(parsed, handle.events);
+    await streamRun(parsed, handle.events, "run_summary", () => runtime.getRun(handle.runId));
     return;
   }
   if (parsed.command === "goal") {
@@ -71,7 +71,7 @@ async function main(): Promise<void> {
       permissionPolicy: permissionFlag(parsed),
       timeoutMs: numberFlag(parsed, "timeout-ms"),
     });
-    await streamRun(parsed, handle.events);
+    await streamRun(parsed, handle.events, "goal_summary", () => runtime.getGoal(handle.goalId));
     return;
   }
   throw new Error(`Unknown command: ${parsed.command}`);
@@ -107,9 +107,17 @@ async function promptFromFlags(parsed: ParsedArgs): Promise<string> {
   throw new Error("--prompt or --prompt-file is required");
 }
 
-async function streamRun(parsed: ParsedArgs, events: AsyncIterable<unknown>): Promise<void> {
+async function streamRun(
+  parsed: ParsedArgs,
+  events: AsyncIterable<unknown>,
+  summaryType: "run_summary" | "goal_summary",
+  loadSummary: () => Promise<unknown>,
+): Promise<void> {
   if (parsed.flags.get("stream") === "jsonl") {
     for await (const event of events) process.stdout.write(`${JSON.stringify(event)}\n`);
+    if (parsed.flags.has("diagnostics")) {
+      process.stdout.write(`${JSON.stringify({ type: summaryType, summary: await loadSummary() })}\n`);
+    }
     return;
   }
   let last: unknown = null;
@@ -123,7 +131,7 @@ async function streamRun(parsed: ParsedArgs, events: AsyncIterable<unknown>): Pr
       else if (typed.type === "error" && typed.message) process.stderr.write(`${typed.message}\n`);
     }
   }
-  if (parsed.flags.has("json")) output(parsed, last ?? {});
+  if (parsed.flags.has("json")) output(parsed, (await loadSummary()) ?? last ?? {});
 }
 
 function output(parsed: ParsedArgs, value: unknown): void {
@@ -163,6 +171,8 @@ function printHelp(): void {
 agent-runtime doctor [--json]
 agent-runtime run --agent codex --cwd . --prompt "..." [--stream jsonl]
 agent-runtime goal --agent codex --cwd . --prompt "..." [--stream jsonl]
+agent-runtime run --agent codex --cwd . --prompt "..." --json
+agent-runtime run --agent codex --cwd . --prompt "..." --stream jsonl --diagnostics
 agent-runtime runs --storage-dir .agent-runtime --json
 agent-runtime run-events <runId> --storage-dir .agent-runtime --after 10 --json
 agent-runtime goals --storage-dir .agent-runtime --json

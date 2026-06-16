@@ -22,7 +22,7 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 
 本仓库目前处于 **pre-alpha MVP stage**。
 
-SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 library-first Node.js/TypeScript MVP，默认 memory-only run / goal 调度，可选 disk backed replay storage，包含内置 CLI compatibility profiles、parser fixtures、fake CLI 集成测试，以及用于本地 smoke 的薄 CLI。
+SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 library-first Node.js/TypeScript MVP，默认 memory-only run / goal 调度，可选 disk backed replay storage，包含内置 CLI compatibility profiles、真实 stream parser fixtures、fake CLI 集成测试，以及带 redacted diagnostics 的本地 smoke 薄 CLI。
 
 ## 为什么需要它
 
@@ -145,6 +145,8 @@ agent-runtime agents
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
 agent-runtime goal --agent codex --cwd . --prompt "split this objective into tasks and execute them"
 agent-runtime run --agent claude --cwd . --permission workspace-write --prompt-file task.md
+agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --json
+agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --stream jsonl --diagnostics
 agent-runtime doctor
 agent-runtime runs --storage-dir .agent-runtime --json
 agent-runtime run-events run_123 --storage-dir .agent-runtime --after 10 --json
@@ -152,7 +154,7 @@ agent-runtime goals --storage-dir .agent-runtime --json
 agent-runtime goal-events goal_123 --storage-dir .agent-runtime --after 10 --json
 ```
 
-Library API 是主入口。CLI 是同一套 runtime 之上的薄包装，并支持 `--json` 以及 run/goal 的 `--stream jsonl` event stream。
+Library API 是主入口。CLI 是同一套 runtime 之上的薄包装，并支持 `--json` 以及 run/goal 的 `--stream jsonl` event stream。对 run/goal 命令，`--json` 输出最终 run 或 goal record；`--stream jsonl --diagnostics` 保留事件流，并在 terminal event 后追加一行 redacted `run_summary` 或 `goal_summary`。
 
 磁盘布局保持简单、方便人工检查和 `tail`：
 
@@ -230,9 +232,9 @@ Core runner 负责 process lifecycle、process-tree best-effort termination、di
 
 | Adapter | Target binary | Prompt transport | Stream strategy | MVP status |
 | --- | --- | --- | --- | --- |
-| Codex CLI | `codex` | stdin | `codex exec --json` | P0-3 已记录 detection/model probe baseline；本地 run smoke timeout |
-| Claude Code | `claude` | stdin JSONL | `stream-json` | P0-3 已记录 detection baseline；本地 auth missing |
-| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P0-3 已记录 detection/model probe baseline；本地 run smoke timeout |
+| Codex CLI | `codex` | stdin | `codex exec --json` | P0-4 已记录 detection/model probe baseline；timeout diagnostics 可分类本地网络/plugin startup 卡顿；transient reconnect events 会解析成 status |
+| Claude Code | `claude` | stdin JSONL | `stream-json` | P0-4 已记录 detection baseline；本地 auth 仍 missing |
+| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P0-4 已记录 detection/model probe baseline；本地 run smoke timeout 已带 profile/stdin diagnostics |
 
 未来新增 adapter 应该不需要改 core runtime。
 
@@ -273,6 +275,7 @@ Adapter-specific raw events 可以进入 debug log，但 public API 应保持稳
 - 单个 adapter 失败不能导致其他 adapter detection 一起失败。
 - Detection probe diagnostics 会分类为 `not_installed`、`not_executable`、`auth_missing`、`network_error`、`unsupported_flag` 或 `probe_failed`。
 - JSON stream parser 会忽略空行、warning、log 和非 JSON 噪声行；用户可见正文只来自结构化 CLI text 字段。
+- Timeout diagnostics 会记录 sanitized argv/profile labels、parsed event count、stdout/stderr tail 和 actionable hints；prompt 仍然不会进入 argv。
 - Goal task 的 `validationCommands` 会在 agent run 成功后由 runtime 在 task `cwd` 执行；validation 失败会把 task 和 goal 标记为 failed。
 
 Runtime 不应授予超过 caller 明确请求的权限。

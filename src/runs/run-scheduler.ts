@@ -134,6 +134,8 @@ export class RunScheduler {
         contextBlocks: request.contextBlocks,
       });
       const parser = adapter.stream.create();
+      let parsedEventCount = 0;
+      let stdoutTail = "";
       this.store.setStatus(runId, "running");
       if (this.store.hasPersistenceFailed(runId)) return;
       if (!this.emit(runId, { type: "run_started", runId, agentId: adapter.id, cwd: request.cwd, model: request.model })) return;
@@ -170,7 +172,11 @@ export class RunScheduler {
       }
 
       spawned.child.stdout.on("data", (chunk: Buffer) => {
-        for (const event of parser.parse(chunk.toString("utf8"))) {
+        const text = chunk.toString("utf8");
+        stdoutTail = tail(`${stdoutTail}${text}`);
+        const parsedEvents = parser.parse(text);
+        parsedEventCount += parsedEvents.length;
+        for (const event of parsedEvents) {
           if (event.type === "error") errorEventCode ??= event.code;
           if (isSubstantive(event)) sawSubstantiveEvent = true;
           if (!this.emit(runId, event)) {
@@ -184,7 +190,9 @@ export class RunScheduler {
       });
 
       const close = await spawned.close;
-      for (const event of parser.flush()) {
+      const flushedEvents = parser.flush();
+      parsedEventCount += flushedEvents.length;
+      for (const event of flushedEvents) {
         if (event.type === "error") errorEventCode ??= event.code;
         if (isSubstantive(event)) sawSubstantiveEvent = true;
         if (!this.emit(runId, event)) return;
@@ -192,13 +200,34 @@ export class RunScheduler {
       await active?.killPromise;
       if (active?.timeout) clearTimeout(active.timeout);
       if (active?.timeoutFired) {
-        this.addTerminalDiagnostic(runId, "AGENT_TIMEOUT", `Run timed out after ${request.timeoutMs ?? adapter.defaults?.timeoutMs}ms`, adapter, close, stderrTail, active.killDiagnostics);
+        this.addTerminalDiagnostic(
+          runId,
+          "AGENT_TIMEOUT",
+          `Run timed out after ${request.timeoutMs ?? adapter.defaults?.timeoutMs}ms`,
+          adapter,
+          close,
+          {
+            args,
+            cwd: request.cwd,
+            stdoutTail,
+            stderrTail,
+            parsedEventCount,
+            killDiagnostics: active.killDiagnostics,
+          },
+        );
         this.finish(runId, "failed", close.exitCode, close.signal, {
           error: "Run timed out",
           errorCode: "AGENT_TIMEOUT",
         });
       } else if (active?.cancelRequested) {
-        this.addTerminalDiagnostic(runId, "AGENT_CANCELLED", "Run was cancelled", adapter, close, stderrTail, active.killDiagnostics);
+        this.addTerminalDiagnostic(runId, "AGENT_CANCELLED", "Run was cancelled", adapter, close, {
+          args,
+          cwd: request.cwd,
+          stdoutTail,
+          stderrTail,
+          parsedEventCount,
+          killDiagnostics: active.killDiagnostics,
+        });
         this.emitError(runId, "AGENT_CANCELLED", "Run was cancelled", false);
         this.finish(runId, "cancelled", close.exitCode, close.signal, {
           error: "Run was cancelled",
@@ -207,7 +236,16 @@ export class RunScheduler {
       } else if (close.error) {
         const code = classifyProcessError(close.error);
         const message = processErrorMessage(adapter, close.error);
-        this.store.addDiagnostic(runId, diagnostic(code, redactText(message), { agentId: adapter.id, stderrTail: redactText(stderrTail), retryable: code === "AGENT_UNAVAILABLE" }));
+        this.store.addDiagnostic(runId, diagnostic(code, redactText(message), {
+          agentId: adapter.id,
+          argv: safeArgv(args, request.cwd),
+          promptTransport: promptTransportLabel(adapter),
+          streamFormat: adapter.compatibility?.streamFormat,
+          parsedEventCount,
+          stdoutTail: sanitizeDiagnosticText(stdoutTail, request.cwd),
+          stderrTail: sanitizeDiagnosticText(stderrTail, request.cwd),
+          retryable: code === "AGENT_UNAVAILABLE",
+        }));
         this.emitError(runId, code, redactText(message), code === "AGENT_UNAVAILABLE");
         this.finish(runId, "failed", close.exitCode, close.signal, {
           error: redactText(message),
@@ -215,7 +253,15 @@ export class RunScheduler {
         });
       } else if (close.stdinError) {
         const message = `Failed to write prompt to ${adapter.displayName} stdin: ${close.stdinError.message}`;
-        this.store.addDiagnostic(runId, diagnostic("AGENT_EXECUTION_FAILED", redactText(message), { agentId: adapter.id, stderrTail: redactText(stderrTail) }));
+        this.store.addDiagnostic(runId, diagnostic("AGENT_EXECUTION_FAILED", redactText(message), {
+          agentId: adapter.id,
+          argv: safeArgv(args, request.cwd),
+          promptTransport: promptTransportLabel(adapter),
+          streamFormat: adapter.compatibility?.streamFormat,
+          parsedEventCount,
+          stdoutTail: sanitizeDiagnosticText(stdoutTail, request.cwd),
+          stderrTail: sanitizeDiagnosticText(stderrTail, request.cwd),
+        }));
         this.emitError(runId, "AGENT_EXECUTION_FAILED", redactText(message));
         this.finish(runId, "failed", close.exitCode, close.signal, {
           error: redactText(message),
@@ -224,7 +270,18 @@ export class RunScheduler {
       } else if (errorEventCode) {
         this.finish(runId, "failed", close.exitCode, close.signal, { errorCode: errorEventCode });
       } else if (close.exitCode !== 0) {
-        this.store.addDiagnostic(runId, diagnostic("AGENT_EXECUTION_FAILED", `${adapter.displayName} exited with code ${close.exitCode}`, { agentId: adapter.id, exitCode: close.exitCode, signal: close.signal, stderrTail: redactText(stderrTail) }));
+        this.store.addDiagnostic(runId, diagnostic("AGENT_EXECUTION_FAILED", `${adapter.displayName} exited with code ${close.exitCode}`, {
+          agentId: adapter.id,
+          argv: safeArgv(args, request.cwd),
+          promptTransport: promptTransportLabel(adapter),
+          streamFormat: adapter.compatibility?.streamFormat,
+          parsedEventCount,
+          exitCode: close.exitCode,
+          signal: close.signal,
+          stdoutTail: sanitizeDiagnosticText(stdoutTail, request.cwd),
+          stderrTail: sanitizeDiagnosticText(stderrTail, request.cwd),
+          actionableHints: timeoutHints(adapter, stdoutTail, stderrTail, parsedEventCount, close),
+        }));
         this.emitError(runId, "AGENT_EXECUTION_FAILED", `${adapter.displayName} exited with code ${close.exitCode ?? "unknown"}`);
         this.finish(runId, "failed", close.exitCode, close.signal, {
           error: `${adapter.displayName} exited with code ${close.exitCode ?? "unknown"}`,
@@ -289,14 +346,26 @@ export class RunScheduler {
     message: string,
     adapter: AgentAdapterDef,
     close: ProcessClose,
-    stderrTail: string,
-    killDiagnostics: string[],
+    details: {
+      args: string[];
+      cwd: string;
+      stdoutTail: string;
+      stderrTail: string;
+      parsedEventCount: number;
+      killDiagnostics: string[];
+    },
   ): void {
     this.store.addDiagnostic(runId, diagnostic(code, redactText(message), {
       agentId: adapter.id,
+      argv: safeArgv(details.args, details.cwd),
+      promptTransport: promptTransportLabel(adapter),
+      streamFormat: adapter.compatibility?.streamFormat,
+      parsedEventCount: details.parsedEventCount,
       exitCode: close.exitCode,
       signal: close.signal,
-      stderrTail: redactText([stderrTail, ...killDiagnostics].filter(Boolean).join("\n")),
+      stdoutTail: sanitizeDiagnosticText(details.stdoutTail, details.cwd),
+      stderrTail: sanitizeDiagnosticText([details.stderrTail, ...details.killDiagnostics].filter(Boolean).join("\n"), details.cwd),
+      actionableHints: timeoutHints(adapter, details.stdoutTail, details.stderrTail, details.parsedEventCount, close),
       retryable: false,
     }));
   }
@@ -372,6 +441,59 @@ function isNotExecutableFile(candidate: string): boolean {
 
 function isSubstantive(event: AgentEventInput): boolean {
   return event.type === "text_delta" || event.type === "thinking_delta" || event.type === "tool_call" || event.type === "tool_result" || event.type === "usage" || event.type === "status";
+}
+
+function safeArgv(args: string[], cwd: string): string[] {
+  return args.map((arg) => sanitizeArg(arg, cwd));
+}
+
+function sanitizeArg(value: string, cwd: string): string {
+  if (value === cwd) return "<cwd>";
+  const home = process.env.HOME;
+  let out = value;
+  if (home) out = out.split(home).join("~");
+  out = out.split(cwd).join("<cwd>");
+  return redactText(out);
+}
+
+function sanitizeDiagnosticText(value: string, cwd: string): string | undefined {
+  if (!value) return undefined;
+  const home = process.env.HOME;
+  let out = value;
+  if (home) out = out.split(home).join("~");
+  out = out.split(cwd).join("<cwd>");
+  return redactText(out);
+}
+
+function promptTransportLabel(adapter: AgentAdapterDef): string {
+  const format = adapter.promptTransport.kind === "stdin" && adapter.promptTransport.inputFormat ? `:${adapter.promptTransport.inputFormat}` : "";
+  return `${adapter.promptTransport.kind}${format}`;
+}
+
+function timeoutHints(adapter: AgentAdapterDef, stdoutTail: string, stderrTail: string, parsedEventCount: number, close: ProcessClose): string[] {
+  const text = `${stdoutTail}\n${stderrTail}`;
+  const hints: string[] = [];
+  if (/unknown (option|flag)|unrecognized (option|flag)|unsupported (option|flag)|unknown argument/i.test(text)) {
+    hints.push("Installed CLI output looks like an unsupported flag or argument; verify this adapter profile against the local CLI help/version.");
+  }
+  if (/auth(entication)? required|not authenticated|not logged in|login required|unauthorized|invalid api key/i.test(text)) {
+    hints.push("CLI output looks auth-related; verify local CLI authentication or provider environment outside the runtime.");
+  }
+  if (/ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|network|fetch failed|socket hang up|Connect|HTTP request failed|chatgpt\.com|mcp/i.test(text)) {
+    hints.push("CLI output looks network or startup-integration related; inspect local CLI network/proxy/plugin configuration and retry the same command directly.");
+  }
+  if (parsedEventCount === 0) {
+    hints.push("No structured events were parsed before timeout; the CLI may be waiting for interactive input, model/auth setup, or may not support the configured JSON/stdin profile.");
+  } else {
+    hints.push("Structured events were parsed before timeout, so invocation started; the CLI did not emit a terminal event before the runtime deadline.");
+  }
+  if (adapter.id === "opencode" && adapter.promptTransport.kind === "stdin") {
+    hints.push("OpenCode help for this version documents positional message input but not stdin prompt input; keep stdin as the safe default unless a non-argv prompt transport is verified.");
+  }
+  if (close.exitCode === 0 && close.signal === null) {
+    hints.push("Process closed with exitCode 0 after the runtime timeout fired; treat this run as timeout because no terminal agent result arrived before the deadline.");
+  }
+  return [...new Set(hints)];
 }
 
 function tail(value: string, max = 4_000): string {

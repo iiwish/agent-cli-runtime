@@ -12,5 +12,6 @@ describe("redaction", () => {
     expect(redactText("Bearer abcdefghijklmnopqrstuvwxyz")).not.toContain("abcdefghijklmnopqrstuvwxyz");
     expect(redactText("ANTHROPIC_API_KEY=plain-secret-value")).toBe("ANTHROPIC_API_KEY=[REDACTED]");
     expect(redactText('{"api_key":"plain-secret-value"}')).toBe('{"api_key":[REDACTED]}');
+    expect(redactText("--skip-git-repo-check codex_core_skills::loader")).toBe("--skip-git-repo-check codex_core_skills::loader");
   });
 });

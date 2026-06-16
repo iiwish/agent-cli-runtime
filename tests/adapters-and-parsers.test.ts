@@ -112,6 +112,22 @@ describe("MVP adapters", () => {
     ]);
   });
 
+  it("parses redacted Codex run smoke streams through the terminal content path", () => {
+    const parser = codexAdapter.stream.create();
+    const events = parser.parse(fixture("codex-run-smoke-redacted.jsonl"));
+    expect(events).toEqual([
+      { type: "status", label: "initializing" },
+      { type: "status", label: "running" },
+      {
+        type: "status",
+        label: "reconnecting",
+        detail: "Reconnecting... 2/5 (stream disconnected before completion: Connection refused (os error 61))",
+      },
+      { type: "text_delta", text: "agent-runtime codex smoke ok" },
+      { type: "usage", usage: { inputTokens: 11, outputTokens: 6, thinkingTokens: 1 } },
+    ]);
+  });
+
   it("parses Claude stream-json while ignoring noisy non-JSON lines", () => {
     const parser = claudeAdapter.stream.create();
     const events = parser.parse(fixture("claude-stream-json.jsonl"));
@@ -135,6 +151,16 @@ describe("MVP adapters", () => {
       { type: "tool_result", id: "call_1", output: "ok", isError: false },
       { type: "usage", usage: { inputTokens: 3, outputTokens: 4, thinkingTokens: 1 }, costUsd: 0.01 },
       { type: "error", code: "AGENT_EXECUTION_FAILED", message: "bad request" },
+    ]);
+  });
+
+  it("parses redacted OpenCode run smoke streams through the terminal content path", () => {
+    const parser = opencodeAdapter.stream.create();
+    const events = parser.parse(fixture("opencode-run-smoke-redacted.jsonl"));
+    expect(events).toEqual([
+      { type: "status", label: "running" },
+      { type: "text_delta", text: "agent-runtime opencode smoke ok" },
+      { type: "usage", usage: { inputTokens: 7, outputTokens: 5, thinkingTokens: 2 }, costUsd: 0.001 },
     ]);
   });
 

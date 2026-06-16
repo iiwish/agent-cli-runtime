@@ -24,7 +24,9 @@ export class CodexJsonParser implements StreamParser {
       return usage ? [{ type: "usage", usage }] : [{ type: "status", label: "completed" }];
     }
     if (type === "error") {
-      return [{ type: "error", code: "AGENT_EXECUTION_FAILED", message: errorMessage(value, "Codex error") }];
+      const message = errorMessage(value, "Codex error");
+      if (/^Reconnecting\.\.\./i.test(message)) return [{ type: "status", label: "reconnecting", detail: message }];
+      return [{ type: "error", code: "AGENT_EXECUTION_FAILED", message }];
     }
     if (type === "item.completed" && isRecord(value.item)) {
       return itemCompleted(value.item);
