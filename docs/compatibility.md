@@ -1,9 +1,9 @@
 # Agent CLI Compatibility Matrix
 
-Status: P0-4 real CLI run smoke and invocation profile baseline
+Status: P0-5 pre-alpha compatibility and release-readiness baseline
 Last updated: 2026-06-16
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P0-5 reviewed API/CLI/package boundaries for pre-alpha release; it did not rerun authenticated real-agent write smokes.
 
 ## Summary
 
@@ -149,6 +149,8 @@ node ./dist/cli/main.js goal \
 ## Known MVP Gaps
 
 - Disk backed run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
+- Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
+- CLI remains a thin local smoke/scripting wrapper over the library API, not a daemon or long-lived service.
 - Real CLI auth and model availability depend on the user's local installation.
 - Runtime-side validation executes shell commands supplied by task graphs; callers should only use it with trusted objectives or trusted planners.
 - Parser coverage is fixture-based plus local smoke; more real stream captures should be added before a stable release.

@@ -73,11 +73,13 @@ export interface ScheduledTask {
   evidence?: TaskEvidence;
 }
 
+export type GoalStatus = "planning" | "running" | "succeeded" | "failed" | "canceled";
+
 export interface GoalRecord {
   id: string;
   cwd: string;
   objective: string;
-  status: "planning" | "running" | "succeeded" | "failed" | "canceled";
+  status: GoalStatus;
   tasks: ScheduledTask[];
   createdAt: number;
   updatedAt: number;

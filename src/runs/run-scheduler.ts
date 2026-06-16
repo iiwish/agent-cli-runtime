@@ -319,8 +319,9 @@ export class RunScheduler {
   }
 
   private failBeforeSpawn(runId: string, code: RuntimeErrorCode, message: string): void {
-    this.emitError(runId, code, message);
-    this.finish(runId, "failed", 1, null, { error: message, errorCode: code });
+    const redactedMessage = redactText(message);
+    this.emitError(runId, code, redactedMessage);
+    this.finish(runId, "failed", 1, null, { error: redactedMessage, errorCode: code });
     this.cleanupActive(runId);
   }
 
@@ -337,7 +338,7 @@ export class RunScheduler {
   }
 
   private emitError(runId: string, code: RuntimeErrorCode, message: string, retryable = false): boolean {
-    return this.emit(runId, { type: "error", code, message, retryable });
+    return this.emit(runId, { type: "error", code, message: redactText(message), retryable });
   }
 
   private addTerminalDiagnostic(

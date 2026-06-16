@@ -123,6 +123,17 @@ The public facade exposes:
 - `runtime.getGoal(goalId)`
 - `runtime.getGoalEvents(goalId, { afterEventId? })`
 - `runtime.listGoals({ status? })`
+- `runtime.getAdapter(id)`
+
+### API Contract Boundary
+
+For the pre-alpha release, the package root is intentionally small. It exports the `createAgentRuntime()` value plus the public TypeScript types needed to call it and consume its records:
+
+- stable MVP surface: `AgentRuntime`, `RuntimeOptions`, `DetectOptions`, `DetectedAgent`, `RunRequest`, `RunHandle`, `RunRecord`, `RunStatus`, `CreateGoalRequest`, `GoalHandle`, `GoalRecord`, `GoalStatus`, `AgentEvent`, `SchedulerEvent`, `ReplayEvent`, `RuntimeDiagnostic`, and `RuntimeErrorCode`;
+- experimental extension surface: adapter-authoring types such as `AgentAdapterDef`, `BuildArgsInput`, `PromptTransport`, `StreamParser`, and `AdapterCompatibilityProfile`;
+- not exported from the package root: built-in adapter values, parser helpers, executable-resolution helpers, stores, schedulers, and task-graph helpers.
+
+`getAdapter(id)` and `RuntimeOptions.adapters` exist for adapter experimentation in pre-alpha. Treat them as extension points whose shape may still change before a stable release.
 
 ## Installation
 
@@ -244,15 +255,16 @@ The runtime exposes a small append-only event stream:
 
 ```ts
 type AgentEvent =
-  | { type: "run_started"; runId: string; agentId: string; cwd: string }
-  | { type: "status"; label: string; detail?: string }
-  | { type: "text_delta"; text: string }
-  | { type: "thinking_delta"; text: string }
-  | { type: "tool_call"; id: string; name: string; input?: unknown }
-  | { type: "tool_result"; id: string; output?: unknown; isError?: boolean }
-  | { type: "usage"; usage: RuntimeUsage; costUsd?: number }
-  | { type: "error"; code: RuntimeErrorCode; message: string; retryable?: boolean }
-  | { type: "run_finished"; result: "success" | "failed" | "cancelled"; exitCode?: number | null; signal?: string | null };
+  | { type: "run_started"; runId: string; agentId: string; cwd: string; model?: string; timestamp: number }
+  | { type: "status"; label: string; detail?: string; timestamp: number }
+  | { type: "text_delta"; text: string; timestamp: number }
+  | { type: "thinking_delta"; text: string; timestamp: number }
+  | { type: "tool_call"; id: string; name: string; input?: unknown; timestamp: number }
+  | { type: "tool_result"; id: string; output?: unknown; isError?: boolean; timestamp: number }
+  | { type: "file_event"; path: string; action: "created" | "updated" | "deleted" | "unknown"; timestamp: number }
+  | { type: "usage"; usage: RuntimeUsage; costUsd?: number; timestamp: number }
+  | { type: "error"; code: RuntimeErrorCode; message: string; retryable?: boolean; detail?: unknown; timestamp: number }
+  | { type: "run_finished"; result: "success" | "failed" | "cancelled"; exitCode?: number | null; signal?: string | null; timestamp: number };
 ```
 
 Goal scheduling wraps run events with `goal_started`, `task_created`, `task_started`, `run_event`, `task_finished`, `goal_finished`, and `scheduler_error`.
@@ -294,7 +306,7 @@ It is not affiliated with OpenDesign, OpenCode, Anthropic, OpenAI, or any suppor
 - M3: Claude Code adapter MVP. Done.
 - M4: OpenCode adapter MVP. Done.
 - M5: CLI wrapper and `doctor` command. Done.
-- M6: public package, compatibility matrix, contribution guide, and security policy.
+- M6: public package boundary, compatibility matrix, API/CLI contract freeze, contribution guide, and security policy. In progress for pre-alpha; contribution and security policy docs remain post-MVP follow-up.
 
 ## Contributing
 

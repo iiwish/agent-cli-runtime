@@ -2,6 +2,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createAgentRuntime } from "../index.js";
+import { redactText } from "../core/redaction.js";
 
 interface ParsedArgs {
   command: string;
@@ -114,9 +115,9 @@ async function streamRun(
   loadSummary: () => Promise<unknown>,
 ): Promise<void> {
   if (parsed.flags.get("stream") === "jsonl") {
-    for await (const event of events) process.stdout.write(`${JSON.stringify(event)}\n`);
+    for await (const event of events) process.stdout.write(`${JSON.stringify(redactForCli(event))}\n`);
     if (parsed.flags.has("diagnostics")) {
-      process.stdout.write(`${JSON.stringify({ type: summaryType, summary: await loadSummary() })}\n`);
+      process.stdout.write(`${JSON.stringify(redactForCli({ type: summaryType, summary: await loadSummary() }))}\n`);
     }
     return;
   }
@@ -128,18 +129,26 @@ async function streamRun(
       const typed = event as { type: string; text?: string; message?: string; result?: string };
       if (typed.type === "text_delta" && typed.text) process.stdout.write(typed.text);
       else if (typed.type.endsWith("finished")) process.stdout.write(`\n${typed.type}: ${typed.result ?? "done"}\n`);
-      else if (typed.type === "error" && typed.message) process.stderr.write(`${typed.message}\n`);
+      else if (typed.type === "error" && typed.message) process.stderr.write(`${redactText(typed.message)}\n`);
     }
   }
   if (parsed.flags.has("json")) output(parsed, (await loadSummary()) ?? last ?? {});
 }
 
 function output(parsed: ParsedArgs, value: unknown): void {
+  const safeValue = redactForCli(value);
   if (parsed.flags.has("json")) {
-    process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(safeValue, null, 2)}\n`);
     return;
   }
-  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(safeValue, null, 2)}\n`);
+}
+
+function redactForCli(value: unknown): unknown {
+  if (typeof value === "string") return redactText(value);
+  if (Array.isArray(value)) return value.map((item) => redactForCli(item));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactForCli(item)]));
 }
 
 function stringFlag(parsed: ParsedArgs, key: string): string | undefined {
@@ -151,7 +160,8 @@ function numberFlag(parsed: ParsedArgs, key: string): number | undefined {
   const value = stringFlag(parsed, key);
   if (!value) return undefined;
   const parsedValue = Number(value);
-  return Number.isFinite(parsedValue) ? parsedValue : undefined;
+  if (!Number.isFinite(parsedValue)) throw new Error(`--${key} must be a number`);
+  return parsedValue;
 }
 
 function permissionFlag(parsed: ParsedArgs) {
@@ -159,28 +169,33 @@ function permissionFlag(parsed: ParsedArgs) {
 }
 
 function runStatusFlag(parsed: ParsedArgs) {
-  return stringFlag(parsed, "status") as never;
+  return enumFlag(parsed, "status", ["active", "queued", "running", "succeeded", "failed", "canceled"]) as never;
 }
 
 function goalStatusFlag(parsed: ParsedArgs) {
-  return stringFlag(parsed, "status") as never;
+  return enumFlag(parsed, "status", ["active", "planning", "running", "succeeded", "failed", "canceled"]) as never;
+}
+
+function enumFlag(parsed: ParsedArgs, key: string, allowed: string[]): string | undefined {
+  const value = stringFlag(parsed, key);
+  if (!value) return undefined;
+  if (!allowed.includes(value)) throw new Error(`--${key} must be one of: ${allowed.join(", ")}`);
+  return value;
 }
 
 function printHelp(): void {
-  process.stdout.write(`agent-runtime agents [--json]
-agent-runtime doctor [--json]
-agent-runtime run --agent codex --cwd . --prompt "..." [--stream jsonl]
-agent-runtime goal --agent codex --cwd . --prompt "..." [--stream jsonl]
-agent-runtime run --agent codex --cwd . --prompt "..." --json
-agent-runtime run --agent codex --cwd . --prompt "..." --stream jsonl --diagnostics
-agent-runtime runs --storage-dir .agent-runtime --json
-agent-runtime run-events <runId> --storage-dir .agent-runtime --after 10 --json
-agent-runtime goals --storage-dir .agent-runtime --json
-agent-runtime goal-events <goalId> --storage-dir .agent-runtime --after 10 --json
+  process.stdout.write(`agent-runtime agents [--json] [--storage-dir <dir>]
+agent-runtime doctor [--json] [--storage-dir <dir>]
+agent-runtime run --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--model <id>] [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
+agent-runtime goal --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
+agent-runtime runs [--storage-dir <dir>] [--status active|queued|running|succeeded|failed|canceled] [--json]
+agent-runtime run-events <runId> [--storage-dir <dir>] [--after <eventId>] [--json]
+agent-runtime goals [--storage-dir <dir>] [--status active|planning|running|succeeded|failed|canceled] [--json]
+agent-runtime goal-events <goalId> [--storage-dir <dir>] [--after <eventId>] [--json]
 `);
 }
 
 main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(`${redactText(error instanceof Error ? error.message : String(error))}\n`);
   process.exitCode = 1;
 });

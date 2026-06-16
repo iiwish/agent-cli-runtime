@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { claudeAdapter, codexAdapter, opencodeAdapter } from "../src/index.js";
+import { claudeAdapter } from "../src/adapters/claude.js";
+import { codexAdapter } from "../src/adapters/codex.js";
+import { opencodeAdapter } from "../src/adapters/opencode.js";
 import { preparePromptTransport } from "../src/runs/prompt-transport.js";
 
 describe("MVP adapters", () => {

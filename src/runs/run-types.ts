@@ -18,16 +18,7 @@ export interface RuntimeOptions {
   adapters?: AgentAdapterDef[];
   env?: NodeJS.ProcessEnv;
   searchPath?: string[];
-  homeDir?: string;
   storageDir?: string;
-  logger?: RuntimeLogger;
-}
-
-export interface RuntimeLogger {
-  debug?(message: string, data?: unknown): void;
-  info?(message: string, data?: unknown): void;
-  warn?(message: string, data?: unknown): void;
-  error?(message: string, data?: unknown): void;
 }
 
 export interface RunRequest {

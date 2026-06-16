@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：MVP implemented v0.3
+状态：P0-5 pre-alpha API/CLI contract freeze
 负责人：local project
 最后更新：2026-06-16
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -143,9 +143,7 @@ export interface RuntimeOptions {
   adapters?: AgentAdapterDef[];
   env?: NodeJS.ProcessEnv;
   searchPath?: string[];
-  homeDir?: string;
   storageDir?: string;
-  logger?: RuntimeLogger;
 }
 
 export interface DetectOptions {
@@ -194,6 +192,12 @@ export interface AgentRuntime {
   getAdapter(id: AgentId): AgentAdapterDef | null;
 }
 ```
+
+P0-5 package root 契约：
+
+- 稳定 MVP surface：`createAgentRuntime(options?)`、`AgentRuntime` facade、`DetectOptions` / `DetectedAgent`、`RunRequest` / `RunHandle` / `RunRecord` / `RunStatus`、`CreateGoalRequest` / `GoalHandle` / `GoalRecord` / `GoalStatus`、`AgentEvent` / `SchedulerEvent` / `ReplayEvent`、`RuntimeDiagnostic` / `RuntimeErrorCode`。
+- 实验 extension surface：`RuntimeOptions.adapters`、`AgentAdapterDef`、`BuildArgsInput`、`PromptTransport`、`StreamParser`、`AdapterCompatibilityProfile` 等 adapter authoring 类型。它们用于 pre-alpha adapter 实验，但 stable release 前仍可能调整。
+- 不从 package root 导出 runtime internals：内置 adapter values、parser helpers、executable resolution helpers、stores、schedulers、task graph helpers。内部测试可以继续从 `src/` 直接引用。
 
 `run()` 在 child process 已启动、事件解析已挂载后返回。调用方消费 `handle.events`，直到收到 terminal `run_finished` event。run 开始后的 agent failure 应作为事件发出，而不是在 iterator 外层抛出。
 
@@ -506,9 +510,8 @@ export interface RuntimeContextBlock {
 - `CODEX_BIN`
 - `CLAUDE_BIN`
 - `OPENCODE_BIN`
-- `AGENT_CLI_RUNTIME_HOME`
-- `AGENT_CLI_RUNTIME_LOG_LEVEL`
-- `AGENT_CLI_RUNTIME_TIMEOUT_MS`
+
+`AGENT_CLI_RUNTIME_HOME`、`AGENT_CLI_RUNTIME_LOG_LEVEL`、`AGENT_CLI_RUNTIME_TIMEOUT_MS` 这类 runtime-level config env 暂不属于 MVP 契约；如后续实现，需要先补类型、文档和 CLI/API 测试。
 
 Config file 可作为 post-MVP 选项：
 
@@ -603,6 +606,7 @@ Library API 是主入口。CLI 必须复用同一套 API，不走第二套逻辑
 - `AGENT_STREAM_PARSE_FAILED`
 - `AGENT_TIMEOUT`
 - `AGENT_CANCELLED`
+- `AGENT_TASK_GRAPH_INVALID`
 - `AGENT_RUNTIME_INTERRUPTED`
 - `AGENT_EVENT_LOG_CORRUPT`
 - `AGENT_EVENT_PERSIST_FAILED`
@@ -704,8 +708,10 @@ agent-runtime run --agent opencode --cwd /tmp/agent-runtime-smoke --prompt "summ
 ### M6：Compatibility And Release Prep
 
 - 真实 Codex / Claude / OpenCode CLI compatibility matrix。
-- contribution guide、security policy、package publishing checklist。
-- 可选 disk backed event log / goal evidence persistence。
+- public API / CLI contract freeze。
+- package publishing boundary review。
+- contribution guide、security policy、package publishing checklist 仍为 post-MVP 文档补强项。
+- disk backed event log / goal evidence persistence 已在 MVP 内通过 `storageDir` opt-in 实现。
 
 ## 19. 待定问题
 

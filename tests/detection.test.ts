@@ -3,9 +3,10 @@ import path from "node:path";
 import { delimiter } from "node:path";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { constants, accessSync } from "node:fs";
+import { parseCodexDebugModels } from "../src/adapters/codex.js";
+import { parseLineSeparatedModels } from "../src/adapters/opencode.js";
 import { detectAgents } from "../src/detection/detect.js";
 import { resolveExecutable } from "../src/detection/executable-resolution.js";
-import { parseCodexDebugModels, parseLineSeparatedModels } from "../src/index.js";
 import { fakeAdapter, tempDir, writeExecutable } from "./helpers.js";
 
 describe("detection", () => {
