@@ -39,8 +39,10 @@ describe("GoalScheduler", () => {
       "```",
     ].join("\n"));
     const proseOutput = parsePlannerOutput(`Plan follows:\n${JSON.stringify({ tasks: [{ id: "T002", title: "Two", objective: "Do two", dependencies: [] }] })}\nThanks.`);
+    const trailingProseOutput = parsePlannerOutput(`${JSON.stringify({ tasks: [{ id: "T003", title: "Three", objective: "Do three", dependencies: [] }] })}\nDone.`);
     expect(output.tasks[0]?.id).toBe("T001");
     expect(proseOutput.tasks[0]?.id).toBe("T002");
+    expect(trailingProseOutput.tasks[0]?.id).toBe("T003");
   });
 
   it("rejects multiple or malformed planner JSON objects clearly", async () => {

@@ -95,7 +95,7 @@ function extractJson(text: string): string {
   if (trimmed.length > MAX_PLANNER_DIAGNOSTIC_BYTES && !trimmed.includes("{")) {
     throw new TaskGraphError(`Planner output is too large (${trimmed.length} bytes) and did not contain JSON`);
   }
-  if (trimmed.startsWith("{")) return trimmed;
+  if (trimmed.startsWith("{") && isCompleteJsonObject(trimmed)) return trimmed;
 
   const fenced = [...trimmed.matchAll(/```(?:json|JSON)?\s*([\s\S]*?)```/gu)]
     .map((match) => match[1]?.trim() ?? "")
@@ -108,6 +108,15 @@ function extractJson(text: string): string {
   if (candidates.length === 1) return candidates[0];
   if (trimmed.includes("{") || trimmed.includes("}")) throw new TaskGraphError("Planner output JSON is malformed; expected one complete JSON object");
   throw new TaskGraphError("Planner output did not contain JSON");
+}
+
+function isCompleteJsonObject(text: string): boolean {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return isRecord(parsed);
+  } catch {
+    return false;
+  }
 }
 
 function findJsonObjectCandidates(text: string): string[] {
