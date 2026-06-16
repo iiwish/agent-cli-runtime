@@ -1,9 +1,9 @@
 # Agent CLI Compatibility Matrix
 
-Status: P1-1 durable store/replay hardening over P0-5 compatibility baseline
+Status: P1-2 goal scheduling hardening over P0-5 compatibility baseline
 Last updated: 2026-06-16
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-1 hardened durable local storage, process-restart queries, replay ordering, CLI status/replay commands, corrupt record handling, and package boundary tests. It did not rerun authenticated real-agent write smokes beyond detection/doctor commands.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-2 hardened GoalScheduler semantics: dependency-aware ready queue, configurable `maxConcurrentTasks`, task attempt events/evidence, retry policy, queued/running cancellation consistency, shutdown cleanup, and partial JSONL prefix replay diagnostics. It did not rerun authenticated real-agent write smokes beyond detection/doctor commands.
 
 ## Summary
 
@@ -160,7 +160,8 @@ node ./dist/cli/main.js goal \
 ## Known MVP Gaps
 
 - Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
-- P1-1 verifies durable store behavior through fake CLI integration tests and CLI query/replay tests. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
+- P1-2 verifies scheduling, attempts, retry, cancellation, shutdown, and replay behavior through fake CLI integration tests and CLI query/replay tests. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
+- JSONL append is still a simple append-only file, not fsync-backed and not segmented. P1-2 verifies corrupt/partial tail prefix replay plus `AGENT_EVENT_LOG_CORRUPT`, but a host crash can still lose the final in-flight line.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
 - CLI remains a thin local smoke/scripting wrapper over the library API, not a daemon or long-lived service.
 - Real CLI auth and model availability depend on the user's local installation.
@@ -193,6 +194,35 @@ Covered behavior:
 - corrupt manifests and JSONL records are isolated to the affected record and surfaced as diagnostics;
 - stored diagnostics and validation evidence are redacted before writing to disk;
 - `npm pack --dry-run` excludes `.reference/` and test fixtures.
+
+## P1-2 Goal Scheduler Evidence
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run ci
+node ./dist/cli/main.js agents --json
+node ./dist/cli/main.js doctor --json
+```
+
+Covered behavior:
+
+- independent ready tasks start concurrently when `maxConcurrentTasks=2`;
+- `maxConcurrentTasks=1` preserves stable serial order;
+- dependent tasks do not start before dependencies finish successfully;
+- failed upstream tasks block dependents;
+- retryable failures produce multiple attempts and can eventually succeed;
+- non-retryable failures do not retry;
+- `cancelGoal()` cancels running task runs and queued ready tasks consistently;
+- `shutdown()` leaves active goal/run lists empty and durable reload preserves terminal state;
+- replay includes stable `task_attempt_started` / `task_attempt_finished` events with `id`, `sequence`, `timestamp`, and `goalId`;
+- corrupt/partial JSONL logs replay the valid prefix and surface `AGENT_EVENT_LOG_CORRUPT`;
+- package root value exports remain limited to `createAgentRuntime`;
+- `npm pack --dry-run` excludes `.reference/` and test fixtures/secrets.
 
 ## P0-4 Detection Evidence
 

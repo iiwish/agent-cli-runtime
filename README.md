@@ -86,11 +86,48 @@ const goal = await runtime.createGoal({
   objective: "Implement a focused parser regression fix.",
   defaultAgentId: "codex",
   permissionPolicy: "workspace-write",
+  maxConcurrentTasks: 2,
+  retryPolicy: {
+    maxAttempts: 2,
+    retryableErrorCodes: ["AGENT_TIMEOUT", "AGENT_EXECUTION_FAILED"],
+    backoffMs: 500,
+  },
 });
 
 for await (const event of goal.events) {
-  if (event.type === "task_started") console.log(event.taskId, event.runId);
+  if (event.type === "task_attempt_started") console.log(event.taskId, event.attemptId, event.runId);
   if (event.type === "goal_finished") console.log(event.result);
+}
+```
+
+Goal scheduling uses a dependency-aware ready queue. A task can start only after all dependencies have succeeded. The conservative default is `maxConcurrentTasks: 1`, preserving serial dependency-order execution; set `maxConcurrentTasks` on `createGoal()` or `createAgentRuntime()` to allow independent ready tasks to run in parallel. `retryPolicy` defaults to `{ maxAttempts: 1 }`; only failures whose terminal error code is listed in `retryableErrorCodes` are retried. Cancellation and validation failures are not retried unless the caller explicitly includes their error code.
+
+Task evidence records every attempt:
+
+```json
+{
+  "runId": "run_latest",
+  "result": "success",
+  "attempts": [
+    {
+      "attemptId": "T001:attempt:1",
+      "runId": "run_1",
+      "startedAt": 1760000000000,
+      "finishedAt": 1760000001200,
+      "result": "failed",
+      "diagnostics": [{ "code": "AGENT_EXECUTION_FAILED", "message": "..." }]
+    },
+    {
+      "attemptId": "T001:attempt:2",
+      "runId": "run_2",
+      "startedAt": 1760000001800,
+      "finishedAt": 1760000002600,
+      "result": "success",
+      "diagnostics": []
+    }
+  ],
+  "validationCommands": [],
+  "summary": "Task T001 finished with success after 2 attempts."
 }
 ```
 
@@ -155,6 +192,7 @@ node ./dist/cli/main.js agents --json
 agent-runtime agents
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
 agent-runtime goal --agent codex --cwd . --prompt "split this objective into tasks and execute them"
+agent-runtime goal --agent codex --cwd . --prompt "run independent fixes" --max-concurrent-tasks 2 --max-attempts 2 --retryable-error-codes AGENT_TIMEOUT,AGENT_EXECUTION_FAILED
 agent-runtime run --agent claude --cwd . --permission workspace-write --prompt-file task.md
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --json
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --stream jsonl --diagnostics
@@ -269,7 +307,7 @@ type AgentEvent =
   | { type: "run_finished"; result: "success" | "failed" | "cancelled"; exitCode?: number | null; signal?: string | null; timestamp: number };
 ```
 
-Goal scheduling wraps run events with `goal_started`, `task_created`, `task_started`, `run_event`, `task_finished`, `goal_finished`, and `scheduler_error`.
+Goal scheduling wraps run events with `goal_started`, `task_created`, `task_started`, `task_attempt_started`, `run_event`, `task_attempt_finished`, `task_finished`, `goal_finished`, and `scheduler_error`.
 
 Adapter-specific raw events can be logged for debugging, but the public API should stay stable and small.
 

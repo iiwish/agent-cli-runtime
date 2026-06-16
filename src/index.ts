@@ -23,7 +23,9 @@ export type {
   PlannerOutput,
   PlannerTask,
   ScheduledTask,
+  TaskAttemptEvidence,
   TaskEvidence,
+  TaskRetryPolicy,
   TaskStatus,
   ValidationCommandResult,
 } from "./goals/goal-types.js";

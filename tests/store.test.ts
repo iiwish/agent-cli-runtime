@@ -155,4 +155,37 @@ describe("durable local store", () => {
     expect(`${manifest}\n${events}`).toContain("[REDACTED]");
     expect(`${manifest}\n${events}`).not.toContain(secret);
   });
+
+  it("replays the valid prefix of a partial run JSONL log and reports a diagnostic", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_partial_jsonl";
+    const runDir = path.join(storageDir, "runs", runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "succeeded",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: 0,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    }), "utf8");
+    await writeFile(
+      path.join(runDir, "events.jsonl"),
+      `${JSON.stringify({ id: 1, sequence: 1, timestamp: Date.now(), event: { type: "run_started", runId, agentId: "fake", cwd: "/tmp", timestamp: Date.now() } })}\n{"id":2,"sequence":2`,
+      "utf8",
+    );
+
+    const runtime = createAgentRuntime({ storageDir });
+    const run = await runtime.getRun(runId);
+    const events = await runtime.replayRunEvents(runId);
+
+    expect(events[0]).toMatchObject({ id: 1, sequence: 1 });
+    expect(run?.diagnostics.some((item) => item.code === "AGENT_EVENT_LOG_CORRUPT")).toBe(true);
+    expect(events.some((record) => record.event.type === "error" && record.event.code === "AGENT_EVENT_LOG_CORRUPT")).toBe(true);
+  });
 });

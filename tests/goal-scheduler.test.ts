@@ -42,6 +42,52 @@ describe("GoalScheduler", () => {
     expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "success" });
   });
 
+  it("runs independent ready tasks concurrently when maxConcurrentTasks is 2", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({ cwd, objective: "parallel-ready", defaultAgentId: "fake", maxConcurrentTasks: 2 });
+    const events = await collect(handle.events);
+
+    const t1Started = events.findIndex((event) => event.type === "task_started" && event.taskId === "T001");
+    const t2Started = events.findIndex((event) => event.type === "task_started" && event.taskId === "T002");
+    const firstFinished = events.findIndex((event) => event.type === "task_finished");
+    expect(t1Started).toBeGreaterThanOrEqual(0);
+    expect(t2Started).toBeGreaterThanOrEqual(0);
+    expect(firstFinished).toBeGreaterThan(Math.max(t1Started, t2Started));
+    expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "success" });
+  });
+
+  it("keeps stable serial order when maxConcurrentTasks is 1", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({ cwd, objective: "parallel-ready", defaultAgentId: "fake", maxConcurrentTasks: 1 });
+    const events = await collect(handle.events);
+
+    const t1Finished = events.findIndex((event) => event.type === "task_finished" && event.taskId === "T001");
+    const t2Started = events.findIndex((event) => event.type === "task_started" && event.taskId === "T002");
+    expect(t1Finished).toBeGreaterThanOrEqual(0);
+    expect(t2Started).toBeGreaterThan(t1Finished);
+    expect(events.filter((event) => event.type === "task_started").map((event) => event.taskId)).toEqual(["T001", "T002"]);
+  });
+
+  it("does not start dependent tasks before dependencies finish", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({ cwd, objective: "dependency-wait", defaultAgentId: "fake", maxConcurrentTasks: 2 });
+    const events = await collect(handle.events);
+
+    const t1Finished = events.findIndex((event) => event.type === "task_finished" && event.taskId === "T001");
+    const t2Started = events.findIndex((event) => event.type === "task_started" && event.taskId === "T002");
+    expect(t1Finished).toBeGreaterThanOrEqual(0);
+    expect(t2Started).toBeGreaterThan(t1Finished);
+  });
+
   it("marks goal failed when a task fails", async () => {
     const dir = await tempDir();
     const cwd = await tempDir();
@@ -51,6 +97,59 @@ describe("GoalScheduler", () => {
     const events = await collect(handle.events);
     expect(events.some((event) => event.type === "task_finished" && event.result === "failed")).toBe(true);
     expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "failed" });
+  });
+
+  it("blocks dependents when an upstream task fails", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({ cwd, objective: "fail-upstream", defaultAgentId: "fake" });
+    await collect(handle.events);
+    const goal = await runtime.getGoal(handle.goalId);
+
+    expect(goal?.tasks.find((task) => task.id === "T001")).toMatchObject({ status: "failed" });
+    expect(goal?.tasks.find((task) => task.id === "T002")).toMatchObject({ status: "blocked" });
+  });
+
+  it("retries retryable task failures and records attempt evidence", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({
+      cwd,
+      objective: "retry-task",
+      defaultAgentId: "fake",
+      retryPolicy: { maxAttempts: 2, retryableErrorCodes: ["AGENT_EXECUTION_FAILED"], backoffMs: 1 },
+    });
+    const events = await collect(handle.events);
+    const goal = await runtime.getGoal(handle.goalId);
+    const attempts = goal?.tasks[0]?.evidence?.attempts ?? [];
+
+    expect(events.filter((event) => event.type === "task_attempt_started")).toHaveLength(2);
+    expect(events.filter((event) => event.type === "task_attempt_finished")).toHaveLength(2);
+    expect(attempts).toMatchObject([{ result: "failed" }, { result: "success" }]);
+    expect(goal).toMatchObject({ status: "succeeded", result: "success" });
+  });
+
+  it("does not retry non-retryable task failures", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({
+      cwd,
+      objective: "non-retry-task",
+      defaultAgentId: "fake",
+      retryPolicy: { maxAttempts: 3, retryableErrorCodes: ["AGENT_TIMEOUT"], backoffMs: 1 },
+    });
+    const events = await collect(handle.events);
+    const goal = await runtime.getGoal(handle.goalId);
+
+    expect(events.filter((event) => event.type === "task_attempt_started")).toHaveLength(1);
+    expect(goal?.tasks[0]?.evidence?.attempts).toHaveLength(1);
+    expect(goal).toMatchObject({ status: "failed", result: "failed" });
   });
 
   it("marks goal failed when runtime-side validation fails", async () => {
@@ -83,6 +182,31 @@ describe("GoalScheduler", () => {
     expect(goal?.tasks.find((task) => task.id === "T001")).toMatchObject({ status: "canceled" });
     expect(goal?.tasks.find((task) => task.id === "T002")).toMatchObject({ status: "canceled" });
     expect(events.some((event) => event.type === "task_finished" && event.taskId === "T001" && event.result === "cancelled")).toBe(true);
+    expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "cancelled" });
+  });
+
+  it("cancelGoal cancels running and queued ready tasks consistently", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.createGoal({ cwd, objective: "cancel-ready-queue", defaultAgentId: "fake", maxConcurrentTasks: 2 });
+    const events: SchedulerEvent[] = [];
+    for await (const event of handle.events) {
+      events.push(event);
+      if (events.filter((candidate) => candidate.type === "task_started").length === 2) {
+        setTimeout(() => void handle.cancel(), 25);
+      }
+    }
+
+    const goal = await runtime.getGoal(handle.goalId);
+    expect(goal).toMatchObject({ status: "canceled", result: "cancelled" });
+    expect(goal?.tasks.map((task) => [task.id, task.status])).toEqual([
+      ["T001", "canceled"],
+      ["T002", "canceled"],
+      ["T003", "canceled"],
+    ]);
+    expect(events.filter((event) => event.type === "task_finished" && event.result === "cancelled")).toHaveLength(2);
     expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "cancelled" });
   });
 
@@ -145,6 +269,28 @@ describe("GoalScheduler", () => {
     expect(goal?.tasks[0]?.evidence?.validationResults?.[0]?.stderr).toBe("[REDACTED]\n");
     expect(manifest).not.toContain(secret);
     expect(manifest).not.toContain(bearer);
+  });
+
+  it("replays stable attempt events with goal metadata", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    const storageDir = await tempDir("agent-runtime-storage-");
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir], storageDir });
+    const handle = await runtime.createGoal({
+      cwd,
+      objective: "retry-task",
+      defaultAgentId: "fake",
+      retryPolicy: { maxAttempts: 2, retryableErrorCodes: ["AGENT_EXECUTION_FAILED"], backoffMs: 1 },
+    });
+    await collect(handle.events);
+    const restarted = createAgentRuntime({ storageDir });
+    const replayed = await restarted.replayGoalEvents(handle.goalId);
+    const attemptEvents = replayed.filter((record) => record.event.type === "task_attempt_started" || record.event.type === "task_attempt_finished");
+
+    expect(replayed.map((record) => record.id)).toEqual([...replayed].sort((a, b) => a.sequence - b.sequence).map((record) => record.id));
+    expect(attemptEvents).toHaveLength(4);
+    expect(attemptEvents.every((record) => record.goalId === handle.goalId && typeof record.sequence === "number" && typeof record.timestamp === "number")).toBe(true);
   });
 
   it("loads terminal goals from a new runtime using the same storage dir", async () => {

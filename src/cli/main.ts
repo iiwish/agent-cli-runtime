@@ -83,6 +83,8 @@ async function main(): Promise<void> {
       objective: prompt,
       permissionPolicy: permissionFlag(parsed),
       timeoutMs: numberFlag(parsed, "timeout-ms"),
+      maxConcurrentTasks: numberFlag(parsed, "max-concurrent-tasks"),
+      retryPolicy: retryPolicyFromFlags(parsed),
     });
     await streamRun(parsed, handle.events, "goal_summary", () => runtime.getGoal(handle.goalId));
     return;
@@ -188,6 +190,20 @@ function permissionFlag(parsed: ParsedArgs) {
   return stringFlag(parsed, "permission") as never;
 }
 
+function retryPolicyFromFlags(parsed: ParsedArgs) {
+  const maxAttempts = numberFlag(parsed, "max-attempts");
+  const retryableErrorCodes = csvFlag(parsed, "retryable-error-codes");
+  const backoffMs = numberFlag(parsed, "retry-backoff-ms");
+  if (maxAttempts === undefined && retryableErrorCodes === undefined && backoffMs === undefined) return undefined;
+  return { maxAttempts, retryableErrorCodes, backoffMs };
+}
+
+function csvFlag(parsed: ParsedArgs, key: string): string[] | undefined {
+  const value = stringFlag(parsed, key);
+  if (!value) return undefined;
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
 function runStatusFlag(parsed: ParsedArgs) {
   return enumFlag(parsed, "status", ["active", "queued", "running", "succeeded", "failed", "canceled"]) as never;
 }
@@ -207,7 +223,7 @@ function printHelp(): void {
   process.stdout.write(`agent-runtime agents [--json] [--storage-dir <dir>]
 agent-runtime doctor [--json] [--storage-dir <dir>]
 agent-runtime run --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--model <id>] [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
-agent-runtime goal --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
+agent-runtime goal --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--permission <policy>] [--timeout-ms <ms>] [--max-concurrent-tasks <n>] [--max-attempts <n>] [--retryable-error-codes <codes>] [--retry-backoff-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime runs [--storage-dir <dir>] [--status active|queued|running|succeeded|failed|canceled] [--json]
 agent-runtime run-status <runId> [--storage-dir <dir>] [--json]
 agent-runtime replay-run <runId> [--storage-dir <dir>] [--after <eventId>] [--jsonl]

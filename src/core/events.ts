@@ -39,7 +39,9 @@ export type SchedulerEvent =
   | { type: "goal_started"; goalId: string; objective: string; timestamp: number }
   | { type: "task_created"; goalId: string; task: ScheduledTask; timestamp: number }
   | { type: "task_started"; goalId: string; taskId: string; runId: string; timestamp: number }
+  | { type: "task_attempt_started"; goalId: string; taskId: string; attemptId: string; attemptNumber: number; runId: string; timestamp: number }
   | { type: "run_event"; goalId?: string; taskId?: string; runId: string; event: AgentEvent; timestamp: number }
+  | { type: "task_attempt_finished"; goalId: string; taskId: string; attemptId: string; attemptNumber: number; runId: string; result: RunResult; retryable: boolean; timestamp: number }
   | { type: "task_finished"; goalId: string; taskId: string; result: RunResult; timestamp: number }
   | { type: "goal_finished"; goalId: string; result: RunResult; timestamp: number }
   | { type: "scheduler_error"; code: RuntimeErrorCode; message: string; retryable?: boolean; timestamp: number };

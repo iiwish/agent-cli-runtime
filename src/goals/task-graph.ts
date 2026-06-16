@@ -28,6 +28,7 @@ export function validateTaskGraph(output: PlannerOutput, request: CreateGoalRequ
       permissionPolicy: request.permissionPolicy ?? "agent-default",
       allowedFiles: task.allowedFiles,
       validationCommands: task.validationCommands,
+      retryPolicy: task.retryPolicy,
     });
   }
   for (const task of tasks) {

@@ -11,7 +11,7 @@ import { mergeEnv } from "../detection/env.js";
 import { composePrompt, preparePromptTransport } from "./prompt-transport.js";
 import { spawnProcess, type KillReport, type ProcessClose, type RunningProcess } from "./process-runner.js";
 import { isTerminal, RunStore } from "./run-store.js";
-import type { RunHandle, RunRequest } from "./run-types.js";
+import type { RunHandle, RunRecord, RunRequest } from "./run-types.js";
 import type { RunResult } from "./run-result.js";
 
 interface ActiveRun {
@@ -77,6 +77,10 @@ export class RunScheduler {
       active.killDiagnostics.push(killReportMessage(reason, report));
     });
     await active.killPromise;
+  }
+
+  async getRun(runId: string): Promise<RunRecord | null> {
+    return this.store.get(runId);
   }
 
   async shutdown(reason = "Runtime shutdown", graceMs = 2_000): Promise<void> {

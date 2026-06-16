@@ -18,6 +18,8 @@ export interface CreateGoalRequest {
   taskTimeoutMs?: number;
   validationTimeoutMs?: number;
   continueOnFailure?: boolean;
+  maxConcurrentTasks?: number;
+  retryPolicy?: TaskRetryPolicy;
 }
 
 export interface GoalHandle {
@@ -38,6 +40,7 @@ export interface PlannerTask {
   allowedFiles?: string[];
   validationCommands?: string[];
   agentId?: AgentId;
+  retryPolicy?: TaskRetryPolicy;
 }
 
 export type TaskStatus = "pending" | "running" | "succeeded" | "failed" | "canceled" | "blocked";
@@ -45,9 +48,25 @@ export type TaskStatus = "pending" | "running" | "succeeded" | "failed" | "cance
 export interface TaskEvidence {
   runId?: string;
   result?: RunResult;
+  attempts?: TaskAttemptEvidence[];
   validationCommands: string[];
   validationResults?: ValidationCommandResult[];
   summary: string;
+}
+
+export interface TaskRetryPolicy {
+  maxAttempts?: number;
+  retryableErrorCodes?: string[];
+  backoffMs?: number;
+}
+
+export interface TaskAttemptEvidence {
+  attemptId: string;
+  runId: string;
+  startedAt: number;
+  finishedAt?: number;
+  result?: RunResult;
+  diagnostics: RuntimeDiagnostic[];
 }
 
 export interface ValidationCommandResult {
@@ -71,6 +90,7 @@ export interface ScheduledTask {
   permissionPolicy: PermissionPolicy;
   allowedFiles?: string[];
   validationCommands?: string[];
+  retryPolicy?: TaskRetryPolicy;
   evidence?: TaskEvidence;
 }
 

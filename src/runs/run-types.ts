@@ -19,6 +19,7 @@ export interface RuntimeOptions {
   env?: NodeJS.ProcessEnv;
   searchPath?: string[];
   storageDir?: string;
+  maxConcurrentTasks?: number;
 }
 
 export interface RunRequest {

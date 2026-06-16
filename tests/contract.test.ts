@@ -76,6 +76,10 @@ describe("public contract", () => {
       "--storage-dir",
       "--status",
       "--after",
+      "--max-concurrent-tasks",
+      "--max-attempts",
+      "--retryable-error-codes",
+      "--retry-backoff-ms",
     ]) {
       expect(stdout).toContain(word);
     }

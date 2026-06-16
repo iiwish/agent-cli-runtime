@@ -78,7 +78,7 @@ for await (const event of run.events) {
 }
 ```
 
-Goal 会先启动一次 planner run，再按 task graph 串行执行任务：
+Goal 会先启动一次 planner run，再用 dependency-aware ready queue 执行 task graph：
 
 ```ts
 const goal = await runtime.createGoal({
@@ -86,11 +86,48 @@ const goal = await runtime.createGoal({
   objective: "实现一个聚焦的 parser regression fix。",
   defaultAgentId: "codex",
   permissionPolicy: "workspace-write",
+  maxConcurrentTasks: 2,
+  retryPolicy: {
+    maxAttempts: 2,
+    retryableErrorCodes: ["AGENT_TIMEOUT", "AGENT_EXECUTION_FAILED"],
+    backoffMs: 500,
+  },
 });
 
 for await (const event of goal.events) {
-  if (event.type === "task_started") console.log(event.taskId, event.runId);
+  if (event.type === "task_attempt_started") console.log(event.taskId, event.attemptId, event.runId);
   if (event.type === "goal_finished") console.log(event.result);
+}
+```
+
+task 只有在所有 dependencies 都 `succeeded` 后才会进入 ready。默认 `maxConcurrentTasks: 1`，保持保守串行语义；在 `createGoal()` 或 `createAgentRuntime()` 上配置后，互不冲突的 ready tasks 才会并发执行。`retryPolicy` 默认 `{ maxAttempts: 1 }`；只有 terminal error code 命中 `retryableErrorCodes` 的失败才会重试。cancel 和 validation failure 默认不重试，除非 caller 显式把对应 error code 加进 retry policy。
+
+每个 task evidence 会记录 attempts：
+
+```json
+{
+  "runId": "run_latest",
+  "result": "success",
+  "attempts": [
+    {
+      "attemptId": "T001:attempt:1",
+      "runId": "run_1",
+      "startedAt": 1760000000000,
+      "finishedAt": 1760000001200,
+      "result": "failed",
+      "diagnostics": [{ "code": "AGENT_EXECUTION_FAILED", "message": "..." }]
+    },
+    {
+      "attemptId": "T001:attempt:2",
+      "runId": "run_2",
+      "startedAt": 1760000001800,
+      "finishedAt": 1760000002600,
+      "result": "success",
+      "diagnostics": []
+    }
+  ],
+  "validationCommands": [],
+  "summary": "Task T001 finished with success after 2 attempts."
 }
 ```
 
@@ -155,6 +192,7 @@ node ./dist/cli/main.js agents --json
 agent-runtime agents
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
 agent-runtime goal --agent codex --cwd . --prompt "split this objective into tasks and execute them"
+agent-runtime goal --agent codex --cwd . --prompt "run independent fixes" --max-concurrent-tasks 2 --max-attempts 2 --retryable-error-codes AGENT_TIMEOUT,AGENT_EXECUTION_FAILED
 agent-runtime run --agent claude --cwd . --permission workspace-write --prompt-file task.md
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --json
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --stream jsonl --diagnostics
@@ -269,7 +307,7 @@ type AgentEvent =
   | { type: "run_finished"; result: "success" | "failed" | "cancelled"; exitCode?: number | null; signal?: string | null; timestamp: number };
 ```
 
-Goal scheduling 会把 run events 包装成 `goal_started`、`task_created`、`task_started`、`run_event`、`task_finished`、`goal_finished` 和 `scheduler_error`。
+Goal scheduling 会把 run events 包装成 `goal_started`、`task_created`、`task_started`、`task_attempt_started`、`run_event`、`task_attempt_finished`、`task_finished`、`goal_finished` 和 `scheduler_error`。
 
 Adapter-specific raw events 可以进入 debug log，但 public API 应保持稳定、小而清晰。
 

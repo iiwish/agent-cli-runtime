@@ -40,7 +40,9 @@ export function createAgentRuntime(options: RuntimeOptions = {}): AgentRuntime {
     searchPath: options.searchPath,
   });
   const goalStore = new GoalStore(storage);
-  const goalScheduler = new GoalScheduler(runScheduler, goalStore);
+  const goalScheduler = new GoalScheduler(runScheduler, goalStore, {
+    maxConcurrentTasks: options.maxConcurrentTasks,
+  });
   return {
     detect: (detectOptions) => detectAgents({ adapters: registry.list(), env: options.env, searchPath: options.searchPath }, detectOptions),
     detectStream: (detectOptions) => detectAgentsStream({ adapters: registry.list(), env: options.env, searchPath: options.searchPath }, detectOptions),
