@@ -49,6 +49,23 @@ describe("durable local store", () => {
     expect(badRun?.diagnostics.some((item) => item.code === "AGENT_STORE_RECORD_CORRUPT")).toBe(true);
   });
 
+  it("keeps a structurally corrupt run manifest from crashing runtime initialization", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const badRunId = "run_bad_shape";
+    await mkdir(path.join(storageDir, "runs", badRunId), { recursive: true });
+    await writeFile(path.join(storageDir, "runs", badRunId, "manifest.json"), JSON.stringify({}), "utf8");
+
+    const runtime = createAgentRuntime({ storageDir });
+    const badRun = await runtime.getRun(badRunId);
+
+    expect(badRun).toMatchObject({
+      id: badRunId,
+      status: "failed",
+      errorCode: "AGENT_STORE_RECORD_CORRUPT",
+    });
+    expect(badRun?.diagnostics.some((item) => item.code === "AGENT_STORE_RECORD_CORRUPT")).toBe(true);
+  });
+
   it("keeps a corrupt goal manifest queryable and reports a diagnostic", async () => {
     const storageDir = await tempDir("agent-runtime-storage-");
     const goodGoalId = "goal_good_record";
@@ -79,6 +96,47 @@ describe("durable local store", () => {
     const badGoal = await runtime.getGoal(badGoalId);
     expect(badGoal?.result).toBe("failed");
     expect(badGoal?.diagnostics.some((item) => item.code === "AGENT_STORE_RECORD_CORRUPT")).toBe(true);
+  });
+
+  it("keeps a structurally corrupt goal manifest from crashing runtime initialization", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const emptyGoalId = "goal_bad_shape";
+    const badTasksGoalId = "goal_bad_tasks";
+    const badTaskEntryGoalId = "goal_bad_task_entry";
+    await mkdir(path.join(storageDir, "goals", emptyGoalId), { recursive: true });
+    await mkdir(path.join(storageDir, "goals", badTasksGoalId), { recursive: true });
+    await mkdir(path.join(storageDir, "goals", badTaskEntryGoalId), { recursive: true });
+    await writeFile(path.join(storageDir, "goals", emptyGoalId, "manifest.json"), JSON.stringify({}), "utf8");
+    await writeFile(path.join(storageDir, "goals", badTasksGoalId, "manifest.json"), JSON.stringify({
+      id: badTasksGoalId,
+      cwd: await tempDir(),
+      objective: "bad tasks",
+      status: "running",
+      tasks: "not-an-array",
+      diagnostics: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }), "utf8");
+    await writeFile(path.join(storageDir, "goals", badTaskEntryGoalId, "manifest.json"), JSON.stringify({
+      id: badTaskEntryGoalId,
+      cwd: await tempDir(),
+      objective: "bad task entry",
+      status: "running",
+      tasks: [null],
+      diagnostics: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }), "utf8");
+
+    const runtime = createAgentRuntime({ storageDir });
+    const emptyGoal = await runtime.getGoal(emptyGoalId);
+    const badTasksGoal = await runtime.getGoal(badTasksGoalId);
+    const badTaskEntryGoal = await runtime.getGoal(badTaskEntryGoalId);
+
+    for (const goal of [emptyGoal, badTasksGoal, badTaskEntryGoal]) {
+      expect(goal).toMatchObject({ status: "failed", result: "failed" });
+      expect(goal?.diagnostics.some((item) => item.code === "AGENT_STORE_RECORD_CORRUPT")).toBe(true);
+    }
   });
 
   it("redacts secret-looking diagnostics before writing to disk", async () => {
