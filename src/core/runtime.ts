@@ -21,9 +21,11 @@ export interface AgentRuntime {
   cancelGoal(goalId: string): Promise<void>;
   shutdown(reason?: string): Promise<void>;
   getRun(runId: string): Promise<RunRecord | null>;
+  replayRunEvents(runId: string, options?: { afterEventId?: number }): Promise<Array<ReplayEvent<AgentEvent>>>;
   getRunEvents(runId: string, options?: { afterEventId?: number }): Promise<Array<ReplayEvent<AgentEvent>>>;
   listRuns(options?: { status?: "active" | RunStatus }): Promise<RunRecord[]>;
   getGoal(goalId: string): Promise<GoalRecord | null>;
+  replayGoalEvents(goalId: string, options?: { afterEventId?: number }): Promise<Array<ReplayEvent<SchedulerEvent>>>;
   getGoalEvents(goalId: string, options?: { afterEventId?: number }): Promise<Array<ReplayEvent<SchedulerEvent>>>;
   listGoals(options?: { status?: "active" | GoalRecord["status"] }): Promise<GoalRecord[]>;
   getAdapter(id: AgentId): AgentAdapterDef | null;
@@ -51,9 +53,11 @@ export function createAgentRuntime(options: RuntimeOptions = {}): AgentRuntime {
       await runScheduler.shutdown(reason);
     },
     getRun: async (runId) => runStore.get(runId),
+    replayRunEvents: async (runId, eventOptions) => runStore.replay(runId, eventOptions?.afterEventId),
     getRunEvents: async (runId, eventOptions) => runStore.replay(runId, eventOptions?.afterEventId),
     listRuns: async (listOptions) => runStore.list(listOptions),
     getGoal: async (goalId) => goalStore.get(goalId),
+    replayGoalEvents: async (goalId, eventOptions) => goalStore.replay(goalId, eventOptions?.afterEventId),
     getGoalEvents: async (goalId, eventOptions) => goalStore.replay(goalId, eventOptions?.afterEventId),
     listGoals: async (listOptions) => goalStore.list(listOptions),
     getAdapter: (id) => registry.get(id),

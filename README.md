@@ -22,7 +22,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 
 This repository is in **pre-alpha MVP stage**.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional disk backed replay storage, compatibility profiles for the built-in CLIs, real-stream parser fixtures, fake CLI integration tests, and thin local smoke CLI commands with redacted diagnostics.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional durable local replay storage, compatibility profiles for the built-in CLIs, real-stream parser fixtures, fake CLI integration tests, and thin local smoke/query CLI commands with redacted diagnostics.
 
 ## Why
 
@@ -102,9 +102,9 @@ const runtime = createAgentRuntime({
 });
 
 const runs = await runtime.listRuns({ status: "active" });
-const runEvents = await runtime.getRunEvents("run_123", { afterEventId: 10 });
+const runEvents = await runtime.replayRunEvents("run_123", { afterEventId: 10 });
 const goals = await runtime.listGoals();
-const goalEvents = await runtime.getGoalEvents("goal_123");
+const goalEvents = await runtime.replayGoalEvents("goal_123");
 ```
 
 The public facade exposes:
@@ -118,10 +118,10 @@ The public facade exposes:
 - `runtime.cancelGoal(goalId)`
 - `runtime.shutdown(reason?)`
 - `runtime.getRun(runId)`
-- `runtime.getRunEvents(runId, { afterEventId? })`
+- `runtime.replayRunEvents(runId, { afterEventId? })`
 - `runtime.listRuns({ status? })`
 - `runtime.getGoal(goalId)`
-- `runtime.getGoalEvents(goalId, { afterEventId? })`
+- `runtime.replayGoalEvents(goalId, { afterEventId? })`
 - `runtime.listGoals({ status? })`
 - `runtime.getAdapter(id)`
 
@@ -160,9 +160,11 @@ agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --json
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test" --stream jsonl --diagnostics
 agent-runtime doctor
 agent-runtime runs --storage-dir .agent-runtime --json
-agent-runtime run-events run_123 --storage-dir .agent-runtime --after 10 --json
+agent-runtime run-status run_123 --storage-dir .agent-runtime --json
+agent-runtime replay-run run_123 --storage-dir .agent-runtime --after 10 --jsonl
 agent-runtime goals --storage-dir .agent-runtime --json
-agent-runtime goal-events goal_123 --storage-dir .agent-runtime --after 10 --json
+agent-runtime goal-status goal_123 --storage-dir .agent-runtime --json
+agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jsonl
 ```
 
 The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams. For run/goal commands, `--json` prints the final run or goal record. `--stream jsonl --diagnostics` keeps the event stream and appends a redacted `run_summary` or `goal_summary` line after the terminal event.
@@ -177,7 +179,7 @@ Disk storage layout is intentionally simple and tail-friendly:
   goals/<goalId>/events.jsonl
 ```
 
-Each JSONL line is `{ "id": 1, "timestamp": 123, "event": {...} }`. Event ids are monotonic per run or goal and are preserved for replay. `runtime.shutdown(reason?)` cancels active runs/goals and waits briefly for terminal events before returning. When a new runtime opens a `storageDir`, terminal runs/goals are readable immediately; runs/goals found in `queued`, `running`, or `planning` are marked failed with an `AGENT_RUNTIME_INTERRUPTED` diagnostic/event so they never pretend to still be active after a process restart.
+Each JSONL line is `{ "id": 1, "sequence": 1, "runId": "run_123", "timestamp": 123, "event": {...} }` or the same shape with `goalId`. Event ids/sequences are monotonic per run or goal and are preserved for stable replay. `runtime.shutdown(reason?)` cancels active runs/goals and waits briefly for terminal events before returning. When a new runtime opens a `storageDir`, terminal runs/goals are readable immediately; runs/goals found in `queued`, `running`, or `planning` are marked failed with an `AGENT_RUNTIME_INTERRUPTED` diagnostic/event so they never pretend to still be active after a process restart. A corrupt manifest or JSONL line is isolated to that record and reported through `AGENT_STORE_RECORD_CORRUPT` or `AGENT_EVENT_LOG_CORRUPT` diagnostics instead of failing runtime initialization.
 
 ## Configuration
 

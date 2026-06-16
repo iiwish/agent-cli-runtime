@@ -1,9 +1,9 @@
 # Agent CLI Compatibility Matrix
 
-Status: P0-5 pre-alpha compatibility and release-readiness baseline
+Status: P1-1 durable store/replay hardening over P0-5 compatibility baseline
 Last updated: 2026-06-16
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P0-5 reviewed API/CLI/package boundaries for pre-alpha release; it did not rerun authenticated real-agent write smokes.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-1 hardened durable local storage, process-restart queries, replay ordering, CLI status/replay commands, corrupt record handling, and package boundary tests. It did not rerun authenticated real-agent write smokes beyond detection/doctor commands.
 
 ## Summary
 
@@ -94,6 +94,17 @@ node ./dist/cli/main.js agents --json
 node ./dist/cli/main.js doctor --json
 ```
 
+Durable store query/replay smoke with fake or test-generated records:
+
+```bash
+node ./dist/cli/main.js runs --storage-dir .agent-runtime --json
+node ./dist/cli/main.js run-status run_123 --storage-dir .agent-runtime --json
+node ./dist/cli/main.js replay-run run_123 --storage-dir .agent-runtime --jsonl
+node ./dist/cli/main.js goals --storage-dir .agent-runtime --json
+node ./dist/cli/main.js goal-status goal_123 --storage-dir .agent-runtime --json
+node ./dist/cli/main.js replay-goal goal_123 --storage-dir .agent-runtime --jsonl
+```
+
 Local non-mutating run smoke, only when the relevant local CLI auth is available:
 
 ```bash
@@ -148,7 +159,8 @@ node ./dist/cli/main.js goal \
 
 ## Known MVP Gaps
 
-- Disk backed run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
+- Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
+- P1-1 verifies durable store behavior through fake CLI integration tests and CLI query/replay tests. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
 - CLI remains a thin local smoke/scripting wrapper over the library API, not a daemon or long-lived service.
 - Real CLI auth and model availability depend on the user's local installation.
@@ -157,6 +169,30 @@ node ./dist/cli/main.js goal \
 - P0-4 Codex smoke is now diagnosable but still not stable in this environment: one run produced final text/usage within 30s after reconnect events, while the latest run timed out after only `thread.started`/`turn.started`; timeout diagnostics prove the stdin/profile path started and captured local startup stderr rather than leaving the failure opaque.
 - P0-4 OpenCode non-mutating run smoke still times out with zero parsed events; stdin prompt support for `opencode run --format json` remains unverified in `1.15.6`.
 - Claude Code run/goal smoke is blocked by local auth until `claude auth status` reports a logged-in account or a supported Anthropic-compatible provider env is supplied.
+
+## P1-1 Durable Store Evidence
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run ci
+node ./dist/cli/main.js agents --json
+node ./dist/cli/main.js doctor --json
+```
+
+Covered behavior:
+
+- store directories are created automatically;
+- terminal run and goal records are readable from a new runtime instance;
+- `replayRunEvents()` / `replayGoalEvents()` return stable replay envelopes with `id`, `sequence`, `timestamp`, and `runId` / `goalId`;
+- CLI `runs` / `goals` / `run-status` / `goal-status` / `replay-run --jsonl` / `replay-goal --jsonl` can read records from a previous process;
+- corrupt manifests and JSONL records are isolated to the affected record and surfaced as diagnostics;
+- stored diagnostics and validation evidence are redacted before writing to disk;
+- `npm pack --dry-run` excludes `.reference/` and test fixtures.
 
 ## P0-4 Detection Evidence
 

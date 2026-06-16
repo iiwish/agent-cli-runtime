@@ -1,4 +1,5 @@
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import type { ReplayEvent } from "../core/events.js";
 
 export function appendJsonl<T>(file: string, record: ReplayEvent<T>): void {
@@ -16,13 +17,13 @@ export function readJsonl<T>(file: string): { records: Array<ReplayEvent<T>>; er
     try {
       const parsed = JSON.parse(line) as ReplayEvent<T>;
       if (!isReplayEvent(parsed)) {
-        return { records, error: new Error(`${file}:${index + 1} is not a replay event`) };
+        return { records, error: new Error(`${path.basename(file)}:${index + 1} is not a replay event`) };
       }
       records.push(parsed);
     } catch (error) {
       return {
         records,
-        error: new Error(`${file}:${index + 1} ${error instanceof Error ? error.message : String(error)}`),
+        error: new Error(`${path.basename(file)}:${index + 1} ${error instanceof Error ? error.message : String(error)}`),
       };
     }
   }

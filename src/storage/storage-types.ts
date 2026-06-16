@@ -11,12 +11,14 @@ export interface JsonlReadResult<T> {
 export interface StoredRunSnapshot {
   manifest: RunRecord;
   events: Array<ReplayEvent<AgentEvent>>;
+  manifestError?: Error;
   eventsError?: Error;
 }
 
 export interface StoredGoalSnapshot {
   manifest: GoalRecord;
   events: Array<ReplayEvent<SchedulerEvent>>;
+  manifestError?: Error;
   eventsError?: Error;
 }
 

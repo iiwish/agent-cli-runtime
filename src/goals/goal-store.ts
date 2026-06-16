@@ -2,6 +2,7 @@ import { AsyncQueue } from "../core/async-queue.js";
 import { createId } from "../core/ids.js";
 import type { ReplayEvent, SchedulerEvent, SchedulerEventInput } from "../core/events.js";
 import { withTimestamp } from "../core/events.js";
+import { diagnostic } from "../core/diagnostics.js";
 import type { CreateGoalRequest, GoalRecord, ScheduledTask } from "./goal-types.js";
 import type { RunResult } from "../runs/run-result.js";
 import type { FileStorage } from "../storage/storage-types.js";
@@ -28,6 +29,7 @@ export class GoalStore {
       objective: request.objective,
       status: "planning",
       tasks: [],
+      diagnostics: [],
       createdAt: now,
       updatedAt: now,
       events: [],
@@ -80,8 +82,9 @@ export class GoalStore {
   emit(goalId: string, event: SchedulerEventInput): ReplayEvent<SchedulerEvent> {
     const goal = this.mustGet(goalId);
     const stamped = withTimestamp<SchedulerEvent>(event);
-    if (goal.persistenceFailed) return { id: goal.nextEventId, event: stamped, timestamp: Date.now() };
-    const record = { id: goal.nextEventId++, event: stamped, timestamp: Date.now() };
+    if (goal.persistenceFailed) return goalReplayRecord(goal, stamped);
+    const record = goalReplayRecord(goal, stamped);
+    goal.nextEventId += 1;
     goal.events.push(record);
     if (!this.tryPersistEvent(goal, record) || !this.tryPersistManifest(goal)) return record;
     for (const subscriber of goal.subscribers) subscriber.push(stamped);
@@ -94,7 +97,9 @@ export class GoalStore {
 
   replay(goalId: string, afterEventId = 0): Array<ReplayEvent<SchedulerEvent>> {
     const goal = this.mustGet(goalId);
-    return goal.events.filter((event) => event.id > afterEventId);
+    return goal.events
+      .filter((event) => event.id > afterEventId)
+      .sort(compareReplayEvents);
   }
 
   events(goalId: string, afterEventId = 0): AsyncIterable<SchedulerEvent> {
@@ -128,7 +133,7 @@ export class GoalStore {
     void events;
     void nextEventId;
     void persistenceFailed;
-    return { ...record, tasks: record.tasks.map((task) => ({ ...task })) };
+    return { ...record, tasks: record.tasks.map((task) => ({ ...task })), diagnostics: [...record.diagnostics] };
   }
 
   private loadFromStorage(): void {
@@ -137,11 +142,23 @@ export class GoalStore {
       const goal: StoredGoal = {
         ...snapshot.manifest,
         tasks: snapshot.manifest.tasks.map((task) => ({ ...task })),
+        diagnostics: [...(snapshot.manifest.diagnostics ?? [])],
         subscribers: new Set(),
         events: snapshot.events,
         nextEventId: nextEventId(snapshot.events),
       };
       this.goals.set(goal.id, goal);
+      if (snapshot.manifestError) {
+        if (!goal.diagnostics.some((item) => item.code === "AGENT_STORE_RECORD_CORRUPT")) {
+          goal.diagnostics.push(diagnostic("AGENT_STORE_RECORD_CORRUPT", snapshot.manifestError.message));
+        }
+        this.emit(goal.id, {
+          type: "scheduler_error",
+          code: "AGENT_STORE_RECORD_CORRUPT",
+          message: snapshot.manifestError.message,
+          retryable: false,
+        });
+      }
       if (snapshot.eventsError) {
         this.emit(goal.id, {
           type: "scheduler_error",
@@ -180,11 +197,15 @@ export class GoalStore {
     goal.updatedAt = Date.now();
     const errorEvent: ReplayEvent<SchedulerEvent> = {
       id: goal.nextEventId++,
+      sequence: goal.nextEventId - 1,
+      goalId: goal.id,
       timestamp: Date.now(),
       event: { type: "scheduler_error", code: "AGENT_EVENT_PERSIST_FAILED", message, retryable: false, timestamp: Date.now() },
     };
     const finishedEvent: ReplayEvent<SchedulerEvent> = {
       id: goal.nextEventId++,
+      sequence: goal.nextEventId - 1,
+      goalId: goal.id,
       timestamp: Date.now(),
       event: { type: "goal_finished", goalId: goal.id, result: "failed", timestamp: Date.now() },
     };
@@ -226,6 +247,20 @@ export function isTerminalGoal(status: GoalRecord["status"]): boolean {
 
 function nextEventId(events: Array<ReplayEvent<SchedulerEvent>>): number {
   return events.reduce((max, event) => Math.max(max, event.id), 0) + 1;
+}
+
+function goalReplayRecord(goal: StoredGoal, event: SchedulerEvent): ReplayEvent<SchedulerEvent> {
+  return {
+    id: goal.nextEventId,
+    sequence: goal.nextEventId,
+    goalId: goal.id,
+    event,
+    timestamp: Date.now(),
+  };
+}
+
+function compareReplayEvents(left: ReplayEvent<unknown>, right: ReplayEvent<unknown>): number {
+  return (left.sequence - right.sequence) || (left.id - right.id) || (left.timestamp - right.timestamp);
 }
 
 function errorMessage(error: unknown): string {

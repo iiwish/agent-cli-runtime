@@ -12,7 +12,8 @@ export type RuntimeErrorCode =
   | "AGENT_TASK_GRAPH_INVALID"
   | "AGENT_RUNTIME_INTERRUPTED"
   | "AGENT_EVENT_LOG_CORRUPT"
-  | "AGENT_EVENT_PERSIST_FAILED";
+  | "AGENT_EVENT_PERSIST_FAILED"
+  | "AGENT_STORE_RECORD_CORRUPT";
 
 export interface RuntimeDiagnostic {
   code: RuntimeErrorCode | string;

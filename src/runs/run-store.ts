@@ -78,8 +78,9 @@ export class RunStore {
 
   append(runId: string, event: AgentEvent): ReplayEvent<AgentEvent> {
     const run = this.mustGet(runId);
-    if (run.persistenceFailed) return { id: run.nextEventId, event, timestamp: Date.now() };
-    const record = { id: run.nextEventId++, event, timestamp: Date.now() };
+    if (run.persistenceFailed) return runReplayRecord(run, event);
+    const record = runReplayRecord(run, event);
+    run.nextEventId += 1;
     run.events.push(record);
     if (run.events.length > this.maxEvents) run.events.splice(0, run.events.length - this.maxEvents);
     run.updatedAt = Date.now();
@@ -98,7 +99,9 @@ export class RunStore {
 
   replay(runId: string, afterEventId = 0): ReplayEvent<AgentEvent>[] {
     const run = this.mustGet(runId);
-    return run.events.filter((event) => event.id > afterEventId);
+    return run.events
+      .filter((event) => event.id > afterEventId)
+      .sort(compareReplayEvents);
   }
 
   events(runId: string, afterEventId = 0): AsyncIterable<AgentEvent> {
@@ -144,10 +147,15 @@ export class RunStore {
         subscribers: new Set(),
         nextEventId: nextEventId(snapshot.events),
       };
+      if (snapshot.manifestError && !run.diagnostics.some((item) => item.code === "AGENT_STORE_RECORD_CORRUPT")) {
+        run.diagnostics.push(diagnostic("AGENT_STORE_RECORD_CORRUPT", snapshot.manifestError.message));
+      }
       if (snapshot.eventsError) {
         run.diagnostics.push(diagnostic("AGENT_EVENT_LOG_CORRUPT", snapshot.eventsError.message));
         run.events.push({
           id: run.nextEventId++,
+          sequence: run.nextEventId - 1,
+          runId: run.id,
           timestamp: Date.now(),
           event: {
             type: "error",
@@ -202,11 +210,15 @@ export class RunStore {
     run.diagnostics.push(diagnostic("AGENT_EVENT_PERSIST_FAILED", message));
     const errorEvent: ReplayEvent<AgentEvent> = {
       id: run.nextEventId++,
+      sequence: run.nextEventId - 1,
+      runId: run.id,
       timestamp: Date.now(),
       event: { type: "error", code: "AGENT_EVENT_PERSIST_FAILED", message, retryable: false, timestamp: Date.now() },
     };
     const finishedEvent: ReplayEvent<AgentEvent> = {
       id: run.nextEventId++,
+      sequence: run.nextEventId - 1,
+      runId: run.id,
       timestamp: Date.now(),
       event: { type: "run_finished", result: "failed", exitCode: null, signal: null, timestamp: Date.now() },
     };
@@ -248,6 +260,20 @@ export function isTerminal(status: RunStatus): boolean {
 
 function nextEventId(events: Array<ReplayEvent<AgentEvent>>): number {
   return events.reduce((max, event) => Math.max(max, event.id), 0) + 1;
+}
+
+function runReplayRecord(run: StoredRun, event: AgentEvent): ReplayEvent<AgentEvent> {
+  return {
+    id: run.nextEventId,
+    sequence: run.nextEventId,
+    runId: run.id,
+    event,
+    timestamp: Date.now(),
+  };
+}
+
+function compareReplayEvents(left: ReplayEvent<unknown>, right: ReplayEvent<unknown>): number {
+  return (left.sequence - right.sequence) || (left.id - right.id) || (left.timestamp - right.timestamp);
 }
 
 function errorMessage(error: unknown): string {

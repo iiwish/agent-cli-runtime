@@ -15,11 +15,16 @@ export class JsonFileStorage implements FileStorage {
   }
 
   listRuns(): StoredRunSnapshot[] {
-    return listManifestDirs(this.runsDir).flatMap((dir) => {
+    return listManifestDirs(this.runsDir).map((dir) => {
+      const runId = path.basename(dir);
       const manifest = readJson<RunRecord>(path.join(dir, "manifest.json"));
-      if (!manifest) return [];
       const events = readJsonl<AgentEvent>(path.join(dir, "events.jsonl"));
-      return [{ manifest, events: events.records, eventsError: events.error }];
+      return {
+        manifest: manifest.value ?? corruptRunManifest(runId, manifest.error),
+        manifestError: manifest.error,
+        events: events.records.map((record) => normalizeReplayEvent(record, { runId })),
+        eventsError: events.error,
+      };
     });
   }
 
@@ -33,11 +38,16 @@ export class JsonFileStorage implements FileStorage {
   }
 
   listGoals(): StoredGoalSnapshot[] {
-    return listManifestDirs(this.goalsDir).flatMap((dir) => {
+    return listManifestDirs(this.goalsDir).map((dir) => {
+      const goalId = path.basename(dir);
       const manifest = readJson<GoalRecord>(path.join(dir, "manifest.json"));
-      if (!manifest) return [];
       const events = readJsonl<SchedulerEvent>(path.join(dir, "events.jsonl"));
-      return [{ manifest, events: events.records, eventsError: events.error }];
+      return {
+        manifest: manifest.value ?? corruptGoalManifest(goalId, manifest.error),
+        manifestError: manifest.error,
+        events: events.records.map((record) => normalizeReplayEvent(record, { goalId })),
+        eventsError: events.error,
+      };
     });
   }
 
@@ -92,11 +102,11 @@ function listManifestDirs(parent: string): string[] {
     .map((entry) => path.join(parent, entry.name));
 }
 
-function readJson<T>(file: string): T | null {
+function readJson<T>(file: string): { value?: T; error?: Error } {
   try {
-    return JSON.parse(readFileSync(file, "utf8")) as T;
-  } catch {
-    return null;
+    return { value: JSON.parse(readFileSync(file, "utf8")) as T };
+  } catch (error) {
+    return { error: new Error(`${path.basename(file)} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`) };
   }
 }
 
@@ -120,4 +130,53 @@ function sanitizeUnknown(value: unknown, key = ""): unknown {
     out[childKey] = sanitizeUnknown(childValue, childKey);
   }
   return out;
+}
+
+function normalizeReplayEvent<T>(record: ReplayEvent<T>, scope: { runId?: string; goalId?: string }): ReplayEvent<T> {
+  const sequence = typeof record.sequence === "number" ? record.sequence : record.id;
+  return {
+    ...record,
+    ...scope,
+    sequence,
+  };
+}
+
+function corruptRunManifest(runId: string, error: Error | undefined): RunRecord {
+  const now = Date.now();
+  return {
+    id: runId,
+    agentId: "unknown",
+    cwd: "<unknown>",
+    status: "failed",
+    createdAt: now,
+    updatedAt: now,
+    exitCode: null,
+    signal: null,
+    error: error?.message ?? "Run manifest is corrupt.",
+    errorCode: "AGENT_STORE_RECORD_CORRUPT",
+    diagnostics: [{
+      code: "AGENT_STORE_RECORD_CORRUPT",
+      message: error?.message ?? "Run manifest is corrupt.",
+      retryable: false,
+    }],
+  };
+}
+
+function corruptGoalManifest(goalId: string, error: Error | undefined): GoalRecord {
+  const now = Date.now();
+  return {
+    id: goalId,
+    cwd: "<unknown>",
+    objective: "<unknown>",
+    status: "failed",
+    result: "failed",
+    tasks: [],
+    diagnostics: [{
+      code: "AGENT_STORE_RECORD_CORRUPT",
+      message: error?.message ?? "Goal manifest is corrupt.",
+      retryable: false,
+    }],
+    createdAt: now,
+    updatedAt: now,
+  };
 }

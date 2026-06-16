@@ -1,4 +1,5 @@
 import type { SchedulerEvent } from "../core/events.js";
+import type { RuntimeDiagnostic } from "../core/diagnostics.js";
 import type { AgentId, PermissionPolicy } from "../adapters/adapter-types.js";
 import type { RuntimeContextBlock } from "../runs/run-types.js";
 import type { RunResult } from "../runs/run-result.js";
@@ -81,6 +82,7 @@ export interface GoalRecord {
   objective: string;
   status: GoalStatus;
   tasks: ScheduledTask[];
+  diagnostics: RuntimeDiagnostic[];
   createdAt: number;
   updatedAt: number;
   result?: RunResult;

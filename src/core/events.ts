@@ -28,6 +28,9 @@ export type AgentEventInput = DistributiveOmit<AgentEvent, "timestamp">;
 
 export interface ReplayEvent<T> {
   id: number;
+  sequence: number;
+  runId?: string;
+  goalId?: string;
   event: T;
   timestamp: number;
 }

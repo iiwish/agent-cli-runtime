@@ -136,7 +136,9 @@ describe("GoalScheduler", () => {
     const secret = "s" + "k" + "A".repeat(20);
     const bearer = "Bearer " + "B".repeat(20);
     const manifest = await readFile(path.join(storageDir, "goals", handle.goalId, "manifest.json"), "utf8");
-    const replayed = await runtime.getGoalEvents(handle.goalId, { afterEventId: 1 });
+    const replayed = await runtime.replayGoalEvents(handle.goalId, { afterEventId: 1 });
+    expect(replayed.map((record) => record.sequence)).toEqual(replayed.map((record) => record.id));
+    expect(replayed.every((record) => record.goalId === handle.goalId)).toBe(true);
     const goal = await runtime.getGoal(handle.goalId);
     expect(replayed.every((record) => record.id > 1)).toBe(true);
     expect(goal?.tasks[0]?.evidence?.validationResults?.[0]?.stdout).toBe("[REDACTED]\n");
@@ -171,6 +173,7 @@ describe("GoalScheduler", () => {
       objective: "active",
       status: "running",
       tasks: [],
+      diagnostics: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }), "utf8");
@@ -178,7 +181,7 @@ describe("GoalScheduler", () => {
 
     const runtime = createAgentRuntime({ storageDir });
     const goal = await runtime.getGoal(goalId);
-    const events = await runtime.getGoalEvents(goalId);
+    const events = await runtime.replayGoalEvents(goalId);
     expect(goal).toMatchObject({ id: goalId, status: "failed", result: "failed" });
     expect(events.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
     expect(events.at(-1)?.event).toMatchObject({ type: "goal_finished", result: "failed" });
@@ -198,9 +201,11 @@ describe("GoalScheduler", () => {
     await execFileP("npm", ["run", "build"], { cwd: path.resolve(import.meta.dirname, "..") });
     const cli = path.resolve(import.meta.dirname, "..", "dist", "cli", "main.js");
     const runs = JSON.parse((await execFileP(process.execPath, [cli, "runs", "--storage-dir", storageDir, "--json"])).stdout);
-    const runEvents = JSON.parse((await execFileP(process.execPath, [cli, "run-events", runHandle.runId, "--storage-dir", storageDir, "--after", "1", "--json"])).stdout);
+    const runStatus = JSON.parse((await execFileP(process.execPath, [cli, "run-status", runHandle.runId, "--storage-dir", storageDir, "--json"])).stdout);
+    const runEvents = (await execFileP(process.execPath, [cli, "replay-run", runHandle.runId, "--storage-dir", storageDir, "--after", "1", "--jsonl"])).stdout.trim().split(/\r?\n/u).map((line) => JSON.parse(line));
     const goals = JSON.parse((await execFileP(process.execPath, [cli, "goals", "--storage-dir", storageDir, "--json"])).stdout);
-    const goalEvents = JSON.parse((await execFileP(process.execPath, [cli, "goal-events", goalHandle.goalId, "--storage-dir", storageDir, "--after", "1", "--json"])).stdout);
+    const goalStatus = JSON.parse((await execFileP(process.execPath, [cli, "goal-status", goalHandle.goalId, "--storage-dir", storageDir, "--json"])).stdout);
+    const goalEvents = (await execFileP(process.execPath, [cli, "replay-goal", goalHandle.goalId, "--storage-dir", storageDir, "--after", "1", "--jsonl"])).stdout.trim().split(/\r?\n/u).map((line) => JSON.parse(line));
     const missingCwd = await tempDir();
     const missingJsonl = (await execFileP(process.execPath, [
       cli,
@@ -227,9 +232,13 @@ describe("GoalScheduler", () => {
       "--json",
     ])).stdout);
     expect(runs.map((run: { id: string }) => run.id)).toContain(runHandle.runId);
+    expect(runStatus).toMatchObject({ id: runHandle.runId, status: "succeeded" });
     expect(runEvents.every((event: { id: number }) => event.id > 1)).toBe(true);
+    expect(runEvents.every((event: { sequence: number; runId: string }) => event.sequence === event.id && event.runId === runHandle.runId)).toBe(true);
     expect(goals.map((goal: { id: string }) => goal.id)).toContain(goalHandle.goalId);
+    expect(goalStatus).toMatchObject({ id: goalHandle.goalId, status: "succeeded" });
     expect(goalEvents.every((event: { id: number }) => event.id > 1)).toBe(true);
+    expect(goalEvents.every((event: { sequence: number; goalId: string }) => event.sequence === event.id && event.goalId === goalHandle.goalId)).toBe(true);
     expect(missingJsonl.some((event) => event.type === "run_finished")).toBe(true);
     expect(missingJsonl.at(-1)).toMatchObject({ type: "run_summary", summary: { status: "failed" } });
     expect(missingJson).toMatchObject({ agentId: "missing-adapter", status: "failed", errorCode: "AGENT_UNAVAILABLE" });

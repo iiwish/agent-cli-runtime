@@ -34,20 +34,32 @@ async function main(): Promise<void> {
     output(parsed, await runtime.listRuns({ status: runStatusFlag(parsed) }));
     return;
   }
-  if (parsed.command === "run-events") {
+  if (parsed.command === "run-status") {
     const runId = parsed.positional[0];
-    if (!runId) throw new Error("run-events requires a runId");
-    output(parsed, await runtime.getRunEvents(runId, { afterEventId: numberFlag(parsed, "after") }));
+    if (!runId) throw new Error("run-status requires a runId");
+    output(parsed, await runtime.getRun(runId));
+    return;
+  }
+  if (parsed.command === "replay-run" || parsed.command === "run-events") {
+    const runId = parsed.positional[0];
+    if (!runId) throw new Error(`${parsed.command} requires a runId`);
+    outputReplay(parsed, await runtime.replayRunEvents(runId, { afterEventId: numberFlag(parsed, "after") }));
     return;
   }
   if (parsed.command === "goals") {
     output(parsed, await runtime.listGoals({ status: goalStatusFlag(parsed) }));
     return;
   }
-  if (parsed.command === "goal-events") {
+  if (parsed.command === "goal-status") {
     const goalId = parsed.positional[0];
-    if (!goalId) throw new Error("goal-events requires a goalId");
-    output(parsed, await runtime.getGoalEvents(goalId, { afterEventId: numberFlag(parsed, "after") }));
+    if (!goalId) throw new Error("goal-status requires a goalId");
+    output(parsed, await runtime.getGoal(goalId));
+    return;
+  }
+  if (parsed.command === "replay-goal" || parsed.command === "goal-events") {
+    const goalId = parsed.positional[0];
+    if (!goalId) throw new Error(`${parsed.command} requires a goalId`);
+    outputReplay(parsed, await runtime.replayGoalEvents(goalId, { afterEventId: numberFlag(parsed, "after") }));
     return;
   }
   if (parsed.command === "run") {
@@ -144,6 +156,14 @@ function output(parsed: ParsedArgs, value: unknown): void {
   process.stdout.write(`${JSON.stringify(safeValue, null, 2)}\n`);
 }
 
+function outputReplay(parsed: ParsedArgs, events: unknown[]): void {
+  if (parsed.flags.has("jsonl")) {
+    for (const event of events) process.stdout.write(`${JSON.stringify(redactForCli(event))}\n`);
+    return;
+  }
+  output(parsed, events);
+}
+
 function redactForCli(value: unknown): unknown {
   if (typeof value === "string") return redactText(value);
   if (Array.isArray(value)) return value.map((item) => redactForCli(item));
@@ -189,9 +209,11 @@ agent-runtime doctor [--json] [--storage-dir <dir>]
 agent-runtime run --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--model <id>] [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime goal --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime runs [--storage-dir <dir>] [--status active|queued|running|succeeded|failed|canceled] [--json]
-agent-runtime run-events <runId> [--storage-dir <dir>] [--after <eventId>] [--json]
+agent-runtime run-status <runId> [--storage-dir <dir>] [--json]
+agent-runtime replay-run <runId> [--storage-dir <dir>] [--after <eventId>] [--jsonl]
 agent-runtime goals [--storage-dir <dir>] [--status active|planning|running|succeeded|failed|canceled] [--json]
-agent-runtime goal-events <goalId> [--storage-dir <dir>] [--after <eventId>] [--json]
+agent-runtime goal-status <goalId> [--storage-dir <dir>] [--json]
+agent-runtime replay-goal <goalId> [--storage-dir <dir>] [--after <eventId>] [--jsonl]
 `);
 }
 

@@ -49,6 +49,10 @@ describe("public contract", () => {
     expect(typeof createAgentRuntime).toBe("function");
     expect(smoke).toBeUndefined();
     expect(Object.keys(await import("../src/index.js"))).toEqual(["createAgentRuntime"]);
+
+    const runtime = createAgentRuntime();
+    expect(typeof runtime.replayRunEvents).toBe("function");
+    expect(typeof runtime.replayGoalEvents).toBe("function");
   });
 
   it("prints CLI help with all frozen commands and key flags", async () => {
@@ -60,10 +64,13 @@ describe("public contract", () => {
       "run",
       "goal",
       "runs",
-      "run-events",
+      "run-status",
+      "replay-run",
       "goals",
-      "goal-events",
+      "goal-status",
+      "replay-goal",
       "--json",
+      "--jsonl",
       "--stream jsonl",
       "--diagnostics",
       "--storage-dir",
@@ -167,5 +174,7 @@ describe("public contract", () => {
     expect(files).toContain("LICENSE");
     expect(files).toContain("README.md");
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
+    expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\//u));
+    expect(stdout).not.toContain(`sk${"A".repeat(20)}`);
   });
 });

@@ -235,8 +235,10 @@ setInterval(() => {}, 1000);
     const eventsFile = path.join(storageDir, "runs", handle.runId, "events.jsonl");
     const lines = (await readFile(eventsFile, "utf8")).trim().split("\n");
     expect(lines.map((line) => JSON.parse(line).id)).toEqual([1, 2, 3]);
-    const replayed = await runtime.getRunEvents(handle.runId, { afterEventId: 1 });
+    const replayed = await runtime.replayRunEvents(handle.runId, { afterEventId: 1 });
     expect(replayed.map((record) => record.id)).toEqual([2, 3]);
+    expect(replayed.map((record) => record.sequence)).toEqual([2, 3]);
+    expect(replayed.every((record) => record.runId === handle.runId)).toBe(true);
     expect(replayed.at(-1)?.event).toMatchObject({ type: "run_finished", result: "success" });
   });
 
@@ -254,9 +256,9 @@ setInterval(() => {}, 1000);
 
     const restarted = createAgentRuntime({ storageDir });
     expect(await restarted.getRun(canceled.runId)).toMatchObject({ status: "canceled", errorCode: "AGENT_CANCELLED" });
-    expect((await restarted.getRunEvents(canceled.runId)).at(-1)?.event).toMatchObject({ type: "run_finished", result: "cancelled" });
+    expect((await restarted.replayRunEvents(canceled.runId)).at(-1)?.event).toMatchObject({ type: "run_finished", result: "cancelled" });
     expect(await restarted.getRun(timedOut.runId)).toMatchObject({ status: "failed", errorCode: "AGENT_TIMEOUT" });
-    expect((await restarted.getRunEvents(timedOut.runId)).at(-1)?.event).toMatchObject({ type: "run_finished", result: "failed" });
+    expect((await restarted.replayRunEvents(timedOut.runId)).at(-1)?.event).toMatchObject({ type: "run_finished", result: "failed" });
   });
 
   it("shutdown cancels active runs and clears active state", async () => {
@@ -325,7 +327,7 @@ setInterval(() => {}, 1000);
 
     const runtime = createAgentRuntime({ storageDir });
     const run = await runtime.getRun(runId);
-    const events = await runtime.getRunEvents(runId);
+    const events = await runtime.replayRunEvents(runId);
     expect(run).toMatchObject({ id: runId, status: "failed", errorCode: "AGENT_RUNTIME_INTERRUPTED" });
     expect(run?.diagnostics.some((item) => item.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
     expect(events.at(-1)?.event).toMatchObject({ type: "run_finished", result: "failed" });
@@ -373,7 +375,7 @@ setInterval(() => {}, 1000);
 
     const runtime = createAgentRuntime({ storageDir });
     const run = await runtime.getRun(runId);
-    const events = await runtime.getRunEvents(runId);
+    const events = await runtime.replayRunEvents(runId);
     expect(run?.diagnostics.some((item) => item.code === "AGENT_EVENT_LOG_CORRUPT")).toBe(true);
     expect(events.some((record) => record.event.type === "error" && record.event.code === "AGENT_EVENT_LOG_CORRUPT")).toBe(true);
   });
