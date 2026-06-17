@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile, lstat } from "node:fs/promises";
 import path, { delimiter } from "node:path";
 import { createAgentRuntime } from "../src/index.js";
 import type {
@@ -41,6 +41,15 @@ async function execCliJson<T = unknown>(
   return JSON.parse(stdout) as T;
 }
 
+async function execInstalledCliJson<T = unknown>(
+  bin: string,
+  args: string[],
+  options?: Parameters<typeof execFileP>[2],
+): Promise<T> {
+  const { stdout } = await execFileP(process.execPath, [bin, ...args], options);
+  return JSON.parse(stdout) as T;
+}
+
 async function waitForRunId(storageDir: string): Promise<string | undefined> {
   const runsDir = path.join(storageDir, "runs");
   for (let attempt = 0; attempt < 120; attempt += 1) {
@@ -65,6 +74,25 @@ async function waitForRunId(storageDir: string): Promise<string | undefined> {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   return undefined;
+}
+
+function isLikelyBinary(buffer: Buffer): boolean {
+  const maxScan = Math.min(buffer.length, 4096);
+  if (buffer.includes(0)) return true;
+  let suspiciousBytes = 0;
+  for (let i = 0; i < maxScan; i += 1) {
+    const byte = buffer[i];
+    const isTextish =
+      byte === 0x09 ||
+      byte === 0x0a ||
+      byte === 0x0d ||
+      (byte >= 0x20 && byte <= 0x7e) ||
+      byte >= 0x80;
+    if (!isTextish) {
+      suspiciousBytes += 1;
+    }
+  }
+  return maxScan > 0 ? suspiciousBytes / maxScan > 0.2 : false;
 }
 
 describe("public contract", () => {
@@ -815,8 +843,74 @@ setInterval(() => {}, 1000);
     expect(files).toContain("LICENSE");
     expect(files).toContain("README.md");
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
+    expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\//u));
+    expect(files).not.toContainEqual(expect.stringMatching(/^docs\/fixtures\//u));
     expect(stdout).not.toContain(`sk${"A".repeat(20)}`);
+  });
+
+  it("supports package install smoke from npm pack tarball", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const tempProject = await tempDir("agent-runtime-install-smoke-");
+    const packInfoText = (await execFileP("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", tempProject], { cwd: root }))
+      .stdout.trim();
+    const [packInfo] = JSON.parse(packInfoText) as Array<{ filename: string }>;
+    const tarball = path.join(tempProject, packInfo.filename);
+    const tarEntries = (await execFileP("tar", ["-tf", packInfo.filename], { cwd: tempProject })).stdout.split(/\r?\n/u);
+
+    expect(tarEntries).not.toContainEqual(expect.stringMatching(/^package\/\.reference\//u));
+    expect(tarEntries).not.toContainEqual(expect.stringMatching(/^package\/tests\//u));
+    expect(tarEntries).not.toContainEqual(expect.stringMatching(/^package\/tests\/fixtures\//u));
+    expect(tarEntries).not.toContainEqual(expect.stringMatching(/^package\/docs\/fixtures\//u));
+
+    await execFileP("npm", ["init", "-y"], { cwd: tempProject });
+    await execFileP("npm", ["install", tarball, "--no-save"], { cwd: tempProject });
+
+    const imported = await execFileP(process.execPath, [
+      "-e",
+      "import('agent-cli-runtime').then((m) => {\n" +
+        "if (typeof m.createAgentRuntime !== 'function') process.exit(1);\n" +
+        "console.log(typeof m.createAgentRuntime);\n" +
+        "}).catch(() => process.exit(1));\n",
+    ], {
+      cwd: tempProject,
+    });
+    const installedCli = path.join(tempProject, "node_modules", ".bin", "agent-runtime");
+    const agents = await execInstalledCliJson<DetectedAgent[]>(installedCli, ["agents", "--json"], { cwd: tempProject });
+    const doctor = await execInstalledCliJson<{ ok: boolean }>(installedCli, ["doctor", "--json"], { cwd: tempProject });
+    const smoke = await execInstalledCliJson<{ ok: true; mode: string }>(installedCli, ["smoke", "--mode", "fixtures", "--json"], {
+      cwd: tempProject,
+    });
+
+    expect(imported.stdout.trim()).toBe("function");
+    expect(agents.length).toBeGreaterThan(0);
+    expect(doctor.ok).toBe(true);
+    expect(smoke).toMatchObject({ ok: true, mode: "fixtures" });
+  }, 60_000);
+
+  it("does not ship docs fixtures with raw auth token patterns", async () => {
+    const docsFixtureDir = path.join(root, "docs", "fixtures");
+    try {
+      await lstat(docsFixtureDir);
+    } catch (error) {
+      if ((error as { code?: string }).code === "ENOENT") return;
+      throw error;
+    }
+
+    const entries = await readdir(docsFixtureDir, { recursive: true });
+    const fixtureFiles = entries.filter((entry) => typeof entry === "string");
+    for (const entry of fixtureFiles) {
+      const full = path.join(docsFixtureDir, entry);
+      const stat = await lstat(full);
+      if (!stat.isFile()) continue;
+      const bytes = await readFile(full);
+      if (isLikelyBinary(bytes)) continue;
+      const text = bytes.toString("utf8");
+      expect(text).not.toMatch(/sk-[A-Za-z0-9_-]{20,}/u);
+      expect(text).not.toMatch(/\bBearer\s+[A-Za-z0-9+/_-]{10,}\b/gu);
+      expect(text).not.toMatch(/\bANTHROPIC_AUTH_TOKEN\b/gu);
+      expect(text).not.toMatch(/\bOPENAI_API_KEY\b/gu);
+    }
   });
 });
 

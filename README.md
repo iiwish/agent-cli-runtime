@@ -20,9 +20,15 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 
 ## Status
 
-This repository is in **pre-alpha MVP stage**.
+This repository is in **pre-alpha / developer preview**.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, real-stream parser fixtures, fake CLI integration tests, and thin local smoke/query CLI commands with redacted diagnostics and opt-in real CLI smoke evidence capture.
+Release boundary:
+- This is a release-candidate hardening track, not a stable API release.
+- `createAgentRuntime` is the only runtime value export.
+- No background daemon, no WAL, and no remote runtime mode are included in this pre-alpha track.
+- The package is intended for local adapter orchestration on the user machine, not a hosted control plane.
+
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, redacted diagnostics, parser fixtures, and thin local smoke/query CLI commands.
 
 ## Why
 
@@ -203,10 +209,26 @@ For the pre-alpha release, the package root is intentionally small. It exports t
 
 `getAdapter(id)` and `RuntimeOptions.adapters` exist for adapter experimentation in pre-alpha. Treat them as extension points whose shape may still change before a stable release.
 
+## API Stability (pre-alpha / developer preview)
+
+This release candidate is explicitly scoped:
+
+- No stable API contract is guaranteed yet.
+- Internal adapters/parsers/helpers are intentionally not exported from package root.
+- No production promises around daemon APIs, WAL-backed storage, remote runtime mode, or distributed storage.
+
 ## Installation
 
 ```bash
 npm install agent-cli-runtime
+```
+
+For local installation verification:
+
+```bash
+npm ci
+npm run build
+node ./dist/cli/main.js --help
 ```
 
 For local development from this repository:
@@ -215,6 +237,28 @@ For local development from this repository:
 npm ci
 npm run build
 node ./dist/cli/main.js agents --json
+```
+
+Required local agent CLIs (optional by scenario):
+
+- `codex` for Codex CLI coverage.
+- `claude` for Claude Code coverage.
+- `opencode` / `opencode-cli` for OpenCode coverage.
+
+Example env config:
+
+```bash
+export HTTPS_PROXY=http://127.0.0.1:7897
+export HTTP_PROXY=http://127.0.0.1:7897
+```
+
+Use one of the quick verification command sets before release:
+
+```bash
+node ./dist/cli/main.js agents --json
+node ./dist/cli/main.js doctor --json
+node ./dist/cli/main.js smoke --mode detection --json
+node ./dist/cli/main.js smoke --mode fixtures --json
 ```
 
 ## CLI
@@ -396,19 +440,11 @@ It is not affiliated with OpenDesign, OpenCode, Anthropic, OpenAI, or any suppor
 - M3: Claude Code adapter MVP. Done.
 - M4: OpenCode adapter MVP. Done.
 - M5: CLI wrapper and `doctor` command. Done.
-- M6: public package boundary, compatibility matrix, API/CLI contract freeze, contribution guide, and security policy. In progress for pre-alpha; contribution and security policy docs remain post-MVP follow-up.
+- M6: public package boundary, compatibility matrix, API/CLI contract freeze, contribution guide, and security policy. Completed for pre-alpha release candidate hardening.
 
 ## Contributing
 
-The project is not ready for external contributions yet. The first contribution guide will land with the implementation skeleton.
-
-Good first contribution areas will likely include:
-
-- fake CLI fixtures;
-- parser fixtures from real CLI streams;
-- adapter compatibility tests;
-- docs for local CLI setup;
-- security and diagnostics review.
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## License
 

@@ -1,9 +1,11 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P1-7 durable store hardening
+状态：P1-8 Release Candidate Hardening
 负责人：local project
 最后更新：2026-06-17
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
+
+本页同时记录了当前边界与历史里程碑；凡未以“当前”或“P1-8”明确标注者，均作为历史证据归档，不代表当前承诺 API。
 
 ## 1. 产品意图
 
@@ -106,6 +108,13 @@ nexu-io/open-design HEAD c54e49aae9d2dc8b044467187c081d5d7c50bebc
 - MVP 不做 Docker/SSH remote runtime。
 - 不试图统一每个 CLI 的全部特性。
 - 不做静默 permission escalation。
+
+### 发布边界（pre-alpha / developer preview）
+
+- 当前阶段为 pre-alpha / developer preview（P1-8）；
+- 不承诺稳定 API，主要关注本地编排与验证边界；
+- 不提供后台 daemon、数据库同步服务、WAL、或 remote runtime；
+- package root 保持精简，内部 adapter/parser/store 仅作内部实现，不作为包根 API 承诺。
 
 ## 4. 设计原则
 

@@ -1,9 +1,18 @@
 # Agent CLI Compatibility Matrix
 
-Status: P1-7 durable store hardening
+Status: P1-8 Release Candidate Hardening
 Last updated: 2026-06-17
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-7 keeps the P1-6 real-smoke evidence gate and hardens the opt-in durable store: fsync durability can be requested explicitly, JSONL corrupt-line health is more detailed, interrupted active records are failed on reload, and repair remains dry-run/non-destructive. Raw CLI output and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-8 release candidate hardening keeps the P1-6 real-smoke evidence gate and adds release-hygiene coverage: npm package boundary checks, publish/install smoke evidence, and explicit release scope notes. The opt-in durable store now includes explicit `fsync` durability, JSONL corrupt-line health diagnostics, active-record interruption handling, and a dry-run-only repair model. Raw CLI output and private paths are not committed.
+
+## Evidence policy
+
+Current status is P1-8 pre-alpha release-candidate evidence, which is intended to be the default interpretation for this matrix.
+
+- Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack` and install-smoke checks.
+- P1-6 and earlier notes in this file are historical references for parser fixtures, timeout/reconnect evidence, and compatibility context; they are not equivalent to current "latest expected" contract assumptions.
+- When using this file as runtime contract input, prioritize the `Status` section, explicit "Runtime notes" in each adapter, and the most recent command evidence.
+- For changed behavior, add a new evidence row at the top of the section rather than keeping the old row as authoritative.
 
 ## Summary
 
@@ -202,7 +211,7 @@ node ./dist/cli/main.js goal \
 - Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
 - P1-6 verifies the real smoke harness against stronger fake CLI contract tests and local real Codex/OpenCode smoke runs with expected text matched and no cwd mutation. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment, nor that OpenCode exposes a verified explicit read-only flag.
 - JSONL append is still a simple append-only file and not segmented. Default durability is `relaxed`; callers can request `storage.durability: "fsync"` for best-effort fdatasync/fsync after manifest writes and event appends, but there is no WAL or group commit.
-- There is still no long-lived daemon, database, WAL, segment compaction, or automatic destructive repair. `store-repair` is dry-run only in P1-7.
+- There is still no long-lived daemon, database, WAL, segment compaction, or automatic destructive repair. `store-repair` is dry-run only in P1-8.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
 - CLI remains a thin local smoke/scripting wrapper over the library API, not a daemon or long-lived service.
 - Real CLI auth and model availability depend on the user's local installation.
@@ -322,50 +331,6 @@ Covered behavior:
 - package root value exports remain limited to `createAgentRuntime`;
 - `npm pack --dry-run` excludes `.reference/`, test fixtures/secrets, and real smoke output.
 
-## P1-6 Real Smoke Evidence Hardening
-
-Commands verified in this stage:
-
-```bash
-npm test -- tests/contract.test.ts
-npm run typecheck
-node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
-node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000
-node ./dist/cli/main.js smoke --mode real --agent claude --allow-real-run --json --diagnostics --timeout-ms 30000
-```
-
-Covered behavior:
-
-- default real smoke expects `agent-runtime <agent> smoke ok` in aggregated `text_delta`;
-- status-only exit `0` and wrong text classify as `unexpected_output`;
-- default isolated cwd mutation classifies as `cwd_mutated`;
-- `--prompt-file` without `--expect-text` does not force text matching and still keeps prompt content out of argv;
-- `--prompt-file --expect-text ...` enforces the override;
-- `observedTextTail`, expected text, cwd, diagnostics, and mutation samples are redacted and observed text is truncated.
-- local Codex and OpenCode real smoke passed with `expectedTextMatched: true`, `cwdMutationChecked: true`, and `cwdMutated: false`;
-- local Claude real smoke preflight returned `classification: "auth_missing"` without launching a run.
-
-## P1-7 Durable Store Hardening
-
-Commands verified in this stage:
-
-```bash
-npm test -- tests/store.test.ts tests/run-scheduler.test.ts tests/goal-scheduler.test.ts tests/contract.test.ts
-npm run typecheck
-```
-
-Covered behavior:
-
-- `RuntimeOptions.storage.durability` keeps `storageDir` compatible and defaults to `relaxed`;
-- `fsync` mode exercises fdatasync/fsync hooks for manifest atomic writes and JSONL appends, with persisted `AGENT_STORAGE_SYNC_FALLBACK` diagnostics visible through store health and diagnostics bundles when sync primitives fail;
-- JSONL record boundary is one JSON replay envelope plus trailing newline;
-- partial JSONL tails keep the valid prefix and report corrupt line count, partial tail detection, last good event id/sequence, redacted tail preview, and `truncate_partial_tail`;
-- corrupt middle JSONL lines report health diagnostics while preserving later valid records for replay;
-- `store-repair --dry-run --json` reports intended non-destructive actions and does not modify files;
-- interrupted running runs and interrupted planning/running goals reload as failed, update manifests, append diagnostic/terminal replay events, clear active lists, and appear in store health;
-- health, repair dry-run, and diagnostics bundle output remain redacted;
-- `npm pack --dry-run` remains covered by the public contract test and excludes `.reference/`, fixtures, and real smoke output.
-
 ## P1-5 Real Smoke And Profile Evidence
 
 Commands verified in this stage:
@@ -395,6 +360,106 @@ Covered behavior:
 - auth missing and unavailable executable are classified before launch;
 - unsupported flag, timeout, and no-output runs include sanitized argv/profile diagnostics with stdout/stderr tails and actionable hints;
 - diagnostics bundle adapter summary exposes prompt transport, stream format, parsed event count, sanitized argv, and hints without raw output or private paths.
+
+## P1-6 Real Smoke Evidence Hardening
+
+Commands verified in this stage:
+
+```bash
+node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent claude --allow-real-run --json --diagnostics --timeout-ms 30000
+npm run typecheck
+```
+
+Covered behavior:
+
+- default real smoke expects `agent-runtime <agent> smoke ok` in aggregated `text_delta`;
+- status-only exit `0` and wrong text classify as `unexpected_output`;
+- default isolated cwd mutation classifies as `cwd_mutated`;
+- `--prompt-file` without `--expect-text` does not force text matching and still keeps prompt content out of argv;
+- `--prompt-file --expect-text ...` enforces the override;
+- `observedTextTail`, expected text, cwd, diagnostics, and mutation samples are redacted and observed text is truncated.
+- local Codex and OpenCode real smoke passed with `expectedTextMatched: true`, `cwdMutationChecked: true`, and `cwdMutated: false`;
+- local Claude real smoke preflight returned `classification: "auth_missing"` without launching a run.
+
+## P1-7 Durable Store Hardening
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+node ./dist/cli/main.js run --agent codex --permission read-only --timeout-ms 30000 --stream jsonl --diagnostics --json
+node ./dist/cli/main.js run --agent opencode --permission read-only --timeout-ms 30000 --stream jsonl --diagnostics --json
+npm run lint
+npm run build
+npm run ci
+npm pack --dry-run
+```
+
+Store hardening and recovery verification:
+
+```bash
+node ./dist/cli/main.js runs --storage-dir .agent-runtime --json
+node ./dist/cli/main.js run-status run_123 --storage-dir .agent-runtime --json
+node ./dist/cli/main.js replay-run run_123 --storage-dir .agent-runtime --after 10 --jsonl
+node ./dist/cli/main.js goals --storage-dir .agent-runtime --json
+node ./dist/cli/main.js goal-status goal_123 --storage-dir .agent-runtime --json
+node ./dist/cli/main.js replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jsonl
+node ./dist/cli/main.js store-health --storage-dir .agent-runtime --json
+node ./dist/cli/main.js store-repair --storage-dir .agent-runtime --dry-run --json
+```
+Covered behavior:
+- `RuntimeOptions.storage.durability` keeps `storageDir` compatible and defaults to `relaxed`;
+- `fsync` mode exercises fdatasync/fsync hooks for manifest atomic writes and JSONL appends, with persisted `AGENT_STORAGE_SYNC_FALLBACK` diagnostics visible through store health and diagnostics bundles when sync primitives fail;
+- JSONL record boundary is one JSON replay envelope plus trailing newline;
+- partial JSONL tails keep the valid prefix and report corrupt line count, partial tail detection, last good event id/sequence, redacted tail preview, and `truncate_partial_tail`;
+- corrupt middle JSONL lines report health diagnostics while preserving later valid records for replay;
+- `store-repair --dry-run --json` reports intended non-destructive actions and does not modify files;
+- interrupted running runs and interrupted planning/running goals reload as failed, update manifests, append diagnostic/terminal replay events, clear active lists, and appear in store health;
+- health, repair dry-run, and diagnostics bundle output remain redacted;
+- `npm pack --dry-run` remains covered by the public contract test and excludes `.reference/`, fixtures, and real smoke output.
+
+## P1-8 Release Candidate Hardening
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run ci
+npm pack --dry-run
+```
+
+Release-preflight workflow:
+
+```bash
+repo_root="${GITHUB_WORKSPACE:-$(pwd -P)}"
+tmp_dir="$(mktemp -d /tmp/agent-runtime-release-XXXXXX)"
+pushd "$tmp_dir"
+pack_info="$(cd "$repo_root" && npm pack --json --ignore-scripts --pack-destination "$tmp_dir")"
+package_file="$(printf '%s' "$pack_info" | node -e "const data = JSON.parse(require('node:fs').readFileSync(0, 'utf8')); process.stdout.write(data[0].filename);")"
+npm init -y >/dev/null
+npm install "$tmp_dir/$package_file" --no-save >/tmp/agent-runtime-release-smoke-install.log
+node -e "(async()=>{ const m = await import('agent-cli-runtime'); if (typeof m.createAgentRuntime !== 'function') process.exit(1); console.log(typeof m.createAgentRuntime); })()"
+node ./node_modules/.bin/agent-runtime agents --json > /tmp/agent-runtime-release-smoke-agents.json
+node ./node_modules/.bin/agent-runtime doctor --json > /tmp/agent-runtime-release-smoke-doctor.json
+node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json > /tmp/agent-runtime-release-smoke-fixtures.json
+popd
+node -e "const fs = require('node:fs'); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-agents.json','utf8')); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-doctor.json','utf8')); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-fixtures.json','utf8'));"
+```
+
+Release-candidate notes:
+
+- pre-alpha / developer preview scope:
+  - no stable API guarantee;
+  - no daemon;
+  - no WAL;
+  - no remote runtime.
+- `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`, and `docs/release-checklist.md` are part of package boundary docs.
 
 ## P0-4 Detection Evidence
 

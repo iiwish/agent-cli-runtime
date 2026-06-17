@@ -46,3 +46,20 @@ jobs:
 
       - name: Package dry run
         run: npm pack --dry-run
+
+      - name: Package install smoke
+        run: |
+          set -euo pipefail
+          tmp_dir="$(mktemp -d /tmp/agent-runtime-release-smoke-XXXXXX)"
+          repo_root="${GITHUB_WORKSPACE:-$(pwd)}"
+          pushd "$tmp_dir"
+          pack_info="$(cd "$repo_root" && npm pack --json --ignore-scripts --pack-destination "$tmp_dir")"
+          package_file="$(printf '%s' "$pack_info" | node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync(0, 'utf8')); process.stdout.write(data[0].filename);")"
+          npm init -y >/dev/null
+          npm install "$tmp_dir/$package_file" --no-save
+          node -e "(async()=>{ const m = await import('agent-cli-runtime'); if (typeof m.createAgentRuntime !== 'function') process.exit(1); })()"
+          node ./node_modules/.bin/agent-runtime agents --json > /tmp/agent-runtime-release-smoke-agents.json
+          node ./node_modules/.bin/agent-runtime doctor --json > /tmp/agent-runtime-release-smoke-doctor.json
+          node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json > /tmp/agent-runtime-release-smoke-fixtures.json
+          node -e "const fs = require('node:fs'); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-agents.json','utf8')); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-doctor.json','utf8')); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-fixtures.json','utf8'));"
+          popd
