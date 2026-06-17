@@ -429,6 +429,47 @@ describe("GoalScheduler", () => {
     expect(await runtime.listGoals({ status: "active" })).toEqual([]);
   });
 
+  it("replays interrupted + finished events after active goal recovery over a partial tail across reloads", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const goalId = "goal_active_partial_tail_reload";
+    const goalDir = path.join(storageDir, "goals", goalId);
+    await mkdir(goalDir, { recursive: true });
+    await writeFile(path.join(goalDir, "manifest.json"), JSON.stringify({
+      id: goalId,
+      cwd: await tempDir(),
+      objective: "resume-partial-tail",
+      status: "running",
+      tasks: [],
+      diagnostics: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }), "utf8");
+    await writeFile(
+      path.join(goalDir, "events.jsonl"),
+      `${JSON.stringify({ id: 1, timestamp: Date.now(), event: { type: "goal_started", goalId, objective: "resume-partial-tail", timestamp: Date.now() } })}\n{"id":2`,
+      "utf8",
+    );
+
+    const firstRuntime = createAgentRuntime({ storageDir });
+    const firstGoal = await firstRuntime.getGoal(goalId);
+    const firstEvents = await firstRuntime.replayGoalEvents(goalId);
+
+    expect(firstGoal).toMatchObject({ id: goalId, status: "failed", result: "failed" });
+    expect(firstEvents.at(-1)?.event).toMatchObject({ type: "goal_finished", result: "failed" });
+    expect(firstEvents.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
+    expect(firstEvents.map((record) => record.id)).toEqual([1, 2, 3, 4]);
+    const eventsFile = path.join(goalDir, "events.jsonl");
+    const rawAfterFirstReload = await readFile(eventsFile, "utf8");
+    expect(rawAfterFirstReload).toMatch(/\}\n\{"id":2/);
+
+    const secondRuntime = createAgentRuntime({ storageDir });
+    const secondEvents = await secondRuntime.replayGoalEvents(goalId);
+
+    expect(secondEvents.some((record) => record.event.type === "goal_finished" && record.event.result === "failed")).toBe(true);
+    expect(secondEvents.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
+    expect(secondEvents.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_EVENT_LOG_CORRUPT")).toBe(true);
+  });
+
   it("CLI reads persisted runs and goals from storage dir", async () => {
     const dir = await tempDir();
     const cwd = await tempDir();

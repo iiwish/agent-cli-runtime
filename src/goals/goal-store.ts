@@ -158,11 +158,23 @@ export class GoalStore {
         }
       }
       if (snapshot.eventsError) {
-        this.emit(goal.id, {
-          type: "scheduler_error",
-          code: "AGENT_EVENT_LOG_CORRUPT",
-          message: snapshot.eventsError.message,
-        });
+        if (!goal.diagnostics.some((item) => item.code === "AGENT_EVENT_LOG_CORRUPT")) {
+          goal.diagnostics.push(diagnostic("AGENT_EVENT_LOG_CORRUPT", snapshot.eventsError.message));
+        }
+        const syntheticEvent: ReplayEvent<SchedulerEvent> = {
+          id: goal.nextEventId++,
+          sequence: goal.nextEventId - 1,
+          goalId: goal.id,
+          timestamp: Date.now(),
+          event: {
+            type: "scheduler_error",
+            code: "AGENT_EVENT_LOG_CORRUPT",
+            message: snapshot.eventsError.message,
+            retryable: false,
+            timestamp: Date.now(),
+          },
+        };
+        goal.events.push(syntheticEvent);
       }
       if (!isTerminalGoal(goal.status)) this.markInterrupted(goal);
       else if (!snapshot.manifestError) this.tryPersistManifest(goal);

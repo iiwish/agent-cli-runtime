@@ -381,6 +381,50 @@ process.exit(2);
     ]));
   });
 
+  it("replays interrupted + finished events after active run recovery over a partial tail across reloads", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_active_partial_tail_reload";
+    const runDir = path.join(storageDir, "runs", runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "running",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: null,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    }), "utf8");
+    await writeFile(
+      path.join(runDir, "events.jsonl"),
+      `${JSON.stringify({ id: 1, timestamp: Date.now(), event: { type: "run_started", runId, agentId: "fake", cwd: "/tmp", timestamp: Date.now() } })}\n{"id":2`,
+      "utf8",
+    );
+
+    const firstRuntime = createAgentRuntime({ storageDir });
+    const firstRun = await firstRuntime.getRun(runId);
+    const firstEvents = await firstRuntime.replayRunEvents(runId);
+
+    expect(firstRun).toMatchObject({ id: runId, status: "failed", errorCode: "AGENT_RUNTIME_INTERRUPTED" });
+    expect(firstEvents.at(-1)?.event).toMatchObject({ type: "run_finished", result: "failed" });
+    expect(firstEvents.some((record) => record.event.type === "error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
+    expect(firstEvents.map((record) => record.id)).toEqual([1, 2, 3, 4]);
+    const eventsFile = path.join(runDir, "events.jsonl");
+    const rawAfterFirstReload = await readFile(eventsFile, "utf8");
+    expect(rawAfterFirstReload).toMatch(/\}\n\{"id":2/);
+
+    const secondRuntime = createAgentRuntime({ storageDir });
+    const secondEvents = await secondRuntime.replayRunEvents(runId);
+
+    expect(secondEvents.some((record) => record.event.type === "run_finished" && record.event.result === "failed")).toBe(true);
+    expect(secondEvents.some((record) => record.event.type === "error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
+    expect(secondEvents.some((record) => record.event.type === "error" && record.event.code === "AGENT_EVENT_LOG_CORRUPT")).toBe(true);
+  });
+
   it("fails a run and emits diagnostics when event persistence fails", async () => {
     const store = new RunStore(2_000, throwingRunEventStorage());
     const run = store.create({ agentId: "fake", cwd: await tempDir() });

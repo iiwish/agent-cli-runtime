@@ -1,4 +1,15 @@
-import { closeSync, existsSync, fdatasyncSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fdatasyncSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  statSync,
+  writeSync,
+} from "node:fs";
 import path from "node:path";
 import type { ReplayEvent } from "../core/events.js";
 import { redactText } from "../core/redaction.js";
@@ -12,10 +23,31 @@ export function appendJsonl<T>(
   mkdirSync(path.dirname(file), { recursive: true });
   const fd = openSync(file, "a");
   try {
+    if (needsJsonlBoundary(file)) {
+      writeSync(fd, "\n", undefined, "utf8");
+    }
     writeSync(fd, `${JSON.stringify(record)}\n`, undefined, "utf8");
     syncFileDescriptor(fd, options);
   } finally {
     closeSync(fd);
+  }
+}
+
+function needsJsonlBoundary(file: string): boolean {
+  if (!existsSync(file)) return false;
+  try {
+    const { size } = statSync(file);
+    if (size === 0) return false;
+    const handle = openSync(file, "r");
+    try {
+      const buffer = Buffer.alloc(1);
+      readSync(handle, buffer, 0, 1, size - 1);
+      return buffer[0] !== 10;
+    } finally {
+      closeSync(handle);
+    }
+  } catch {
+    return false;
   }
 }
 
