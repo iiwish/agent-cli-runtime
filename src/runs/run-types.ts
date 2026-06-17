@@ -19,6 +19,9 @@ export interface RuntimeOptions {
   env?: NodeJS.ProcessEnv;
   searchPath?: string[];
   storageDir?: string;
+  storage?: {
+    durability?: "relaxed" | "fsync";
+  };
   maxConcurrentTasks?: number;
 }
 

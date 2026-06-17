@@ -363,7 +363,22 @@ process.exit(2);
     const events = await runtime.replayRunEvents(runId);
     expect(run).toMatchObject({ id: runId, status: "failed", errorCode: "AGENT_RUNTIME_INTERRUPTED" });
     expect(run?.diagnostics.some((item) => item.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
+    expect(await runtime.listRuns({ status: "active" })).toEqual([]);
+    expect(await runtime.listRuns({ status: "failed" })).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: runId, errorCode: "AGENT_RUNTIME_INTERRUPTED" }),
+    ]));
+    const manifest = JSON.parse(await readFile(path.join(runDir, "manifest.json"), "utf8"));
+    expect(manifest).toMatchObject({
+      status: "failed",
+      errorCode: "AGENT_RUNTIME_INTERRUPTED",
+      signal: "RUNTIME_RESTART",
+    });
     expect(events.at(-1)?.event).toMatchObject({ type: "run_finished", result: "failed" });
+    expect(events.some((record) => record.event.type === "error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
+    const health = await runtime.inspectStore();
+    expect(health.activeInterrupted).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "run", id: runId, reason: expect.stringContaining("interrupted") }),
+    ]));
   });
 
   it("fails a run and emits diagnostics when event persistence fails", async () => {

@@ -1,54 +1,87 @@
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { closeSync, existsSync, fdatasyncSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
 import path from "node:path";
 import type { ReplayEvent } from "../core/events.js";
-import type { JsonlReadIssue } from "./storage-types.js";
+import { redactText } from "../core/redaction.js";
+import type { JsonlReadIssue, JsonlReadResult, StorageDurability, StorageSyncHooks } from "./storage-types.js";
 
-export function appendJsonl<T>(file: string, record: ReplayEvent<T>): void {
-  appendFileSync(file, `${JSON.stringify(record)}\n`, "utf8");
+export function appendJsonl<T>(
+  file: string,
+  record: ReplayEvent<T>,
+  options: { durability?: StorageDurability; sync?: StorageSyncHooks; onSyncDiagnostic?: (message: string) => void } = {},
+): void {
+  mkdirSync(path.dirname(file), { recursive: true });
+  const fd = openSync(file, "a");
+  try {
+    writeSync(fd, `${JSON.stringify(record)}\n`, undefined, "utf8");
+    syncFileDescriptor(fd, options);
+  } finally {
+    closeSync(fd);
+  }
 }
 
-export function readJsonl<T>(file: string): { records: Array<ReplayEvent<T>>; error?: Error; issue?: JsonlReadIssue } {
-  if (!existsSync(file)) return { records: [] };
+export function readJsonl<T>(file: string): JsonlReadResult<T> {
+  if (!existsSync(file)) return { records: [], issues: [] };
   const text = readFileSync(file, "utf8");
   const records: Array<ReplayEvent<T>> = [];
   const lines = text.split(/\r?\n/);
   const lastNonEmptyLine = lastNonEmptyLineIndex(lines);
+  const issues: JsonlReadIssue[] = [];
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     if (!line.trim()) continue;
     try {
       const parsed = JSON.parse(line) as ReplayEvent<T>;
       if (!isReplayEvent(parsed)) {
-        return issueResult(file, index + 1, "line is not a replay event", records, false);
+        issues.push(jsonlIssue(file, index + 1, "line is not a replay event", records, false, line));
+        continue;
       }
       records.push(parsed);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      return issueResult(file, index + 1, reason, records, isPartialTail(text, index, lastNonEmptyLine, reason));
+      const partialTail = isPartialTail(text, index, lastNonEmptyLine, reason);
+      issues.push(jsonlIssue(file, index + 1, reason, records, partialTail, line));
+      if (partialTail) break;
     }
   }
-  return { records };
+  if (issues.length === 0) return { records, issues };
+  return {
+    records,
+    error: new Error(issueSummary(issues)),
+    issue: issues[0],
+    issues,
+  };
 }
 
-function issueResult<T>(
+function jsonlIssue<T>(
   file: string,
   line: number,
   reason: string,
   records: Array<ReplayEvent<T>>,
   partialTail: boolean,
-): { records: Array<ReplayEvent<T>>; error: Error; issue: JsonlReadIssue } {
-  const issue = {
+  rawLine: string,
+): JsonlReadIssue {
+  const lastGood = records.at(-1);
+  return {
     file: path.basename(file),
     line,
     reason,
     retainedEventCount: records.length,
     partialTail,
+    corruptLineCount: 1,
+    partialTailDetected: partialTail,
+    lastGoodEventId: lastGood?.id,
+    lastGoodSequence: lastGood?.sequence,
+    repairRecommendation: partialTail ? "truncate_partial_tail" : "isolate_corrupt_line",
+    redactedTailPreview: redactText(rawLine.slice(0, 256)),
   };
-  return {
-    records,
-    error: new Error(`${issue.file}:${line} ${reason}; retained ${records.length} event(s)`),
-    issue,
-  };
+}
+
+function issueSummary(issues: JsonlReadIssue[]): string {
+  const [first] = issues;
+  const partialTailCount = issues.filter((issue) => issue.partialTail).length;
+  return `${first?.file ?? "events.jsonl"} has ${issues.length} corrupt JSONL line(s)`
+    + `${partialTailCount > 0 ? ` including ${partialTailCount} partial tail(s)` : ""}`
+    + `; retained ${first?.retainedEventCount ?? 0} event(s) before first issue`;
 }
 
 function isReplayEvent(value: unknown): value is ReplayEvent<unknown> {
@@ -68,4 +101,28 @@ function isPartialTail(text: string, index: number, lastNonEmptyLine: number, re
   return index === lastNonEmptyLine
     && !/\r?\n$/u.test(text)
     && /(end of JSON input|unterminated|string|property name|after|expected|unexpected)/iu.test(reason);
+}
+
+function syncFileDescriptor(
+  fd: number,
+  options: { durability?: StorageDurability; sync?: StorageSyncHooks; onSyncDiagnostic?: (message: string) => void },
+): void {
+  if (options.durability !== "fsync") return;
+  try {
+    const fdatasync = options.sync?.fdatasyncSync ?? fdatasyncSync;
+    fdatasync(fd);
+  } catch (fdatasyncError) {
+    try {
+      const fsync = options.sync?.fsyncSync ?? fsyncSync;
+      fsync(fd);
+    } catch (fsyncError) {
+      options.onSyncDiagnostic?.(
+        `fdatasync failed (${errorMessage(fdatasyncError)}); fsync fallback failed (${errorMessage(fsyncError)}); continuing with relaxed durability`,
+      );
+    }
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

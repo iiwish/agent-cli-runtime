@@ -7,6 +7,7 @@ export interface JsonlReadResult<T> {
   records: Array<ReplayEvent<T>>;
   error?: Error;
   issue?: JsonlReadIssue;
+  issues: JsonlReadIssue[];
 }
 
 export interface JsonlReadIssue {
@@ -15,6 +16,12 @@ export interface JsonlReadIssue {
   reason: string;
   retainedEventCount: number;
   partialTail: boolean;
+  corruptLineCount: number;
+  partialTailDetected: boolean;
+  lastGoodEventId?: number;
+  lastGoodSequence?: number;
+  repairRecommendation: "none" | "truncate_partial_tail" | "isolate_corrupt_line" | "manual_review";
+  redactedTailPreview?: string;
 }
 
 export interface StoredRunSnapshot {
@@ -40,4 +47,11 @@ export interface FileStorage {
   listGoals(): StoredGoalSnapshot[];
   writeGoalManifest(record: GoalRecord): void;
   appendGoalEvent(goalId: string, event: ReplayEvent<SchedulerEvent>): void;
+}
+
+export type StorageDurability = "relaxed" | "fsync";
+
+export interface StorageSyncHooks {
+  fdatasyncSync?: (fd: number) => void;
+  fsyncSync?: (fd: number) => void;
 }

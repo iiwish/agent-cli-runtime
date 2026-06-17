@@ -1,4 +1,16 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fdatasyncSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  appendFileSync,
+  writeSync,
+} from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, ReplayEvent, SchedulerEvent } from "../core/events.js";
@@ -7,10 +19,22 @@ import type { GoalRecord } from "../goals/goal-types.js";
 import type { RunRecord } from "../runs/run-types.js";
 import { appendJsonl, readJsonl } from "./jsonl-store.js";
 import { validateGoalManifest, validateRunManifest } from "./manifest-validation.js";
-import type { FileStorage, StoredGoalSnapshot, StoredRunSnapshot } from "./storage-types.js";
+import type { FileStorage, StorageDurability, StorageSyncHooks, StoredGoalSnapshot, StoredRunSnapshot } from "./storage-types.js";
+
+export interface JsonFileStorageOptions {
+  durability?: StorageDurability;
+  sync?: StorageSyncHooks;
+}
 
 export class JsonFileStorage implements FileStorage {
-  constructor(private readonly rootDir: string) {
+  private readonly diagnostics: string[] = [];
+  private readonly durability: StorageDurability;
+
+  constructor(
+    private readonly rootDir: string,
+    private readonly options: JsonFileStorageOptions = {},
+  ) {
+    this.durability = options.durability ?? "relaxed";
     mkdirSync(this.runsDir, { recursive: true });
     mkdirSync(this.goalsDir, { recursive: true });
   }
@@ -31,12 +55,12 @@ export class JsonFileStorage implements FileStorage {
   }
 
   writeRunManifest(record: RunRecord): void {
-    atomicWriteJson(this.runManifestPath(record.id), sanitizeForStorage(record));
+    atomicWriteJson(this.runManifestPath(record.id), sanitizeForStorage(record), this.writeOptions("manifest"));
   }
 
   appendRunEvent(runId: string, event: ReplayEvent<AgentEvent>): void {
     this.ensureRunDir(runId);
-    appendJsonl(this.runEventsPath(runId), sanitizeForStorage(event));
+    appendJsonl(this.runEventsPath(runId), sanitizeForStorage(event), this.writeOptions("event"));
   }
 
   listGoals(): StoredGoalSnapshot[] {
@@ -55,12 +79,16 @@ export class JsonFileStorage implements FileStorage {
   }
 
   writeGoalManifest(record: GoalRecord): void {
-    atomicWriteJson(this.goalManifestPath(record.id), sanitizeForStorage(record));
+    atomicWriteJson(this.goalManifestPath(record.id), sanitizeForStorage(record), this.writeOptions("manifest"));
   }
 
   appendGoalEvent(goalId: string, event: ReplayEvent<SchedulerEvent>): void {
     this.ensureGoalDir(goalId);
-    appendJsonl(this.goalEventsPath(goalId), sanitizeForStorage(event));
+    appendJsonl(this.goalEventsPath(goalId), sanitizeForStorage(event), this.writeOptions("event"));
+  }
+
+  getDurabilityDiagnostics(): string[] {
+    return [...this.diagnostics];
   }
 
   private get runsDir(): string {
@@ -96,6 +124,33 @@ export class JsonFileStorage implements FileStorage {
   private goalEventsPath(goalId: string): string {
     return path.join(this.goalsDir, goalId, "events.jsonl");
   }
+
+  private writeOptions(operation: "event" | "manifest"): JsonFileStorageOptions & { onSyncDiagnostic: (message: string) => void } {
+    return {
+      durability: this.durability,
+      sync: this.options.sync,
+      onSyncDiagnostic: (message) => {
+        this.recordDurabilityDiagnostic(`Storage ${operation} sync fallback: ${message}`);
+      },
+    };
+  }
+
+  private recordDurabilityDiagnostic(message: string): void {
+    const safeMessage = redactUnknown(message);
+    this.diagnostics.push(safeMessage);
+    try {
+      appendFileSync(path.join(this.rootDir, "diagnostics.jsonl"), `${JSON.stringify({
+        timestamp: Date.now(),
+        diagnostic: {
+          code: "AGENT_STORAGE_SYNC_FALLBACK",
+          message: safeMessage,
+          retryable: false,
+        },
+      })}\n`, "utf8");
+    } catch {
+      // Sync fallback diagnostics are best-effort and must not make the primary write fail.
+    }
+  }
 }
 
 function listManifestDirs(parent: string): string[] {
@@ -125,11 +180,22 @@ function readJson(file: string): { value?: unknown; error?: Error } {
   }
 }
 
-function atomicWriteJson(file: string, value: unknown): void {
+function atomicWriteJson(
+  file: string,
+  value: unknown,
+  options: JsonFileStorageOptions & { onSyncDiagnostic?: (message: string) => void } = {},
+): void {
   mkdirSync(path.dirname(file), { recursive: true });
   const tmp = path.join(path.dirname(file), `.manifest.${process.pid}.${randomUUID()}.tmp`);
-  writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  const fd = openSync(tmp, "w");
+  try {
+    writeSync(fd, `${JSON.stringify(value, null, 2)}\n`, undefined, "utf8");
+    syncFileDescriptor(fd, options);
+  } finally {
+    closeSync(fd);
+  }
   renameSync(tmp, file);
+  syncDirectory(path.dirname(file), options);
 }
 
 function sanitizeForStorage<T>(value: T): T {
@@ -143,6 +209,44 @@ function normalizeReplayEvent<T>(record: ReplayEvent<T>, scope: { runId?: string
     ...scope,
     sequence,
   };
+}
+
+function syncFileDescriptor(
+  fd: number,
+  options: JsonFileStorageOptions & { onSyncDiagnostic?: (message: string) => void },
+): void {
+  if (options.durability !== "fsync") return;
+  try {
+    const fdatasync = options.sync?.fdatasyncSync ?? fdatasyncSync;
+    fdatasync(fd);
+  } catch (fdatasyncError) {
+    try {
+      const fsync = options.sync?.fsyncSync ?? fsyncSync;
+      fsync(fd);
+    } catch (fsyncError) {
+      options.onSyncDiagnostic?.(
+        `fdatasync failed (${errorMessage(fdatasyncError)}); fsync fallback failed (${errorMessage(fsyncError)}); continuing with relaxed durability`,
+      );
+    }
+  }
+}
+
+function syncDirectory(dir: string, options: JsonFileStorageOptions & { onSyncDiagnostic?: (message: string) => void }): void {
+  if (options.durability !== "fsync") return;
+  let fd: number | undefined;
+  try {
+    fd = openSync(dir, "r");
+    const fsync = options.sync?.fsyncSync ?? fsyncSync;
+    fsync(fd);
+  } catch (error) {
+    options.onSyncDiagnostic?.(`directory fsync skipped (${errorMessage(error)}); continuing with file-level durability`);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function corruptRunManifest(runId: string, error: Error | undefined): RunRecord {

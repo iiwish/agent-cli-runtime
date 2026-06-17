@@ -43,7 +43,7 @@ export interface AgentRuntime {
 
 export function createAgentRuntime(options: RuntimeOptions = {}): AgentRuntime {
   const registry = new AdapterRegistry(options.adapters);
-  const storage = options.storageDir ? new JsonFileStorage(options.storageDir) : undefined;
+  const storage = options.storageDir ? new JsonFileStorage(options.storageDir, { durability: options.storage?.durability }) : undefined;
   const runStore = new RunStore(2_000, storage);
   const runScheduler = new RunScheduler(registry, runStore, {
     env: options.env,

@@ -5,7 +5,7 @@ import path from "node:path";
 import { createAgentRuntime } from "../index.js";
 import { redactText } from "../core/redaction.js";
 import { runParserFixtureCases } from "../smoke/parser-fixtures.js";
-import { atomicWriteJsonFile, exportDiagnosticsBundle, inspectStoreDirectory } from "../storage/store-inspection.js";
+import { atomicWriteJsonFile, exportDiagnosticsBundle, inspectStoreDirectory, inspectStoreRepairDryRun } from "../storage/store-inspection.js";
 import type { DetectedAgent, RunRecord } from "../index.js";
 
 const DEFAULT_OBSERVED_TEXT_TAIL_BYTES = 2_048;
@@ -60,11 +60,18 @@ async function main(): Promise<void> {
     output(parsed, inspectStoreDirectory(path.resolve(storageDir)));
     return;
   }
+  if (parsed.command === "store-repair") {
+    const storageDir = requiredStringFlag(parsed, "storage-dir", "store-repair requires --storage-dir <dir>");
+    if (parsed.flags.has("apply")) throw new Error("store-repair --apply is not implemented; run --dry-run to inspect repair actions");
+    if (!parsed.flags.has("dry-run")) throw new Error("store-repair requires --dry-run unless --apply is implemented");
+    output(parsed, inspectStoreRepairDryRun(path.resolve(storageDir)));
+    return;
+  }
   if (parsed.command === "diagnostics") {
     await runDiagnosticsCommand(parsed);
     return;
   }
-  const runtime = createAgentRuntime({ storageDir: stringFlag(parsed, "storage-dir") });
+  const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed));
   if (parsed.command === "agents") {
     const agents = await runtime.detect({ includeUnavailable: true });
     output(parsed, agents);
@@ -166,7 +173,7 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
   const mode = stringFlag(parsed, "mode") ?? "detection";
   const agent = stringFlag(parsed, "agent") ?? "all";
   if (mode === "detection") {
-    const runtime = createAgentRuntime({ storageDir: stringFlag(parsed, "storage-dir") });
+    const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed));
     const agents = await runtime.detect({ includeUnavailable: true });
     output(parsed, {
       ok: agents.some((item) => item.available),
@@ -189,7 +196,7 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
       throw new Error("smoke --mode real requires --allow-real-run");
     }
     if (agent === "all") throw new Error("smoke --mode real requires --agent <id>");
-    const runtime = createAgentRuntime({ storageDir: stringFlag(parsed, "storage-dir") });
+    const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed));
     const detected = (await runtime.detect({ includeUnavailable: true })).find((item) => item.id === agent);
     const preflight = realSmokePreflight(agent, detected);
     if (preflight) {
@@ -577,6 +584,14 @@ function retryPolicyFromFlags(parsed: ParsedArgs) {
   return { maxAttempts, retryableErrorCodes, backoffMs };
 }
 
+function runtimeOptionsFromFlags(parsed: ParsedArgs) {
+  const durability = enumFlag(parsed, "storage-durability", ["relaxed", "fsync"]) as "relaxed" | "fsync" | undefined;
+  return {
+    storageDir: stringFlag(parsed, "storage-dir"),
+    storage: durability ? { durability } : undefined,
+  };
+}
+
 function csvFlag(parsed: ParsedArgs, key: string): string[] | undefined {
   const value = stringFlag(parsed, key);
   if (!value) return undefined;
@@ -611,8 +626,12 @@ agent-runtime goals [--storage-dir <dir>] [--status active|planning|running|succ
 agent-runtime goal-status <goalId> [--storage-dir <dir>] [--json]
 agent-runtime replay-goal <goalId> [--storage-dir <dir>] [--after <eventId>] [--jsonl]
 agent-runtime store-health --storage-dir <dir> [--json]
+agent-runtime store-repair --storage-dir <dir> --dry-run [--json]
 agent-runtime diagnostics run <runId> --storage-dir <dir> [--json] [--out <file>]
 agent-runtime diagnostics goal <goalId> --storage-dir <dir> [--json] [--out <file>]
+
+Storage durability:
+  --storage-durability relaxed|fsync
 `);
 }
 

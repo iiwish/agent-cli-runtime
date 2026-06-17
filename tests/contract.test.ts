@@ -24,6 +24,8 @@ import type {
   ExportDiagnosticsRequest,
   InspectStoreOptions,
   StoreHealth,
+  StoreRepairAction,
+  StoreRepairReport,
 } from "../src/index.js";
 import { tempDir, writeExecutable } from "./helpers.js";
 
@@ -59,6 +61,8 @@ describe("public contract", () => {
       diagnostic: RuntimeDiagnostic;
       inspectStoreOptions: InspectStoreOptions;
       storeHealth: StoreHealth;
+      storeRepairAction: StoreRepairAction;
+      storeRepairReport: StoreRepairReport;
       diagnosticsRequest: ExportDiagnosticsRequest;
       diagnosticsBundle: DiagnosticsBundle;
     };
@@ -88,6 +92,7 @@ describe("public contract", () => {
       "goal-status",
       "replay-goal",
       "store-health",
+      "store-repair",
       "diagnostics run",
       "diagnostics goal",
       "--json",
@@ -96,6 +101,8 @@ describe("public contract", () => {
       "--stream jsonl",
       "--diagnostics",
       "--storage-dir",
+      "--storage-durability",
+      "--dry-run",
       "--status",
       "--after",
       "--max-concurrent-tasks",
@@ -661,6 +668,53 @@ process.exit(0);
     expect(writtenText).not.toContain("Bearer");
     expect(writtenText).not.toContain("ANTHROPIC_AUTH_TOKEN");
     expect(writtenText).not.toContain("private-cli-tail");
+  }, 30_000);
+
+  it("prints redacted store-repair dry-run actions without applying changes", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_cli_repair";
+    const runDir = path.join(storageDir, "runs", runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "succeeded",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: 0,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    }), "utf8");
+    const eventsFile = path.join(runDir, "events.jsonl");
+    const original = `${JSON.stringify({ id: 1, sequence: 1, timestamp: Date.now(), event: { type: "run_started", runId, agentId: "fake", cwd: "/tmp/private-cli-repair", timestamp: Date.now() } })}\n{"id":2,"token":"Bearer ${"B".repeat(20)}","cwd":"/tmp/private-cli-repair"`;
+    await writeFile(eventsFile, original, "utf8");
+
+    const repair = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "store-repair",
+      "--storage-dir",
+      storageDir,
+      "--dry-run",
+      "--json",
+    ])).stdout);
+    const after = await readFile(eventsFile, "utf8");
+    const text = JSON.stringify(repair);
+
+    expect(repair).toMatchObject({
+      schemaVersion: "agent-runtime.store-repair.v1",
+      dryRun: true,
+      applied: false,
+      ok: false,
+      actions: [expect.objectContaining({ action: "truncate_partial_tail", id: runId, applied: false })],
+    });
+    expect(after).toBe(original);
+    expect(text).toContain("[REDACTED]");
+    expect(text).not.toContain("Bearer");
+    expect(text).not.toContain("private-cli-repair");
   }, 30_000);
 
   it("exports redacted diagnostics for a real smoke timeout run", async () => {

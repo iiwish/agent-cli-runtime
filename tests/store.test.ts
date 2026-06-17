@@ -3,6 +3,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createAgentRuntime } from "../src/index.js";
 import { JsonFileStorage } from "../src/storage/file-storage.js";
+import { inspectStoreRepairDryRun } from "../src/storage/store-inspection.js";
 import { tempDir } from "./helpers.js";
 
 describe("durable local store", () => {
@@ -29,6 +30,88 @@ describe("durable local store", () => {
 
     await expect(stat(path.join(root, "runs"))).resolves.toMatchObject({ isDirectory: expect.any(Function) });
     await expect(stat(path.join(root, "goals"))).resolves.toMatchObject({ isDirectory: expect.any(Function) });
+  });
+
+  it("uses fsync durability hooks for manifest atomic writes and JSONL appends", async () => {
+    const root = await tempDir("agent-runtime-storage-");
+    const calls: string[] = [];
+    const storage = new JsonFileStorage(root, {
+      durability: "fsync",
+      sync: {
+        fdatasyncSync: () => calls.push("fdatasync"),
+        fsyncSync: () => calls.push("fsync"),
+      },
+    });
+    const now = Date.now();
+
+    storage.writeRunManifest({
+      id: "run_fsync",
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "running",
+      createdAt: now,
+      updatedAt: now,
+      exitCode: null,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    });
+    storage.appendRunEvent("run_fsync", {
+      id: 1,
+      sequence: 1,
+      runId: "run_fsync",
+      timestamp: now,
+      event: { type: "status", label: "synced", timestamp: now },
+    });
+
+    expect(calls.filter((call) => call === "fdatasync")).toHaveLength(2);
+    expect(calls).toContain("fsync");
+  });
+
+  it("falls back gracefully when fsync durability hooks are unavailable", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const storage = new JsonFileStorage(storageDir, {
+      durability: "fsync",
+      sync: {
+        fdatasyncSync: () => {
+          throw new Error("fdatasync unsupported");
+        },
+        fsyncSync: () => {
+          throw new Error("fsync unsupported");
+        },
+      },
+    });
+    const now = Date.now();
+
+    expect(() => storage.writeRunManifest({
+      id: "run_fsync_fallback",
+      agentId: "fake",
+      cwd: "/tmp/private-fsync-fallback",
+      status: "running",
+      createdAt: now,
+      updatedAt: now,
+      exitCode: null,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    })).not.toThrow();
+
+    expect(storage.getDurabilityDiagnostics().join("\n")).toContain("Storage manifest sync fallback");
+    expect(storage.getDurabilityDiagnostics().join("\n")).not.toContain("private-fsync-fallback");
+    const health = await createAgentRuntime().inspectStore({ storageDir });
+    const healthText = JSON.stringify(health);
+    expect(health.ok).toBe(false);
+    expect(health.storageDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "AGENT_STORAGE_SYNC_FALLBACK", message: expect.stringContaining("Storage manifest sync fallback") }),
+    ]));
+    expect(health.diagnostics.byCode.AGENT_STORAGE_SYNC_FALLBACK).toBeGreaterThanOrEqual(1);
+    expect(healthText).not.toContain("private-fsync-fallback");
+    const bundle = await createAgentRuntime().exportDiagnostics({ kind: "run", runId: "run_fsync_fallback", storageDir });
+    expect(bundle.storageDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "AGENT_STORAGE_SYNC_FALLBACK" }),
+    ]));
   });
 
   it("keeps a corrupt run manifest queryable and reports a diagnostic", async () => {
@@ -259,10 +342,120 @@ describe("durable local store", () => {
     const health = await runtime.inspectStore();
     const healthText = JSON.stringify(health);
     expect(health.partialTails).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "run", id: runId, line: 2, retainedEventCount: 1 }),
+      expect.objectContaining({
+        kind: "run",
+        id: runId,
+        line: 2,
+        retainedEventCount: 1,
+        corruptLineCount: 1,
+        partialTailDetected: true,
+        lastGoodEventId: 1,
+        lastGoodSequence: 1,
+        repairRecommendation: "truncate_partial_tail",
+        redactedTailPreview: expect.stringContaining("[REDACTED]"),
+      }),
     ]));
+    expect(health.totals).toMatchObject({ corruptEventLogLines: 1, partialEventLogTails: 1 });
     expect(healthText).not.toContain("Bearer");
     expect(healthText).not.toContain("private-tail");
+  });
+
+  it("continues past corrupt middle JSONL lines and reports health diagnostics", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_middle_corrupt_jsonl";
+    const runDir = path.join(storageDir, "runs", runId);
+    const now = Date.now();
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "succeeded",
+      createdAt: now,
+      updatedAt: now,
+      exitCode: 0,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    }), "utf8");
+    await writeFile(
+      path.join(runDir, "events.jsonl"),
+      [
+        JSON.stringify({ id: 1, sequence: 1, timestamp: now, event: { type: "run_started", runId, agentId: "fake", cwd: "/tmp", timestamp: now } }),
+        `{"id":2,"sequence":2,"token":"sk${"A".repeat(20)}"}`,
+        JSON.stringify({ id: 3, sequence: 3, timestamp: now, event: { type: "run_finished", result: "success", exitCode: 0, signal: null, timestamp: now } }),
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const runtime = createAgentRuntime({ storageDir });
+    const events = await runtime.replayRunEvents(runId);
+    const health = await runtime.inspectStore();
+    const text = JSON.stringify(health);
+
+    expect(events.map((record) => record.id)).toEqual([1, 3, 4]);
+    expect(events.at(-1)?.event).toMatchObject({ type: "error", code: "AGENT_EVENT_LOG_CORRUPT" });
+    expect(health.corruptEventLogs).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: runId,
+        line: 2,
+        partialTailDetected: false,
+        lastGoodEventId: 1,
+        lastGoodSequence: 1,
+        repairRecommendation: "isolate_corrupt_line",
+      }),
+    ]));
+    expect(text).not.toContain(`sk${"A".repeat(20)}`);
+  });
+
+  it("reports redacted repair dry-run actions without modifying corrupt tails", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_repair_dry_run";
+    const runDir = path.join(storageDir, "runs", runId);
+    const now = Date.now();
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "succeeded",
+      createdAt: now,
+      updatedAt: now,
+      exitCode: 0,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    }), "utf8");
+    const eventsFile = path.join(runDir, "events.jsonl");
+    const original = `${JSON.stringify({ id: 1, sequence: 1, timestamp: now, event: { type: "run_started", runId, agentId: "fake", cwd: "/tmp/private-repair", timestamp: now } })}\n{"id":2,"token":"Bearer ${"B".repeat(20)}","cwd":"/tmp/private-repair"`;
+    await writeFile(eventsFile, original, "utf8");
+
+    const report = inspectStoreRepairDryRun(storageDir);
+    const after = await readFile(eventsFile, "utf8");
+    const text = JSON.stringify(report);
+
+    expect(report).toMatchObject({
+      schemaVersion: "agent-runtime.store-repair.v1",
+      dryRun: true,
+      applied: false,
+      ok: false,
+      actions: [expect.objectContaining({
+        kind: "run",
+        id: runId,
+        action: "truncate_partial_tail",
+        line: 2,
+        retainedEventCount: 1,
+        lastGoodEventId: 1,
+        applied: false,
+      })],
+    });
+    expect(after).toBe(original);
+    expect(text).toContain("[REDACTED]");
+    expect(text).not.toContain("Bearer");
+    expect(text).not.toContain("private-repair");
   });
 
   it("warns when a terminal run manifest is missing its terminal event", async () => {

@@ -37,6 +37,8 @@ export type {
   InspectStoreOptions,
   StoreHealth,
   StoreHealthIssue,
+  StoreRepairAction,
+  StoreRepairReport,
   StoreHealthSummary,
   StoreHealthWarning,
 } from "./storage/store-inspection.js";

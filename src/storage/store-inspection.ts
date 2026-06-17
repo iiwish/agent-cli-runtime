@@ -19,6 +19,12 @@ export interface StoreHealthIssue {
   line?: number;
   reason: string;
   retainedEventCount?: number;
+  corruptLineCount?: number;
+  partialTailDetected?: boolean;
+  lastGoodEventId?: number;
+  lastGoodSequence?: number;
+  repairRecommendation?: "none" | "truncate_partial_tail" | "isolate_corrupt_line" | "manual_review";
+  redactedTailPreview?: string;
 }
 
 export interface StoreHealthWarning {
@@ -41,12 +47,41 @@ export interface StoreHealth {
   totals: {
     runs: number;
     goals: number;
+    corruptEventLogLines: number;
+    partialEventLogTails: number;
   };
   corruptManifests: StoreHealthIssue[];
   corruptEventLogs: StoreHealthIssue[];
   partialTails: StoreHealthIssue[];
   activeInterrupted: StoreHealthIssue[];
   warnings: StoreHealthWarning[];
+  storageDiagnostics: RuntimeDiagnostic[];
+  diagnostics: StoreHealthSummary;
+}
+
+export interface StoreRepairAction {
+  kind: "run" | "goal";
+  id: string;
+  file: string;
+  action: "truncate_partial_tail" | "isolate_corrupt_line" | "manual_review";
+  dryRun: boolean;
+  applied: boolean;
+  line?: number;
+  retainedEventCount?: number;
+  lastGoodEventId?: number;
+  lastGoodSequence?: number;
+  reason: string;
+  redactedTailPreview?: string;
+}
+
+export interface StoreRepairReport {
+  schemaVersion: "agent-runtime.store-repair.v1";
+  storageDir: string;
+  checkedAt: number;
+  dryRun: boolean;
+  applied: boolean;
+  ok: boolean;
+  actions: StoreRepairAction[];
   diagnostics: StoreHealthSummary;
 }
 
@@ -74,6 +109,7 @@ export interface DiagnosticsBundle {
     partialTail?: StoreHealthIssue;
   };
   diagnostics: RuntimeDiagnostic[];
+  storageDiagnostics: RuntimeDiagnostic[];
   consistencyWarnings: StoreHealthWarning[];
   attemptEvidence?: unknown[];
   adapterSummary: Record<string, unknown>;
@@ -85,6 +121,7 @@ interface ScannedRecord {
   manifest: Record<string, unknown> | null;
   manifestIssue?: StoreHealthIssue;
   eventIssue?: StoreHealthIssue;
+  eventIssues: StoreHealthIssue[];
   partialTail?: StoreHealthIssue;
   events: Array<ReplayEvent<AgentEvent | SchedulerEvent>>;
   warnings: StoreHealthWarning[];
@@ -93,33 +130,88 @@ interface ScannedRecord {
 
 export function inspectStoreDirectory(storageDir: string): StoreHealth {
   const records = scanStore(storageDir);
+  const storageDiagnostics = readStoreDiagnostics(storageDir);
   const corruptManifests = records.flatMap((record) => record.manifestIssue ? [record.manifestIssue] : []);
-  const corruptEventLogs = records.flatMap((record) => record.eventIssue ? [record.eventIssue] : []);
+  const corruptEventLogs = records.flatMap((record) => record.eventIssues);
   const partialTails = records.flatMap((record) => record.partialTail ? [record.partialTail] : []);
   const activeInterrupted = records.flatMap((record) => record.activeInterrupted ? [record.activeInterrupted] : []);
   const warnings = records.flatMap((record) => record.warnings);
   const health: StoreHealth = {
-    ok: corruptManifests.length === 0 && corruptEventLogs.length === 0 && warnings.length === 0 && activeInterrupted.length === 0,
+    ok: corruptManifests.length === 0
+      && corruptEventLogs.length === 0
+      && warnings.length === 0
+      && activeInterrupted.length === 0
+      && storageDiagnostics.length === 0,
     storageDir,
     checkedAt: Date.now(),
     totals: {
       runs: records.filter((record) => record.kind === "run").length,
       goals: records.filter((record) => record.kind === "goal").length,
+      corruptEventLogLines: corruptEventLogs.reduce((sum, issue) => sum + (issue.corruptLineCount ?? 1), 0),
+      partialEventLogTails: partialTails.length,
     },
     corruptManifests,
     corruptEventLogs,
     partialTails,
     activeInterrupted,
     warnings,
-    diagnostics: summarizeDiagnostics(records),
+    storageDiagnostics,
+    diagnostics: summarizeDiagnostics(records, storageDiagnostics),
   };
   return redactUnknown(health);
+}
+
+export function inspectStoreRepairDryRun(storageDir: string): StoreRepairReport {
+  const health = inspectStoreDirectory(storageDir);
+  const actions = [
+    ...health.partialTails.map((issue): StoreRepairAction => ({
+      kind: issue.kind,
+      id: issue.id,
+      file: issue.file,
+      action: "truncate_partial_tail",
+      dryRun: true,
+      applied: false,
+      line: issue.line,
+      retainedEventCount: issue.retainedEventCount,
+      lastGoodEventId: issue.lastGoodEventId,
+      lastGoodSequence: issue.lastGoodSequence,
+      reason: issue.reason,
+      redactedTailPreview: issue.redactedTailPreview,
+    })),
+    ...health.corruptEventLogs
+      .filter((issue) => !issue.partialTailDetected)
+      .map((issue): StoreRepairAction => ({
+        kind: issue.kind,
+        id: issue.id,
+        file: issue.file,
+        action: issue.repairRecommendation === "isolate_corrupt_line" ? "isolate_corrupt_line" : "manual_review",
+        dryRun: true,
+        applied: false,
+        line: issue.line,
+        retainedEventCount: issue.retainedEventCount,
+        lastGoodEventId: issue.lastGoodEventId,
+        lastGoodSequence: issue.lastGoodSequence,
+        reason: issue.reason,
+        redactedTailPreview: issue.redactedTailPreview,
+      })),
+  ];
+  return redactUnknown({
+    schemaVersion: "agent-runtime.store-repair.v1",
+    storageDir,
+    checkedAt: Date.now(),
+    dryRun: true,
+    applied: false,
+    ok: actions.length === 0,
+    actions,
+    diagnostics: health.diagnostics,
+  });
 }
 
 export function exportDiagnosticsBundle(request: ExportDiagnosticsRequest, storageDir: string): DiagnosticsBundle {
   const kind = request.kind;
   const id = kind === "run" ? request.runId : request.goalId;
   const record = scanRecord(storageDir, kind, id);
+  const storageDiagnostics = readStoreDiagnostics(storageDir);
   const eventTypes: Record<string, number> = {};
   for (const event of record.events) {
     const type = eventType(event.event);
@@ -144,6 +236,7 @@ export function exportDiagnosticsBundle(request: ExportDiagnosticsRequest, stora
       partialTail: record.partialTail,
     },
     diagnostics,
+    storageDiagnostics,
     consistencyWarnings: record.warnings,
     attemptEvidence: kind === "goal" ? attemptEvidenceFromGoalManifest(manifest) : undefined,
     adapterSummary: adapterSummary(record),
@@ -178,14 +271,21 @@ function scanRecord(storageDir: string, kind: "run" | "goal", id: string): Scann
   const eventsPath = path.join(recordDir, "events.jsonl");
   const manifest = readManifest(storageDir, manifestPath, kind, id);
   const events = readJsonl<AgentEvent | SchedulerEvent>(eventsPath);
-  const eventIssue = events.issue ? {
+  const eventIssues = events.issues.map((issue): StoreHealthIssue => ({
     kind,
     id,
     file: relativeFile(storageDir, eventsPath),
-    line: events.issue.line,
-    reason: events.issue.reason,
-    retainedEventCount: events.issue.retainedEventCount,
-  } : undefined;
+    line: issue.line,
+    reason: issue.reason,
+    retainedEventCount: issue.retainedEventCount,
+    corruptLineCount: issue.corruptLineCount,
+    partialTailDetected: issue.partialTailDetected,
+    lastGoodEventId: issue.lastGoodEventId,
+    lastGoodSequence: issue.lastGoodSequence,
+    repairRecommendation: issue.repairRecommendation,
+    redactedTailPreview: issue.redactedTailPreview,
+  }));
+  const eventIssue = eventIssues[0];
   const record: ScannedRecord = {
     kind,
     id,
@@ -193,7 +293,8 @@ function scanRecord(storageDir: string, kind: "run" | "goal", id: string): Scann
     manifestIssue: manifest.issue,
     events: events.records,
     eventIssue,
-    partialTail: events.issue?.partialTail ? eventIssue : undefined,
+    eventIssues,
+    partialTail: eventIssues.find((issue) => issue.partialTailDetected),
     warnings: [],
   };
   record.activeInterrupted = activeInterruptedIssue(record, storageDir, manifestPath);
@@ -272,11 +373,12 @@ function activeInterruptedIssue(record: ScannedRecord, storageDir: string, manif
   return undefined;
 }
 
-function summarizeDiagnostics(records: ScannedRecord[]): StoreHealthSummary {
+function summarizeDiagnostics(records: ScannedRecord[], storageDiagnostics: RuntimeDiagnostic[] = []): StoreHealthSummary {
   const byCode: Record<string, number> = {};
+  for (const diagnostic of storageDiagnostics) increment(byCode, String(diagnostic.code));
   for (const record of records) {
     if (record.manifestIssue) increment(byCode, "AGENT_STORE_RECORD_CORRUPT");
-    if (record.eventIssue) increment(byCode, "AGENT_EVENT_LOG_CORRUPT");
+    for (const _issue of record.eventIssues) increment(byCode, "AGENT_EVENT_LOG_CORRUPT");
     if (record.activeInterrupted) increment(byCode, "AGENT_RUNTIME_INTERRUPTED");
     for (const warning of record.warnings) increment(byCode, warning.code);
     for (const diagnostic of manifestDiagnostics(record.manifest)) increment(byCode, String(diagnostic.code));
@@ -291,10 +393,44 @@ function summarizeDiagnostics(records: ScannedRecord[]): StoreHealthSummary {
   };
 }
 
+function readStoreDiagnostics(storageDir: string): RuntimeDiagnostic[] {
+  const file = path.join(storageDir, "diagnostics.jsonl");
+  if (!existsSync(file)) return [];
+  const diagnostics: RuntimeDiagnostic[] = [];
+  const lines = readFileSync(file, "utf8").split(/\r?\n/u);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.trim()) continue;
+    try {
+      const parsed = JSON.parse(line) as unknown;
+      if (isRecord(parsed) && isRuntimeDiagnostic(parsed.diagnostic)) {
+        diagnostics.push(parsed.diagnostic);
+      } else if (isRuntimeDiagnostic(parsed)) {
+        diagnostics.push(parsed);
+      } else {
+        diagnostics.push({
+          code: "AGENT_STORE_RECORD_CORRUPT",
+          message: `diagnostics.jsonl:${index + 1} is not a runtime diagnostic`,
+          retryable: false,
+        });
+      }
+    } catch (error) {
+      diagnostics.push({
+        code: "AGENT_STORE_RECORD_CORRUPT",
+        message: `diagnostics.jsonl:${index + 1} ${error instanceof Error ? error.message : String(error)}`,
+        retryable: false,
+      });
+    }
+  }
+  return diagnostics;
+}
+
 function diagnosticsForRecord(record: ScannedRecord): RuntimeDiagnostic[] {
   const diagnostics: RuntimeDiagnostic[] = [...manifestDiagnostics(record.manifest)];
   if (record.manifestIssue) diagnostics.push({ code: "AGENT_STORE_RECORD_CORRUPT", message: record.manifestIssue.reason, retryable: false });
-  if (record.eventIssue) diagnostics.push({ code: "AGENT_EVENT_LOG_CORRUPT", message: record.eventIssue.reason, retryable: false });
+  for (const issue of record.eventIssues) {
+    diagnostics.push({ code: "AGENT_EVENT_LOG_CORRUPT", message: issue.reason, retryable: false });
+  }
   for (const warning of record.warnings) diagnostics.push({ code: warning.code, message: warning.message, retryable: false });
   for (const event of record.events) {
     const code = eventDiagnosticCode(event.event);

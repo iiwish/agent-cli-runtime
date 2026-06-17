@@ -379,8 +379,54 @@ describe("GoalScheduler", () => {
     const goal = await runtime.getGoal(goalId);
     const events = await runtime.replayGoalEvents(goalId);
     expect(goal).toMatchObject({ id: goalId, status: "failed", result: "failed" });
+    expect(await runtime.listGoals({ status: "active" })).toEqual([]);
+    expect(await runtime.listGoals({ status: "failed" })).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: goalId, result: "failed" }),
+    ]));
+    const manifest = JSON.parse(await readFile(path.join(goalDir, "manifest.json"), "utf8"));
+    expect(manifest).toMatchObject({
+      status: "failed",
+      result: "failed",
+      diagnostics: [expect.objectContaining({ code: "AGENT_RUNTIME_INTERRUPTED" })],
+    });
     expect(events.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
     expect(events.at(-1)?.event).toMatchObject({ type: "goal_finished", result: "failed" });
+    const health = await runtime.inspectStore();
+    expect(health.activeInterrupted).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "goal", id: goalId, reason: expect.stringContaining("interrupted") }),
+    ]));
+  });
+
+  it("marks planning goals as failed with a diagnostic event when storage is loaded", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const goalId = "goal_planning_test";
+    const goalDir = path.join(storageDir, "goals", goalId);
+    await mkdir(goalDir, { recursive: true });
+    await writeFile(path.join(goalDir, "manifest.json"), JSON.stringify({
+      id: goalId,
+      cwd: await tempDir(),
+      objective: "planning",
+      status: "planning",
+      tasks: [],
+      diagnostics: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }), "utf8");
+    await writeFile(path.join(goalDir, "events.jsonl"), `${JSON.stringify({ id: 1, sequence: 1, timestamp: Date.now(), event: { type: "goal_started", goalId, objective: "planning", timestamp: Date.now() } })}\n`, "utf8");
+
+    const runtime = createAgentRuntime({ storageDir });
+    const goal = await runtime.getGoal(goalId);
+    const events = await runtime.replayGoalEvents(goalId);
+    const manifest = JSON.parse(await readFile(path.join(goalDir, "manifest.json"), "utf8"));
+
+    expect(goal).toMatchObject({ id: goalId, status: "failed", result: "failed" });
+    expect(goal?.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "AGENT_RUNTIME_INTERRUPTED" }),
+    ]));
+    expect(manifest).toMatchObject({ status: "failed", result: "failed" });
+    expect(events.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
+    expect(events.at(-1)?.event).toMatchObject({ type: "goal_finished", result: "failed" });
+    expect(await runtime.listGoals({ status: "active" })).toEqual([]);
   });
 
   it("CLI reads persisted runs and goals from storage dir", async () => {

@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P1-6 real smoke evidence hardening
+状态：P1-7 durable store hardening
 负责人：local project
 最后更新：2026-06-17
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -145,6 +145,9 @@ export interface RuntimeOptions {
   env?: NodeJS.ProcessEnv;
   searchPath?: string[];
   storageDir?: string;
+  storage?: {
+    durability?: 'relaxed' | 'fsync';
+  };
   maxConcurrentTasks?: number;
 }
 
@@ -293,7 +296,13 @@ Task run 成功后，如果 task 带有 `validationCommands`，runtime 会在 ta
   goals/<goalId>/events.jsonl
 ```
 
-`events.jsonl` 每行格式为 `{ "id": 1, "sequence": 1, "runId": "run_123", "timestamp": 123, "event": {...} }`，goal event 使用同样 shape 但带 `goalId`。`id` / `sequence` 在单个 run/goal 内单调递增，`replayRunEvents()` / `replayGoalEvents()` 支持 `afterEventId` 增量 replay，并按 `sequence` / `id` / `timestamp` 稳定排序。新的 runtime 指向同一 `storageDir` 时必须能读取 terminal run/goal 的 manifest 和 events；若加载到 `queued`、`running` 或 `planning` 的历史记录，必须标记为 failed，并写入 `AGENT_RUNTIME_INTERRUPTED` diagnostic/event，不能假装继续运行。
+`events.jsonl` 每行是一条完整 append record，格式为 `{ "id": 1, "sequence": 1, "runId": "run_123", "timestamp": 123, "event": {...} }` 加尾随换行；goal event 使用同样 shape 但带 `goalId`。`id` / `sequence` 在单个 run/goal 内单调递增，`replayRunEvents()` / `replayGoalEvents()` 支持 `afterEventId` 增量 replay，并按 `sequence` / `id` / `timestamp` 稳定排序。新的 runtime 指向同一 `storageDir` 时必须能读取 terminal run/goal 的 manifest 和 events；若加载到 `queued`、`running` 或 `planning` 的历史记录，必须标记为 failed，并写入 `AGENT_RUNTIME_INTERRUPTED` diagnostic/event，不能假装继续运行。
+
+P1-7 起，`storageDir` 的 write durability 可通过 `RuntimeOptions.storage.durability` 配置：
+
+- 默认 `relaxed`，保持 pre-alpha 性能和兼容性，不承诺 host crash 后最后一条 in-flight record 一定落盘。
+- `fsync` 会在 manifest temp file 写入后尽量 `fdatasync` / `fsync`，rename 后尽量 fsync parent directory；JSONL append 写入一条完整 record 后尽量 `fdatasync` / `fsync`。
+- Windows/macOS/Linux 上如果某个 sync primitive 不可用或失败，runtime 必须 graceful fallback，并持久化 redacted store-level diagnostic；`store-health` 和 diagnostics bundle 必须可见，不能只保存在进程内存里，也不能把平台差异变成不可恢复 crash。
 
 P1-1 durable store 可靠性要求：
 
@@ -301,20 +310,20 @@ P1-1 durable store 可靠性要求：
 - manifest JSON 使用 temp file + rename 原子写入。
 - event JSONL append 前必须 redaction；manifest、diagnostics、validation stdout/stderr 写入前也必须 redaction。
 - 单个损坏 manifest 以 failed record 形式加载，并通过 `AGENT_STORE_RECORD_CORRUPT` diagnostic 暴露，不能阻塞其他 records。
-- 单个损坏 JSONL line 保留已读事件，并通过 `AGENT_EVENT_LOG_CORRUPT` diagnostic/event 暴露；diagnostic 只记录 file、line、reason、retained event count，不保存原始坏行。
+- 单个损坏 JSONL line 保留可解析事件，并通过 `AGENT_EVENT_LOG_CORRUPT` diagnostic/event 暴露；diagnostic 记录 file、line、reason、retained event count、corrupt line count、partial tail flag、last good event id/sequence 和 repair recommendation。中间坏行会被跳过，后续合法 records 仍可 replay；partial tail 停在最后一个完整 record boundary。
 - 重启后 terminal run/goal 可查询 status、result、diagnostics 并 replay events；active run/goal 被中断化，而不是 resume 一个已失去 child process 的内存状态。
 - 加载 corrupt manifest 时不得静默覆盖原始坏文件；health scan 仍应能报告 corrupt manifest。
 
 P1-4 storage health / diagnostics bundle contract：
 
-- `runtime.inspectStore({ storageDir? })` 和 CLI `agent-runtime store-health --storage-dir <dir> --json` 扫描磁盘 store，返回 run/goal 总数、corrupt manifests、corrupt event logs、partial tails、active/interrupted records、一致性 warnings 和 diagnostic summary。
+- `runtime.inspectStore({ storageDir? })` 和 CLI `agent-runtime store-health --storage-dir <dir> --json` 扫描磁盘 store，返回 run/goal 总数、corrupt manifests、corrupt event logs、corrupt line count、partial tail detected、last good event id/sequence、repair recommendation、active/interrupted records、storage-level diagnostics、一致性 warnings 和 diagnostic summary。
 - partial/corrupt JSONL tail 必须保留有效 prefix replay，并在 health 中报告 file、line、reason、retained event count；不得把完整损坏行写入 diagnostics。
 - terminal manifest 缺少 terminal event 时报告 `AGENT_STORE_TERMINAL_EVENT_MISSING` warning。
 - event log 有 terminal event 但 manifest status 非 terminal 时报告 `AGENT_STORE_TERMINAL_EVENT_MANIFEST_MISMATCH` warning；health scan 不自动静默改写 manifest。
 - `runtime.exportDiagnostics(request)` 和 CLI `agent-runtime diagnostics run|goal <id> --storage-dir <dir> --json [--out <file>]` 导出 redacted JSON bundle。
-- diagnostics bundle 包含 schema version、subject、redacted manifest、event summary、diagnostics、consistency warnings、goal task attempt evidence 和 environment-safe adapter summary；它不导出完整 event payload、不导出完整 env dump。
+- diagnostics bundle 包含 schema version、subject、redacted manifest、event summary、diagnostics、storage-level diagnostics、consistency warnings、goal task attempt evidence 和 environment-safe adapter summary；它不导出完整 event payload、不导出完整 env dump。
 - `--out <file>` 使用 temp file + rename 原子写入。
-- P1-4 不实现 destructive repair；未来若加入 repair，默认必须 dry-run，真实修改必须显式 `--repair`。
+- P1-7 新增 CLI `agent-runtime store-repair --storage-dir <dir> --dry-run --json`。dry-run 只报告会对 partial tail 做 `truncate_partial_tail`、对中间坏行做 `isolate_corrupt_line` / manual review，不实际改文件。P1-7 不实现 destructive repair；未来若加入真实 repair，必须显式 `--apply`，并先备份原文件。
 - health、bundle 和未来 repair diagnostics 均走统一 redaction：token、Bearer value、auth-token env assignment、secret-looking value、绝对私密路径都不得泄露。
 
 ## 6. Adapter 定义
@@ -483,7 +492,7 @@ Replay 规则：
 - `storageDir` 模式同时 append 到 JSONL，并用 manifest JSON 保存 run/goal/task/evidence 当前快照。
 - manifest 写入使用 temp file + rename，避免半写入快照。
 - 读取损坏 JSONL 时保留已读事件，并通过 `AGENT_EVENT_LOG_CORRUPT` diagnostic/event 暴露问题，不让 detect/run API 因历史日志损坏整体崩溃。
-- 读取 partial/corrupt tail line 时同样保留可解析 prefix，并追加 `AGENT_EVENT_LOG_CORRUPT` diagnostic/event；P1-2 仍不承诺 fsync 或 segment log。
+- 读取 partial/corrupt JSONL 时保留可解析 records，并追加 `AGENT_EVENT_LOG_CORRUPT` diagnostic/event；中间坏行跳过后继续读取后续合法 records，partial tail 停在最后完整 record boundary。P1-7 支持 opt-in `fsync` durability，但仍不承诺 WAL、segment log 或 database 级 recovery。
 - Disk backed storage 不写入 secret-bearing env；diagnostics、stderr tail、validation stdout/stderr 写入前必须 redaction。
 - `.reference/` 只可阅读，不进入 package，也不进入 runtime storage 约定。
 
@@ -896,7 +905,7 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - diagnostics bundle 输出 redacted manifest、event summary、diagnostics、goal attempt evidence 和 environment-safe adapter summary；不输出完整 env dump 或完整 event payload。
 - corrupt manifest reload 不再静默覆盖原始坏 manifest，避免把 evidence 当作自动 repair 消掉。
 - `--out` 使用原子 temp-file-and-rename 写入。
-- repair 仍不做 destructive mutation；若后续添加，默认 dry-run，真实修复必须显式 `--repair`。
+- P1-4 不做 destructive mutation；P1-7 只新增 dry-run repair plan。若后续添加真实修复，必须显式 `--apply` 并先备份原文件。
 
 ### P1-5：Real CLI Smoke Matrix And Invocation Profile Calibration
 
@@ -917,6 +926,17 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - JSON 和 `--stream jsonl --diagnostics` 都输出同等 redacted `real_smoke_summary`，包含 `expectedTextMatched`、`observedTextTail`、final run record 和 diagnostics。
 - 新增字段和 diagnostics 继续走 redaction；observed text tail 截断，expected text 与 mutation sample 不泄露 token、Bearer、`sk-*` 或私有 cwd。
 - P1-6 本机 evidence：Codex 和 OpenCode real smoke 均 `classification: "success"`、`expectedTextMatched: true`、`cwdMutationChecked: true`、`cwdMutated: false`；Claude Code 仍在 detection preflight 阶段返回 `classification: "auth_missing"`。
+
+### P1-7：Durable Store Hardening
+
+- `RuntimeOptions.storage.durability` 新增 `relaxed` / `fsync`；默认 `relaxed`，不破坏现有 `storageDir` API。
+- `fsync` 模式覆盖 manifest temp-file write、rename 后 parent directory sync、JSONL append 后 sync；平台不支持时 graceful fallback，并把 `AGENT_STORAGE_SYNC_FALLBACK` 作为 redacted store-level diagnostic 持久化到 health/bundle 可见的排障面。
+- JSONL append boundary 明确为单行 JSON + trailing newline；replay/health 按 record boundary 读取。
+- corrupt middle line 不再截断整个 replay；runtime 跳过坏行并继续读取后续合法 records。partial tail 仍停在最后 good record，并报告 `truncate_partial_tail` recommendation。
+- `store-health` 新增 corrupt line count、partial tail detected、last good event id/sequence、repair recommendation 和 redacted tail preview。
+- 新增 `store-repair --storage-dir <dir> --dry-run --json`，仅输出非破坏性 repair plan；P1-7 不实现 `--apply`。
+- interrupted run reload 和 interrupted planning/running goal reload 均验证 manifest 更新、replay diagnostic event、terminal event、active list 清空和 health interrupted evidence。
+- health、repair dry-run、diagnostics bundle 继续走 redaction，不输出 token、Bearer、`sk-*`、真实私有 cwd 或完整 corrupt raw line。
 
 ## 19. 待定问题
 

@@ -1,9 +1,9 @@
 # Agent CLI Compatibility Matrix
 
-Status: P1-6 real smoke evidence hardening
+Status: P1-7 durable store hardening
 Last updated: 2026-06-17
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-6 keeps real smoke non-mutating and read-only, and hardens the evidence gate: default smoke must include expected `text_delta` output and must not mutate the checked cwd. Raw CLI output and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-7 keeps the P1-6 real-smoke evidence gate and hardens the opt-in durable store: fsync durability can be requested explicitly, JSONL corrupt-line health is more detailed, interrupted active records are failed on reload, and repair remains dry-run/non-destructive. Raw CLI output and private paths are not committed.
 
 ## Summary
 
@@ -114,6 +114,7 @@ node ./dist/cli/main.js goals --storage-dir .agent-runtime --json
 node ./dist/cli/main.js goal-status goal_123 --storage-dir .agent-runtime --json
 node ./dist/cli/main.js replay-goal goal_123 --storage-dir .agent-runtime --jsonl
 node ./dist/cli/main.js store-health --storage-dir .agent-runtime --json
+node ./dist/cli/main.js store-repair --storage-dir .agent-runtime --dry-run --json
 node ./dist/cli/main.js diagnostics run run_123 --storage-dir .agent-runtime --json
 node ./dist/cli/main.js diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
 ```
@@ -200,8 +201,8 @@ node ./dist/cli/main.js goal \
 
 - Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
 - P1-6 verifies the real smoke harness against stronger fake CLI contract tests and local real Codex/OpenCode smoke runs with expected text matched and no cwd mutation. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment, nor that OpenCode exposes a verified explicit read-only flag.
-- JSONL append is still a simple append-only file, not fsync-backed and not segmented. P1-4 verifies corrupt/partial tail prefix replay plus explicit health diagnostics, but a host crash can still lose the final in-flight line.
-- There is still no long-lived daemon, WAL, fsync group commit, segment compaction, or automatic destructive repair.
+- JSONL append is still a simple append-only file and not segmented. Default durability is `relaxed`; callers can request `storage.durability: "fsync"` for best-effort fdatasync/fsync after manifest writes and event appends, but there is no WAL or group commit.
+- There is still no long-lived daemon, database, WAL, segment compaction, or automatic destructive repair. `store-repair` is dry-run only in P1-7.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
 - CLI remains a thin local smoke/scripting wrapper over the library API, not a daemon or long-lived service.
 - Real CLI auth and model availability depend on the user's local installation.
@@ -343,6 +344,27 @@ Covered behavior:
 - `observedTextTail`, expected text, cwd, diagnostics, and mutation samples are redacted and observed text is truncated.
 - local Codex and OpenCode real smoke passed with `expectedTextMatched: true`, `cwdMutationChecked: true`, and `cwdMutated: false`;
 - local Claude real smoke preflight returned `classification: "auth_missing"` without launching a run.
+
+## P1-7 Durable Store Hardening
+
+Commands verified in this stage:
+
+```bash
+npm test -- tests/store.test.ts tests/run-scheduler.test.ts tests/goal-scheduler.test.ts tests/contract.test.ts
+npm run typecheck
+```
+
+Covered behavior:
+
+- `RuntimeOptions.storage.durability` keeps `storageDir` compatible and defaults to `relaxed`;
+- `fsync` mode exercises fdatasync/fsync hooks for manifest atomic writes and JSONL appends, with persisted `AGENT_STORAGE_SYNC_FALLBACK` diagnostics visible through store health and diagnostics bundles when sync primitives fail;
+- JSONL record boundary is one JSON replay envelope plus trailing newline;
+- partial JSONL tails keep the valid prefix and report corrupt line count, partial tail detection, last good event id/sequence, redacted tail preview, and `truncate_partial_tail`;
+- corrupt middle JSONL lines report health diagnostics while preserving later valid records for replay;
+- `store-repair --dry-run --json` reports intended non-destructive actions and does not modify files;
+- interrupted running runs and interrupted planning/running goals reload as failed, update manifests, append diagnostic/terminal replay events, clear active lists, and appear in store health;
+- health, repair dry-run, and diagnostics bundle output remain redacted;
+- `npm pack --dry-run` remains covered by the public contract test and excludes `.reference/`, fixtures, and real smoke output.
 
 ## P1-5 Real Smoke And Profile Evidence
 
