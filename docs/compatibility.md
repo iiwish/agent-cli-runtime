@@ -11,7 +11,7 @@ This matrix records the CLI versions and behaviors that have been verified with 
 | --- | --- | --- | --- | --- | --- | --- |
 | Codex CLI | redacted local app path | `codex-cli 0.140.0-alpha.19` | Pass | Pass: `smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000` completed in an isolated temp cwd with read-only permission. | Not run in P1-5 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. Timeout diagnostics still show sanitized argv/profile, parsed event count, stdout/stderr tails, and startup diagnostic hints when needed. |
 | Claude Code | `/opt/homebrew/bin/claude` | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P0-4 | `claude auth status` returned `loggedIn:false`, `authMethod:none`, `apiProvider:firstParty`. |
-| OpenCode | `/opt/homebrew/bin/opencode` | `1.15.6` | Pass | Pass: `smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000` completed in an isolated temp cwd with read-only permission. | Not run in P1-5 | `opencode-cli` was not installed; fallback `opencode` was used. Live model probe passed. Stdin prompt support is verified for local `opencode run --format json --dir <cwd>` on 1.15.6; extra dirs/session/read-only flags remain unverified. |
+| OpenCode | `/opt/homebrew/bin/opencode` | `1.15.6` | Pass | Pass: `smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000` completed in an isolated temp cwd with the runtime requesting read-only behavior. | Not run in P1-5 | `opencode-cli` was not installed; fallback `opencode` was used. Live model probe passed. Stdin prompt support is verified for local `opencode run --format json --dir <cwd>` on 1.15.6; explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
 
 ## Verified Invocation Shapes
 
@@ -79,7 +79,7 @@ Runtime notes:
 - model probe: `opencode models`
 - read-only and workspace-write are left to OpenCode defaults until stable permission flags are verified
 - extra dirs and session/resume are not mapped; profile marks them as `needsVerification`
-- P1-5 real smoke evidence: stdin prompt support is verified for local `opencode` 1.15.6 through the opt-in read-only smoke. Keep prompt out of argv; do not switch to positional argv prompt.
+- P1-5 real smoke evidence: stdin prompt support is verified for local `opencode` 1.15.6 through the opt-in non-mutating isolated smoke. Keep prompt out of argv; do not switch to positional argv prompt. The runtime requested read-only behavior, but OpenCode explicit read-only/workspace-write flags remain unverified.
 
 ## Smoke Commands
 
@@ -118,7 +118,7 @@ node ./dist/cli/main.js diagnostics run run_123 --storage-dir .agent-runtime --j
 node ./dist/cli/main.js diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
 ```
 
-Optional real non-mutating run smoke, only when the relevant local CLI auth is available. This is disabled unless `--allow-real-run` is present; without `--cwd`, it uses an isolated temp directory and `read-only` permission:
+Optional real non-mutating run smoke, only when the relevant local CLI auth is available. This is disabled unless `--allow-real-run` is present; without `--cwd`, it uses an isolated temp directory and runtime-requested `read-only` behavior:
 
 ```bash
 node ./dist/cli/main.js smoke \
@@ -199,7 +199,7 @@ node ./dist/cli/main.js goal \
 ## Known MVP Gaps
 
 - Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
-- P1-5 verifies the real smoke harness and current read-only Codex/OpenCode local invocation paths. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
+- P1-5 verifies the real smoke harness, current Codex read-only invocation path, and current OpenCode non-mutating isolated invocation path with runtime-requested read-only behavior. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment, nor that OpenCode exposes a verified explicit read-only flag.
 - JSONL append is still a simple append-only file, not fsync-backed and not segmented. P1-4 verifies corrupt/partial tail prefix replay plus explicit health diagnostics, but a host crash can still lose the final in-flight line.
 - There is still no long-lived daemon, WAL, fsync group commit, segment compaction, or automatic destructive repair.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
@@ -339,7 +339,7 @@ Observed local results on 2026-06-17:
 
 - Codex: available, `codex-cli 0.140.0-alpha.19`, live model source, auth status `unknown`, read-only real smoke `classification: "success"` in isolated temp cwd.
 - Claude Code: available, `2.1.178 (Claude Code)`, auth status `missing`; real run intentionally skipped by preflight until local auth is available.
-- OpenCode: available through fallback binary `opencode`, version `1.15.6`, live model source, read-only real smoke `classification: "success"` in isolated temp cwd.
+- OpenCode: available through fallback binary `opencode`, version `1.15.6`, live model source, real smoke `classification: "success"` in isolated temp cwd with runtime-requested read-only behavior; explicit read-only flag remains unverified.
 
 Covered behavior:
 

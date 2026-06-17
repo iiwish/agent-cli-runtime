@@ -247,7 +247,7 @@ The library API is primary. The CLI is a thin wrapper over the same runtime and 
 
 - `--mode detection` runs local executable/model/auth detection only.
 - `--mode fixtures` dry-runs built-in parser conformance fixtures for Codex, Claude, and OpenCode without launching real CLIs.
-- `--mode real` launches one real non-mutating read-only run, but only when `--allow-real-run` and `--agent <id>` are both supplied. Without `--cwd`, it uses an isolated temp directory and the default prompt asks the agent not to edit files. It accepts `--prompt-file`, `--timeout-ms`, `--storage-dir`, `--json`, `--stream jsonl`, and `--diagnostics`; JSON output is a redacted smoke envelope with `classification`, `isolatedCwd`, the final run record, and diagnostics.
+- `--mode real` launches one real non-mutating run with runtime-requested read-only behavior, but only when `--allow-real-run` and `--agent <id>` are both supplied. Without `--cwd`, it uses an isolated temp directory and the default prompt asks the agent not to edit files. It accepts `--prompt-file`, `--timeout-ms`, `--storage-dir`, `--json`, `--stream jsonl`, and `--diagnostics`; JSON output is a redacted smoke envelope with `classification`, `isolatedCwd`, the final run record, and diagnostics.
 
 Disk storage layout is intentionally simple and tail-friendly:
 
@@ -331,7 +331,7 @@ The core runner owns process lifecycle, process-tree best-effort termination, di
 | --- | --- | --- | --- | --- |
 | Codex CLI | `codex` | stdin | `codex exec --json` | P1-5 real read-only smoke passed locally; timeout diagnostics classify local network/plugin startup stalls; transient reconnect events are parsed as status |
 | Claude Code | `claude` | stdin JSONL | `stream-json` | P0-4 detection baseline recorded; local auth still missing |
-| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P1-5 real read-only smoke passed locally on `opencode` 1.15.6; stdin prompt support is now verified for this local version |
+| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P1-5 non-mutating isolated smoke passed locally on `opencode` 1.15.6; stdin prompt support is verified, explicit read-only flags remain unverified |
 
 Future adapters should be possible without changing the core runtime.
 
