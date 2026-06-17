@@ -6,6 +6,7 @@ import { createAgentRuntime } from "../index.js";
 import { redactText } from "../core/redaction.js";
 import { runParserFixtureCases } from "../smoke/parser-fixtures.js";
 import { atomicWriteJsonFile, exportDiagnosticsBundle, inspectStoreDirectory } from "../storage/store-inspection.js";
+import type { DetectedAgent, RunRecord } from "../index.js";
 
 interface ParsedArgs {
   command: string;
@@ -154,8 +155,15 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
     }
     if (agent === "all") throw new Error("smoke --mode real requires --agent <id>");
     const runtime = createAgentRuntime({ storageDir: stringFlag(parsed, "storage-dir") });
-    const cwd = path.resolve(stringFlag(parsed, "cwd") ?? await mkdtemp(path.join(os.tmpdir(), "agent-runtime-real-smoke-")));
-    const prompt = stringFlag(parsed, "prompt") ?? `Reply exactly: agent-runtime ${agent} smoke ok. Do not edit files.`;
+    const detected = (await runtime.detect({ includeUnavailable: true })).find((item) => item.id === agent);
+    const preflight = realSmokePreflight(agent, detected);
+    if (preflight) {
+      output(parsed, preflight);
+      return;
+    }
+    const cwdFlag = stringFlag(parsed, "cwd");
+    const cwd = path.resolve(cwdFlag ?? await mkdtemp(path.join(os.tmpdir(), "agent-runtime-real-smoke-")));
+    const prompt = await optionalPromptFromFlags(parsed) ?? `Reply exactly: agent-runtime ${agent} smoke ok. Do not edit files.`;
     const handle = await runtime.run({
       agentId: agent,
       cwd,
@@ -163,10 +171,46 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
       permissionPolicy: "read-only",
       timeoutMs: numberFlag(parsed, "timeout-ms") ?? 30_000,
     });
-    await streamRun(parsed, handle.events, "run_summary", () => runtime.getRun(handle.runId));
+    await streamRealSmoke(parsed, agent, cwd, cwdFlag === undefined, handle.events, () => runtime.getRun(handle.runId));
     return;
   }
   throw new Error("--mode must be one of: detection, fixtures, real");
+}
+
+function realSmokePreflight(agent: string, detected: DetectedAgent | undefined): unknown | null {
+  if (!detected) {
+    return {
+      ok: false,
+      mode: "real",
+      agent,
+      skipped: true,
+      classification: "unavailable_executable",
+      diagnostics: [{ code: "not_installed", message: `No adapter detection result for ${agent}` }],
+    };
+  }
+  if (!detected.available) {
+    return {
+      ok: false,
+      mode: "real",
+      agent,
+      skipped: true,
+      classification: "unavailable_executable",
+      detection: detected,
+      diagnostics: detected.diagnostics,
+    };
+  }
+  if (detected.authStatus === "missing" || detected.authStatus === "expired") {
+    return {
+      ok: false,
+      mode: "real",
+      agent,
+      skipped: true,
+      classification: "auth_missing",
+      detection: detected,
+      diagnostics: detected.diagnostics,
+    };
+  }
+  return null;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -192,11 +236,17 @@ function parseArgs(argv: string[]): ParsedArgs {
 }
 
 async function promptFromFlags(parsed: ParsedArgs): Promise<string> {
+  const prompt = await optionalPromptFromFlags(parsed);
+  if (prompt !== undefined) return prompt;
+  throw new Error("--prompt or --prompt-file is required");
+}
+
+async function optionalPromptFromFlags(parsed: ParsedArgs): Promise<string | undefined> {
   const prompt = stringFlag(parsed, "prompt");
   if (prompt) return prompt;
   const promptFile = stringFlag(parsed, "prompt-file");
   if (promptFile) return readFile(path.resolve(promptFile), "utf8");
-  throw new Error("--prompt or --prompt-file is required");
+  return undefined;
 }
 
 async function streamRun(
@@ -224,6 +274,61 @@ async function streamRun(
     }
   }
   if (parsed.flags.has("json")) output(parsed, (await loadSummary()) ?? last ?? {});
+}
+
+async function streamRealSmoke(
+  parsed: ParsedArgs,
+  agent: string,
+  cwd: string,
+  isolatedCwd: boolean,
+  events: AsyncIterable<unknown>,
+  loadRun: () => Promise<RunRecord | null>,
+): Promise<void> {
+  if (parsed.flags.get("stream") === "jsonl") {
+    for await (const event of events) process.stdout.write(`${JSON.stringify(redactForCli(event))}\n`);
+    if (parsed.flags.has("diagnostics")) {
+      const run = await loadRun();
+      process.stdout.write(`${JSON.stringify(redactForCli(realSmokeSummary(agent, cwd, isolatedCwd, run)))}\n`);
+    }
+    return;
+  }
+  let last: unknown = null;
+  for await (const event of events) {
+    last = event;
+    if (parsed.flags.has("json")) continue;
+    if (typeof event === "object" && event && "type" in event) {
+      const typed = event as { type: string; text?: string; message?: string; result?: string };
+      if (typed.type === "text_delta" && typed.text) process.stdout.write(typed.text);
+      else if (typed.type.endsWith("finished")) process.stdout.write(`\n${typed.type}: ${typed.result ?? "done"}\n`);
+      else if (typed.type === "error" && typed.message) process.stderr.write(`${redactText(typed.message)}\n`);
+    }
+  }
+  const run = await loadRun();
+  output(parsed, realSmokeSummary(agent, cwd, isolatedCwd, run ?? (last as RunRecord | null)));
+}
+
+function realSmokeSummary(agent: string, cwd: string, isolatedCwd: boolean, run: RunRecord | null): unknown {
+  const classification = classifyRealSmokeRun(run);
+  return {
+    ok: run?.status === "succeeded",
+    mode: "real",
+    agent,
+    cwd,
+    isolatedCwd,
+    classification,
+    run,
+    diagnostics: run?.diagnostics ?? [],
+  };
+}
+
+function classifyRealSmokeRun(run: RunRecord | null): string {
+  if (!run) return "missing_run_record";
+  if (run.status === "succeeded") return "success";
+  if (run.errorCode === "AGENT_TIMEOUT") return "timeout";
+  if (run.errorCode === "AGENT_UNAVAILABLE" || run.errorCode === "AGENT_NOT_EXECUTABLE") return "unavailable_executable";
+  if (run.diagnostics.some((diagnostic) => diagnostic.code === "unsupported_flag")) return "unsupported_flag";
+  if (run.diagnostics.some((diagnostic) => diagnostic.code === "auth_missing" || diagnostic.code === "AGENT_AUTH_REQUIRED")) return "auth_missing";
+  return run.errorCode ?? "failed";
 }
 
 function output(parsed: ParsedArgs, value: unknown): void {
@@ -305,7 +410,7 @@ function enumFlag(parsed: ParsedArgs, key: string, allowed: string[]): string | 
 function printHelp(): void {
   process.stdout.write(`agent-runtime agents [--json] [--storage-dir <dir>]
 agent-runtime doctor [--json] [--storage-dir <dir>]
-agent-runtime smoke [--mode detection|fixtures|real] [--agent all|codex|claude|opencode] [--allow-real-run] [--cwd <dir>] [--timeout-ms <ms>] [--json] [--storage-dir <dir>]
+agent-runtime smoke [--mode detection|fixtures|real] [--agent all|codex|claude|opencode] [--allow-real-run] [--cwd <dir>] [--prompt-file <file>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime run --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--model <id>] [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime goal --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--permission <policy>] [--timeout-ms <ms>] [--max-concurrent-tasks <n>] [--max-attempts <n>] [--retryable-error-codes <codes>] [--retry-backoff-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime runs [--storage-dir <dir>] [--status active|queued|running|succeeded|failed|canceled] [--json]

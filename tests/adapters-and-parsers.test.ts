@@ -11,18 +11,47 @@ describe("MVP adapters", () => {
     expect(codexAdapter.compatibility).toMatchObject({
       executableNames: ["codex"],
       promptTransport: "stdin:text",
+      promptTransportMode: { kind: "stdin", inputFormat: "text" },
       streamFormat: "codex-json",
+      streamMode: { format: "codex-json", framing: "jsonl", source: "stdout" },
     });
+    expect(codexAdapter.compatibility?.executableCandidates).toEqual(expect.arrayContaining([
+      { name: "codex", source: "primary" },
+      { name: "codex", source: "env", envVar: "CODEX_BIN" },
+    ]));
     expect(claudeAdapter.compatibility).toMatchObject({
       executableNames: ["claude"],
       promptTransport: "stdin:jsonl",
+      promptTransportMode: { kind: "stdin", inputFormat: "jsonl" },
       streamFormat: "claude-stream-json",
+      streamMode: { format: "claude-stream-json", framing: "jsonl", source: "stdout" },
     });
+    expect(claudeAdapter.compatibility?.executableCandidates).toEqual(expect.arrayContaining([
+      { name: "claude", source: "primary" },
+      { name: "claude", source: "env", envVar: "CLAUDE_BIN" },
+    ]));
     expect(opencodeAdapter.compatibility).toMatchObject({
       executableNames: ["opencode-cli", "opencode"],
       promptTransport: "stdin:text",
+      promptTransportMode: { kind: "stdin", inputFormat: "text" },
       streamFormat: "opencode-json",
+      streamMode: { format: "opencode-json", framing: "jsonl", source: "stdout" },
     });
+    expect(opencodeAdapter.compatibility?.executableCandidates).toEqual(expect.arrayContaining([
+      { name: "opencode-cli", source: "primary" },
+      { name: "opencode", source: "fallback" },
+      { name: "opencode", source: "env", envVar: "OPENCODE_BIN" },
+    ]));
+    expect(codexAdapter.compatibility?.needsVerification).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mapsTo: "session" }),
+    ]));
+    expect(claudeAdapter.compatibility?.needsVerification).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mapsTo: "session.id" }),
+    ]));
+    expect(opencodeAdapter.compatibility?.needsVerification).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mapsTo: "extraAllowedDirs" }),
+      expect.objectContaining({ mapsTo: "session" }),
+    ]));
   });
 
   it("builds Codex args without placing prompt in argv", () => {
@@ -34,6 +63,7 @@ describe("MVP adapters", () => {
       permissionPolicy: "workspace-write",
       model: "gpt-5-codex",
       reasoning: "high",
+      session: { id: "codex-session" },
     });
     expect(args).toEqual([
       "exec",
@@ -53,6 +83,7 @@ describe("MVP adapters", () => {
       'model_reasoning_effort="high"',
     ]);
     expect(args).not.toContain(prompt);
+    expect(args).not.toContain("codex-session");
   });
 
   it("builds Claude args without placing prompt in argv", () => {
@@ -84,17 +115,32 @@ describe("MVP adapters", () => {
     expect(args).not.toContain(prompt);
   });
 
+  it("does not guess unverified Claude session-id flags", () => {
+    const args = claudeAdapter.buildArgs({
+      prompt: "do important work",
+      cwd: "/tmp/project",
+      extraAllowedDirs: [],
+      permissionPolicy: "agent-default",
+      session: { id: "session-needs-verification" },
+    });
+    expect(args).not.toContain("--session-id");
+    expect(args).not.toContain("session-needs-verification");
+  });
+
   it("builds OpenCode args without placing prompt in argv", () => {
     const prompt = "do important work";
     const args = opencodeAdapter.buildArgs({
       prompt,
       cwd: "/tmp/project",
-      extraAllowedDirs: [],
+      extraAllowedDirs: ["/tmp/extra"],
       permissionPolicy: "headless-auto",
       model: "openai/gpt-5",
+      session: { id: "opencode-session" },
     });
     expect(args).toEqual(["run", "--format", "json", "--dir", "/tmp/project", "-m", "openai/gpt-5", "--dangerously-skip-permissions"]);
     expect(args).not.toContain(prompt);
+    expect(args).not.toContain("/tmp/extra");
+    expect(args).not.toContain("opencode-session");
   });
 
   it("keeps long prompts out of argv by using stdin transport for all built-in adapters", async () => {

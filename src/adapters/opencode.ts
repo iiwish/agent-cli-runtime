@@ -66,6 +66,11 @@ export const opencodeAdapter: AgentAdapterDef = {
   defaults: { permissionPolicy: "agent-default" },
   compatibility: {
     executableNames: ["opencode-cli", "opencode"],
+    executableCandidates: [
+      { name: "opencode", source: "env", envVar: "OPENCODE_BIN" },
+      { name: "opencode-cli", source: "primary" },
+      { name: "opencode", source: "fallback" },
+    ],
     versionProbe: { args: ["--version"], timeoutMs: 3_000 },
     modelProbe: { args: ["models"], timeoutMs: 15_000 },
     authProbe: null,
@@ -77,8 +82,24 @@ export const opencodeAdapter: AgentAdapterDef = {
       { flag: "-m", mapsTo: "model" },
       { flag: "--dangerously-skip-permissions", mapsTo: "headless-auto" },
     ],
+    needsVerification: [
+      {
+        mapsTo: "extraAllowedDirs",
+        notes: "No stable extra-readable-directory flag is mapped for OpenCode in this profile.",
+      },
+      {
+        mapsTo: "session",
+        notes: "No stable OpenCode session/resume flag is mapped by this adapter.",
+      },
+      {
+        mapsTo: "permissionPolicy.read-only",
+        notes: "Read-only/workspace-write flags are left to OpenCode defaults until verified; only explicit headless bypass is mapped.",
+      },
+    ],
     promptTransport: "stdin:text",
+    promptTransportMode: { kind: "stdin", inputFormat: "text" },
     streamFormat: "opencode-json",
+    streamMode: { format: "opencode-json", framing: "jsonl", source: "stdout" },
     capabilityNotes: [
       "Default prompt transport is stdin; prompts are not placed in argv.",
       "Read-only/workspace-write permission mappings are left to OpenCode defaults until stable flags are verified.",

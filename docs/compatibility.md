@@ -1,17 +1,17 @@
 # Agent CLI Compatibility Matrix
 
-Status: P1-4 durable store health and diagnostics bundle hardening over P0-5 compatibility baseline
-Last updated: 2026-06-16
+Status: P1-5 real CLI smoke matrix and invocation profile calibration
+Last updated: 2026-06-17
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-4 hardened durable store health scanning, corrupt/partial JSONL diagnostics, manifest/event consistency warnings, and redacted diagnostics bundle export. It did not rerun authenticated real-agent write smokes beyond detection/doctor and offline fixture modes.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-5 keeps real smoke non-mutating and read-only, adds structured invocation profiles, and records current local Codex/OpenCode real smoke evidence without committing raw CLI output.
 
 ## Summary
 
 | Adapter | CLI path | CLI version tested | Detection | Run smoke | Goal smoke | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Codex CLI | `/Applications/Codex.app/Contents/Resources/codex` | `codex-cli 0.140.0-alpha.2` | Pass | Classified: mixed local behavior. One non-mutating run produced text/usage within 30s but exposed transient reconnect events; subsequent 30s smoke timed out after startup events and local plugin warnings. | Not run in P0-4 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. Timeout diagnostics now show sanitized argv/profile, parsed event count, stdout/stderr tails, and startup diagnostic hints. |
+| Codex CLI | redacted local app path | `codex-cli 0.140.0-alpha.19` | Pass | Pass: `smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000` completed in an isolated temp cwd with read-only permission. | Not run in P1-5 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. Timeout diagnostics still show sanitized argv/profile, parsed event count, stdout/stderr tails, and startup diagnostic hints when needed. |
 | Claude Code | `/opt/homebrew/bin/claude` | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P0-4 | `claude auth status` returned `loggedIn:false`, `authMethod:none`, `apiProvider:firstParty`. |
-| OpenCode | `/opt/homebrew/bin/opencode` | `1.15.6` | Pass | Classified timeout in 30s non-mutating runtime smoke | Not run in P0-4 | `opencode-cli` was not installed; fallback `opencode` was used. Live model probe passed. `opencode run --help` documents positional `message..`, not stdin prompt; runtime keeps stdin as safe default and reports this as an invocation profile gap. |
+| OpenCode | `/opt/homebrew/bin/opencode` | `1.15.6` | Pass | Pass: `smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000` completed in an isolated temp cwd with read-only permission. | Not run in P1-5 | `opencode-cli` was not installed; fallback `opencode` was used. Live model probe passed. Stdin prompt support is verified for local `opencode run --format json --dir <cwd>` on 1.15.6; extra dirs/session/read-only flags remain unverified. |
 
 ## Verified Invocation Shapes
 
@@ -28,10 +28,11 @@ Runtime notes:
 - workspace-write policy: `--sandbox workspace-write`
 - extra dirs: repeated `--add-dir <path>`
 - reasoning effort: `-c model_reasoning_effort="<effort>"`
+- session/resume: not mapped; profile marks session support as `needsVerification`
 - auth probe: no stable non-mutating auth probe is enabled; auth status is `unknown`
 - model probe: `codex debug models`; parser keeps only model `slug`/`display_name` and ignores hidden models
 - parser note: transient `Reconnecting... n/5` structured error frames are normalized to `status: reconnecting`; they are not fatal if the run later emits text/usage and exits `0`
-- P0-4 timeout classification: stdin/profile started successfully when `thread.started` and `turn.started` were parsed. The latest local timeout evidence shows local plugin manifest warnings before the runtime deadline; an earlier direct run also showed redacted `chatgpt.com` plugin/analytics request failures.
+- P1-5 real smoke evidence: the opt-in read-only smoke passed on 2026-06-17. Prior P0-4 timeout/reconnect captures remain useful parser and diagnostics fixtures, but are not the latest local status.
 
 ### Claude Code
 
@@ -47,7 +48,8 @@ Runtime notes:
 - auth probe: `claude auth status`
 - capability probe: `claude -p --help`; current local output includes the tracked capability flags and produced no capability diagnostics
 - model probe: no live model probe; fallback aliases are `default`, `sonnet`, `opus`, `haiku`
-- `--session-id` is represented in the profile as `needsVerification`; `--resume` is the verified resume path in fixtures
+- `--resume` is the verified resume path in fixtures; `--session-id` is represented in the profile as `needsVerification` and is not emitted by `buildArgs()`
+- P1-5 real smoke behavior: `smoke --mode real` preflights detection and returns `classification: "auth_missing"` without launching Claude when local auth is missing.
 - DeepSeek Anthropic-compatible config can be supplied through environment variables:
 
 ```bash
@@ -76,7 +78,8 @@ Runtime notes:
 - headless-auto policy: `--dangerously-skip-permissions`
 - model probe: `opencode models`
 - read-only and workspace-write are left to OpenCode defaults until stable permission flags are verified
-- P0-4 timeout classification: no structured JSON events were parsed before timeout; the installed help output only documents positional `message..`, so stdin prompt support remains unverified for this version. Do not switch the default to argv prompt without a safe non-argv transport decision.
+- extra dirs and session/resume are not mapped; profile marks them as `needsVerification`
+- P1-5 real smoke evidence: stdin prompt support is verified for local `opencode` 1.15.6 through the opt-in read-only smoke. Keep prompt out of argv; do not switch to positional argv prompt.
 
 ## Smoke Commands
 
@@ -122,8 +125,12 @@ node ./dist/cli/main.js smoke \
   --mode real \
   --agent codex \
   --allow-real-run \
-  --json
+  --json \
+  --diagnostics \
+  --timeout-ms 30000
 ```
+
+The same command accepts `--prompt-file <file>` for longer prompts. Prompt text is still transported through the adapter transport and must not appear in argv or diagnostics.
 
 Equivalent lower-level run command:
 
@@ -137,6 +144,18 @@ node ./dist/cli/main.js run \
   --stream jsonl \
   --diagnostics \
   --prompt "Reply exactly: agent-runtime codex smoke ok. Do not edit files."
+```
+
+Preferred OpenCode real smoke:
+
+```bash
+node ./dist/cli/main.js smoke \
+  --mode real \
+  --agent opencode \
+  --allow-real-run \
+  --json \
+  --diagnostics \
+  --timeout-ms 30000
 ```
 
 Equivalent OpenCode smoke:
@@ -180,7 +199,7 @@ node ./dist/cli/main.js goal \
 ## Known MVP Gaps
 
 - Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
-- P1-4 verifies store health, diagnostics bundle export, redaction, and manifest/event consistency through tests. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
+- P1-5 verifies the real smoke harness and current read-only Codex/OpenCode local invocation paths. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment.
 - JSONL append is still a simple append-only file, not fsync-backed and not segmented. P1-4 verifies corrupt/partial tail prefix replay plus explicit health diagnostics, but a host crash can still lose the final in-flight line.
 - There is still no long-lived daemon, WAL, fsync group commit, segment compaction, or automatic destructive repair.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
@@ -188,8 +207,8 @@ node ./dist/cli/main.js goal \
 - Real CLI auth and model availability depend on the user's local installation.
 - Runtime-side validation executes shell commands supplied by task graphs; callers should only use it with trusted objectives or trusted planners.
 - Parser coverage is fixture-based plus prior local smoke captures; more real stream captures should be added before a stable release.
-- P0-4 Codex smoke is now diagnosable but still not stable in this environment: one run produced final text/usage within 30s after reconnect events, while the latest run timed out after only `thread.started`/`turn.started`; timeout diagnostics prove the stdin/profile path started and captured local startup stderr rather than leaving the failure opaque.
-- P0-4 OpenCode non-mutating run smoke still times out with zero parsed events; stdin prompt support for `opencode run --format json` remains unverified in `1.15.6`.
+- Historical P0-4 Codex smoke showed reconnect/timeout behavior; parser fixtures and timeout diagnostics preserve that coverage.
+- Historical P0-4 OpenCode smoke timed out with zero parsed events, but P1-5 local `opencode` 1.15.6 real smoke passed and verifies stdin prompt support for this version.
 - Claude Code run/goal smoke is blocked by local auth until `claude auth status` reports a logged-in account or a supported Anthropic-compatible provider env is supplied.
 
 ## P1-1 Durable Store Evidence
@@ -301,6 +320,36 @@ Covered behavior:
 - health and bundle output redact token-looking values, Bearer values, auth-token assignments, and absolute private paths;
 - package root value exports remain limited to `createAgentRuntime`;
 - `npm pack --dry-run` excludes `.reference/`, test fixtures/secrets, and real smoke output.
+
+## P1-5 Real Smoke And Profile Evidence
+
+Commands verified in this stage:
+
+```bash
+npm test -- tests/adapters-and-parsers.test.ts tests/run-scheduler.test.ts tests/contract.test.ts
+npm run build
+node ./dist/cli/main.js smoke --mode fixtures --json
+node ./dist/cli/main.js smoke --mode detection --json
+node ./dist/cli/main.js doctor --json
+node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000
+```
+
+Observed local results on 2026-06-17:
+
+- Codex: available, `codex-cli 0.140.0-alpha.19`, live model source, auth status `unknown`, read-only real smoke `classification: "success"` in isolated temp cwd.
+- Claude Code: available, `2.1.178 (Claude Code)`, auth status `missing`; real run intentionally skipped by preflight until local auth is available.
+- OpenCode: available through fallback binary `opencode`, version `1.15.6`, live model source, read-only real smoke `classification: "success"` in isolated temp cwd.
+
+Covered behavior:
+
+- adapter profiles expose structured executable candidates, prompt transport mode, stream mode, known flags, and `needsVerification` flags;
+- `buildArgs()` keeps long prompts out of argv and no longer guesses unverified Claude `--session-id`;
+- real smoke refuses to run without `--allow-real-run`;
+- real smoke supports `--prompt-file`, `--cwd`, `--timeout-ms`, `--storage-dir`, `--json`, `--stream jsonl`, and `--diagnostics`;
+- auth missing and unavailable executable are classified before launch;
+- unsupported flag, timeout, and no-output runs include sanitized argv/profile diagnostics with stdout/stderr tails and actionable hints;
+- diagnostics bundle adapter summary exposes prompt transport, stream format, parsed event count, sanitized argv, and hints without raw output or private paths.
 
 ## P0-4 Detection Evidence
 

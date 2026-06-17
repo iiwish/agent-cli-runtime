@@ -74,6 +74,10 @@ export const codexAdapter: AgentAdapterDef = {
   defaults: { permissionPolicy: "agent-default" },
   compatibility: {
     executableNames: ["codex"],
+    executableCandidates: [
+      { name: "codex", source: "env", envVar: "CODEX_BIN" },
+      { name: "codex", source: "primary" },
+    ],
     versionProbe: { args: ["--version"], timeoutMs: 3_000 },
     modelProbe: { args: ["debug", "models"], timeoutMs: 5_000 },
     authProbe: null,
@@ -87,8 +91,20 @@ export const codexAdapter: AgentAdapterDef = {
       { flag: "-c model_reasoning_effort", mapsTo: "reasoning" },
       { flag: "--skip-git-repo-check", mapsTo: "defaultArgs" },
     ],
+    needsVerification: [
+      {
+        mapsTo: "session",
+        notes: "No stable Codex session/resume flag is used by this adapter yet; session input is intentionally not mapped.",
+      },
+      {
+        mapsTo: "authProbe",
+        notes: "Codex authentication remains CLI-managed because a stable non-mutating auth status probe has not been verified.",
+      },
+    ],
     promptTransport: "stdin:text",
+    promptTransportMode: { kind: "stdin", inputFormat: "text" },
     streamFormat: "codex-json",
+    streamMode: { format: "codex-json", framing: "jsonl", source: "stdout" },
     capabilityNotes: [
       "Default prompt transport is stdin; prompts are not placed in argv.",
       "Auth is treated as CLI-managed; no stable non-mutating auth probe is currently used by this adapter.",

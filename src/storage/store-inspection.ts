@@ -326,6 +326,9 @@ function attemptEvidenceFromGoalManifest(manifest: Record<string, unknown> | nul
 function adapterSummary(record: ScannedRecord): Record<string, unknown> {
   if (!record.manifest) return { kind: record.kind, id: record.id, available: false };
   if (record.kind === "run") {
+    const diagnostic = manifestDiagnostics(record.manifest).find((item) =>
+      item.promptTransport || item.streamFormat || item.parsedEventCount !== undefined || item.argv,
+    );
     return {
       kind: "run",
       agentId: record.manifest.agentId,
@@ -333,6 +336,11 @@ function adapterSummary(record: ScannedRecord): Record<string, unknown> {
       errorCode: record.manifest.errorCode,
       exitCode: record.manifest.exitCode,
       signal: record.manifest.signal,
+      argv: diagnostic?.argv,
+      promptTransport: diagnostic?.promptTransport,
+      streamFormat: diagnostic?.streamFormat,
+      parsedEventCount: diagnostic?.parsedEventCount,
+      actionableHints: diagnostic?.actionableHints,
     };
   }
   const taskAgentIds = Array.isArray(record.manifest.tasks)

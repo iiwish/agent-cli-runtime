@@ -79,13 +79,17 @@ export interface AgentRunDefaults {
 
 export interface AdapterCompatibilityProfile {
   executableNames: string[];
+  executableCandidates?: Array<{ name: string; source: "primary" | "fallback" | "env"; envVar?: string }>;
   versionProbe: ProbeCommand;
   modelProbe?: (ProbeCommand & { needsVerification?: boolean; notes?: string }) | null;
   authProbe?: (ProbeCommand & { needsVerification?: boolean; notes?: string }) | null;
   defaultArgs: string[];
   knownFlags: Array<{ flag: string; mapsTo: string; needsVerification?: boolean; notes?: string }>;
+  needsVerification?: Array<{ mapsTo: string; flags?: string[]; notes: string }>;
   promptTransport: string;
+  promptTransportMode?: PromptTransport;
   streamFormat: string;
+  streamMode?: { format: string; framing: "jsonl" | "json" | "text"; source: "stdout" | "stderr" | "mixed" };
   capabilityNotes: string[];
 }
 

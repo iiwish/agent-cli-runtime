@@ -103,6 +103,39 @@ setInterval(() => {}, 1000);
     expect(timeoutDiagnostic?.actionableHints?.join("\n")).toContain("network");
   }, 10_000);
 
+  it("classifies unsupported flag output as an explicit diagnostic", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("fake 1.0.0"); process.exit(0); }
+console.error("unknown option --definitely-not-supported token sk" + "A".repeat(20));
+process.exit(2);
+`);
+    const runtime = createAgentRuntime({
+      adapters: [fakeAdapter({
+        buildArgs() {
+          return ["run", "--definitely-not-supported"];
+        },
+      })],
+      env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` },
+      searchPath: [dir],
+    });
+    const handle = await runtime.run({ agentId: "fake", cwd, prompt: "unsupported flag" });
+    await collect(handle.events);
+    const run = await runtime.getRun(handle.runId);
+    const unsupported = run?.diagnostics.find((item) => item.code === "unsupported_flag");
+
+    expect(run).toMatchObject({ status: "failed", errorCode: "AGENT_EXECUTION_FAILED" });
+    expect(unsupported).toMatchObject({
+      code: "unsupported_flag",
+      argv: ["run", "--definitely-not-supported"],
+      promptTransport: "stdin:text",
+      stderrTail: expect.stringContaining("[REDACTED]"),
+    });
+    expect(JSON.stringify(unsupported)).not.toContain(`sk${"A".repeat(20)}`);
+  });
+
   it("does not report success from output emitted after cancellation", async () => {
     const dir = await tempDir();
     const cwd = await tempDir();

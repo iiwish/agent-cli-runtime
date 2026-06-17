@@ -1,8 +1,8 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P1-4 durable store health and diagnostics bundle hardening
+状态：P1-5 real CLI smoke matrix and invocation profile calibration
 负责人：local project
-最后更新：2026-06-16
+最后更新：2026-06-17
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
 
 ## 1. 产品意图
@@ -365,7 +365,7 @@ export interface BuildArgsInput {
 
 Adapter module 不直接 spawn process；它只描述 core runner 如何 spawn。
 
-P0-3 起，内置 adapter 还会声明 lightweight compatibility profile，用来记录真实 CLI invocation 基线，而不是把未验证 flags 混进默认路径。Profile 覆盖 executable names、version/model/auth probe、default args、known flags、prompt transport、stream format 和 capability notes；不确定的 flags 必须标记 `needsVerification`，或只作为 fallback/documentation 记录。
+P0-3 起，内置 adapter 还会声明 lightweight compatibility profile，用来记录真实 CLI invocation 基线，而不是把未验证 flags 混进默认路径。P1-5 后 profile 必须同时包含 human-readable 和 structured 字段：`executableNames` / `executableCandidates`、version/model/auth probe、`defaultArgs`、`knownFlags`、`needsVerification`、`promptTransport` / `promptTransportMode`、`streamFormat` / `streamMode` 和 capability notes。不确定 flags 必须进入 `needsVerification`，不能进入默认 `buildArgs()` 路径；例如 Claude `session.id`、Codex session、OpenCode extra dirs/session/read-only mapping 均保持未映射，直到有真实 CLI 证据。
 
 ## 7. 检测契约
 
@@ -522,8 +522,9 @@ codex exec --json --skip-git-repo-check --sandbox workspace-write -c sandbox_wor
 - Sandbox：默认 `workspace-write`；只有显式 `permissionPolicy` 才允许升级。
 - Parser：消费 Codex JSON events，映射 thread/turn status、command execution、agent messages、errors、usage。
 - Detection：支持 `CODEX_BIN`；probe `codex --version`；可选 probe `codex debug models`。
-- Compatibility：P0-3 本机检测通过，`codex debug models` live model source 可用；auth probe 暂无稳定非变更命令，状态为 `unknown`。
+- Compatibility：P1-5 本机检测通过，`codex debug models` live model source 可用；auth probe 暂无稳定非变更命令，状态为 `unknown`。
 - P0-4：真实 smoke 发现 `Reconnecting... n/5` 可在最终正文和 usage 前出现，parser 不再把这类 transient reconnect 当作 run failure。
+- P1-5：`smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000` 在 isolated temp cwd、read-only prompt 下通过，classification 为 `success`。Session/resume flag 仍未映射，profile 标记为 `needsVerification`。
 
 ### Claude Code
 
@@ -538,11 +539,11 @@ claude -p --input-format stream-json --output-format stream-json --verbose
 - Prompt transport：stdin JSONL。
 - `--include-partial-messages`、`--add-dir` 等可选 flags 必须通过 help/capability probing gate。
 - Model：选择模型时追加 `--model <id>`。
-- Session：通过单独 session store interface 支持可选 session id/resume。
+- Session：`session.resumeId` 映射到已验证的 `--resume`；`session.id` 对应的 `--session-id` 仍标记 `needsVerification`，P1-5 起不再由 `buildArgs()` 猜测传入。
 - Permission：通过 `permissionPolicy` 暴露；不要把 bypass mode 作为全局默认。
 - Parser：使用 Claude stream-json parser，映射 status、text、thinking、tool calls、tool results、usage。
 - Detection：支持 `CLAUDE_BIN`；如后续明确需要，可加入兼容 fork fallback binary。
-- Compatibility：P0-3 本机检测通过，但 `claude auth status` 返回 `loggedIn:false`，runtime 分类为 `auth_missing`；live model probe 暂不启用，使用 fallback aliases。
+- Compatibility：P1-5 本机检测通过，但 `claude auth status` 返回 `loggedIn:false`，runtime 分类为 `auth_missing`；live model probe 暂不启用，使用 fallback aliases。`smoke --mode real` 对 auth missing 会在 detection preflight 阶段分类并跳过真实 run，不要求本机未登录 Claude 通过 run smoke。
 
 ### OpenCode
 
@@ -558,8 +559,8 @@ opencode run --format json --dir <cwd>
 - Binary candidates：`opencode-cli`，然后 `opencode`。
 - Model：选择模型时追加 `-m <id>`。
 - Detection：支持 `OPENCODE_BIN`；probe `opencode models`，timeout 要比普通 version probe 更长。
-- Compatibility：P0-3 本机 `opencode-cli` 不存在，fallback 到 `/opt/homebrew/bin/opencode`；live model source 可用。`read-only` / `workspace-write` 权限映射保持未验证，不进入默认 argv。
-- P0-4：本机 `opencode run --help` 只声明 positional `message..`，没有声明 stdin prompt；runtime 仍保持 stdin 作为安全默认，并在真实 smoke timeout 时给出 profile/stdin diagnostic，而不是默认把 prompt 放进 argv。
+- Compatibility：P1-5 本机 `opencode-cli` 不存在，fallback 到 `/opt/homebrew/bin/opencode`；live model source 可用。`read-only` / `workspace-write` 权限映射保持未验证，不进入默认 argv。
+- P1-5：`smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000` 在 isolated temp cwd、read-only prompt 下通过，说明本机 OpenCode 1.15.6 的 `opencode run --format json --dir <cwd>` 可接收 stdin prompt。`extraAllowedDirs`、session/resume 和 read-only/workspace-write explicit flags 仍标记为 `needsVerification`，不由 `buildArgs()` 猜测传入。
 - Env：清理继承自 parent OpenCode process 的 runtime/session env keys，避免污染。
 - Permission：通过 `permissionPolicy` 暴露；只有显式请求时才传递 skip-permission flags。
 - Parser：映射 step start、text deltas、tool use/result、structured stdout errors、usage。
@@ -690,7 +691,8 @@ CLI 主要用于 smoke testing 和简单 local scripting。
 agent-runtime agents
 agent-runtime smoke --mode detection --json
 agent-runtime smoke --mode fixtures --json
-agent-runtime smoke --mode real --agent codex --allow-real-run --json
+agent-runtime smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
+agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file task.md --json --diagnostics --timeout-ms 30000
 agent-runtime run --agent codex --cwd . --prompt "fix lint"
 agent-runtime goal --agent codex --cwd . --prompt "split and execute this objective"
 agent-runtime run --agent claude --cwd . --model sonnet --permission workspace-write --prompt-file prompt.md
@@ -708,7 +710,7 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 - 默认 human-readable；
 - `--json` 输出单个 JSON summary；run/goal 输出最终 run/goal record。
 - `--stream jsonl` 输出 event stream；run/goal 可加 `--diagnostics` 在 terminal event 后追加 redacted summary。
-- `smoke --mode detection` 只做 detection；`smoke --mode fixtures` 离线执行内置 parser conformance fixtures；`smoke --mode real` 必须显式 `--allow-real-run` 和 `--agent <id>`，默认 read-only、非写入 prompt、未传 `--cwd` 时使用临时目录。
+- `smoke --mode detection` 只做 detection；`smoke --mode fixtures` 离线执行内置 parser conformance fixtures；`smoke --mode real` 必须显式 `--allow-real-run` 和 `--agent <id>`，默认 read-only、非写入 prompt、未传 `--cwd` 时使用临时目录，并支持 `--prompt-file`、`--timeout-ms`、`--storage-dir`、`--json`、`--stream jsonl`、`--diagnostics`。real smoke 会先做 detection preflight：missing executable / non-executable / auth missing 会分类为 redacted smoke envelope，不强行启动真实 CLI。
 - `runs` / `goals` 支持 `--status active|<terminal-status>` 过滤。
 - `run-status` / `goal-status` 输出单个历史 record，适合进程重启后的状态查询。
 - `replay-run` / `replay-goal` 支持 `--after <eventId>` 增量 replay；`--jsonl` 每行输出一个 replay envelope，包含 `id`、`sequence`、`timestamp`、`runId` 或 `goalId`。
@@ -787,6 +789,9 @@ Diagnostics 应包含：
 - CLI `smoke --mode detection` / `smoke --mode fixtures` 不联网、不启动真实 agent write run；Claude auth missing 对 doctor 是 expected diagnostic，不导致整体失败；
 - CLI `runs` / `goals` / `run-status` / `goal-status` / `replay-run` / `replay-goal` 可读取 storageDir；
 - CLI `store-health` / `diagnostics run` / `diagnostics goal --out` 可读取 storageDir 并输出 redacted evidence；
+- CLI `smoke --mode real` 无 `--allow-real-run` 必须拒绝；有 `--prompt-file` 时长 prompt 仍通过 stdin/file transport，不进入 argv；
+- real smoke preflight 将 unavailable executable 和 auth missing 分类为诊断，不把 Claude 本机未登录当作 doctor 整体失败；
+- real smoke timeout diagnostics 和 diagnostics bundle 暴露 sanitized argv、promptTransport、streamFormat、parsedEventCount、stdout/stderr tail 与 actionable hints；
 - model list probe 只写 temp cwd。
 
 真实 CLI 的手动 smoke test：
@@ -888,6 +893,17 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - corrupt manifest reload 不再静默覆盖原始坏 manifest，避免把 evidence 当作自动 repair 消掉。
 - `--out` 使用原子 temp-file-and-rename 写入。
 - repair 仍不做 destructive mutation；若后续添加，默认 dry-run，真实修复必须显式 `--repair`。
+
+### P1-5：Real CLI Smoke Matrix And Invocation Profile Calibration
+
+- 内置 adapter compatibility profile 增加 structured executable candidates、prompt transport mode、stream mode 和 `needsVerification` 列表。
+- `buildArgs()` 不再传入未验证的 Claude `--session-id`；Codex session、OpenCode session/extra dirs/read-only mapping 继续只记录为待验证 profile 项。
+- `agent-runtime smoke --mode real` 支持 `--agent <id>`、`--prompt-file`、`--cwd`、`--timeout-ms`、`--storage-dir`、`--json`、`--stream jsonl`、`--diagnostics`。
+- real smoke 默认 read-only、非写入 prompt、isolated temp cwd；没有 `--allow-real-run` 会拒绝。
+- real smoke 先做 detection preflight；auth missing / unavailable executable 不启动真实 run，而是输出分类清楚的 redacted smoke envelope。
+- run diagnostics 对 unsupported flag / auth-looking / network-looking 输出给出 explicit diagnostic 或 actionable hints。
+- diagnostics bundle 的 run `adapterSummary` 汇总 sanitized argv、promptTransport、streamFormat、parsedEventCount 和 hints，方便从 storageDir 导出 real smoke evidence。
+- P1-5 本机 evidence：Codex `codex-cli 0.140.0-alpha.19` detection/live models 通过，read-only real smoke 通过；Claude Code `2.1.178` detection 通过但 auth missing；OpenCode `1.15.6` detection/live models 通过，read-only real smoke 通过且 stdin prompt 在本机版本已验证。
 
 ## 19. 待定问题
 

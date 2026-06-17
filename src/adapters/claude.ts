@@ -37,7 +37,6 @@ export const claudeAdapter: AgentAdapterDef = {
     if (input.model && input.model !== "default") args.push("--model", input.model);
     if (input.extraAllowedDirs.length > 0) args.push("--add-dir", ...input.extraAllowedDirs);
     if (input.session?.resumeId) args.push("--resume", input.session.resumeId);
-    else if (input.session?.id) args.push("--session-id", input.session.id);
     if (input.permissionPolicy === "headless-auto" || input.permissionPolicy === "danger-full-access") {
       args.push("--permission-mode", "bypassPermissions");
     } else if (input.permissionPolicy === "read-only") {
@@ -51,6 +50,10 @@ export const claudeAdapter: AgentAdapterDef = {
   defaults: { permissionPolicy: "agent-default" },
   compatibility: {
     executableNames: ["claude"],
+    executableCandidates: [
+      { name: "claude", source: "env", envVar: "CLAUDE_BIN" },
+      { name: "claude", source: "primary" },
+    ],
     versionProbe: { args: ["--version"], timeoutMs: 3_000 },
     modelProbe: null,
     authProbe: { args: ["auth", "status"], timeoutMs: 3_000 },
@@ -67,8 +70,21 @@ export const claudeAdapter: AgentAdapterDef = {
       { flag: "--permission-mode bypassPermissions", mapsTo: "headless-auto" },
       { flag: "--permission-mode plan", mapsTo: "read-only" },
     ],
+    needsVerification: [
+      {
+        mapsTo: "session.id",
+        flags: ["--session-id"],
+        notes: "Claude Code resume is mapped through --resume; fresh session id injection is not passed until verified against current CLI behavior.",
+      },
+      {
+        mapsTo: "reasoning",
+        notes: "Reasoning effort is provider/config dependent and has no verified stable CLI flag in this profile.",
+      },
+    ],
     promptTransport: "stdin:jsonl",
+    promptTransportMode: { kind: "stdin", inputFormat: "jsonl" },
     streamFormat: "claude-stream-json",
+    streamMode: { format: "claude-stream-json", framing: "jsonl", source: "stdout" },
     capabilityNotes: [
       "Model list is provider/config dependent; this adapter exposes fallback aliases instead of a live model probe.",
       "Reasoning effort is not mapped by default because a stable Claude Code flag is not verified here.",

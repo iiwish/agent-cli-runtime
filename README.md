@@ -22,7 +22,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 
 This repository is in **pre-alpha MVP stage**.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional durable local replay storage, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, real-stream parser fixtures, fake CLI integration tests, and thin local smoke/query CLI commands with redacted diagnostics.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a library-first Node.js/TypeScript MVP with memory-only default run and goal scheduling, optional durable local replay storage, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, real-stream parser fixtures, fake CLI integration tests, and thin local smoke/query CLI commands with redacted diagnostics and opt-in real CLI smoke evidence capture.
 
 ## Why
 
@@ -238,6 +238,7 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 agent-runtime store-health --storage-dir .agent-runtime --json
 agent-runtime diagnostics run run_123 --storage-dir .agent-runtime --json
 agent-runtime diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
+agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file task.md --timeout-ms 30000 --json --diagnostics
 ```
 
 The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams. For run/goal commands, `--json` prints the final run or goal record. `--stream jsonl --diagnostics` keeps the event stream and appends a redacted `run_summary` or `goal_summary` line after the terminal event.
@@ -246,7 +247,7 @@ The library API is primary. The CLI is a thin wrapper over the same runtime and 
 
 - `--mode detection` runs local executable/model/auth detection only.
 - `--mode fixtures` dry-runs built-in parser conformance fixtures for Codex, Claude, and OpenCode without launching real CLIs.
-- `--mode real` launches one real non-mutating read-only run, but only when `--allow-real-run` and `--agent <id>` are both supplied. Without `--cwd`, it uses an isolated temp directory and the default prompt asks the agent not to edit files.
+- `--mode real` launches one real non-mutating read-only run, but only when `--allow-real-run` and `--agent <id>` are both supplied. Without `--cwd`, it uses an isolated temp directory and the default prompt asks the agent not to edit files. It accepts `--prompt-file`, `--timeout-ms`, `--storage-dir`, `--json`, `--stream jsonl`, and `--diagnostics`; JSON output is a redacted smoke envelope with `classification`, `isolatedCwd`, the final run record, and diagnostics.
 
 Disk storage layout is intentionally simple and tail-friendly:
 
@@ -328,9 +329,9 @@ The core runner owns process lifecycle, process-tree best-effort termination, di
 
 | Adapter | Target binary | Prompt transport | Stream strategy | MVP status |
 | --- | --- | --- | --- | --- |
-| Codex CLI | `codex` | stdin | `codex exec --json` | P0-4 detection/model probe baseline recorded; timeout diagnostics classify local network/plugin startup stalls; transient reconnect events are parsed as status |
+| Codex CLI | `codex` | stdin | `codex exec --json` | P1-5 real read-only smoke passed locally; timeout diagnostics classify local network/plugin startup stalls; transient reconnect events are parsed as status |
 | Claude Code | `claude` | stdin JSONL | `stream-json` | P0-4 detection baseline recorded; local auth still missing |
-| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P0-4 detection/model probe baseline recorded; local run smoke timeout is classified with profile/stdin diagnostics |
+| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P1-5 real read-only smoke passed locally on `opencode` 1.15.6; stdin prompt support is now verified for this local version |
 
 Future adapters should be possible without changing the core runtime.
 

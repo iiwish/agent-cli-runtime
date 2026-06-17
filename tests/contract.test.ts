@@ -95,6 +95,7 @@ describe("public contract", () => {
       "--retryable-error-codes",
       "--retry-backoff-ms",
       "--allow-real-run",
+      "--prompt-file",
     ]) {
       expect(stdout).toContain(word);
     }
@@ -105,6 +106,136 @@ describe("public contract", () => {
     const smoke = JSON.parse((await execFileP(process.execPath, [cli, "smoke", "--mode", "fixtures", "--json"])).stdout);
     expect(smoke).toMatchObject({ ok: true, mode: "fixtures" });
     expect(smoke.fixtures).toHaveLength(18);
+  }, 30_000);
+
+  it("refuses real smoke unless --allow-real-run is explicit", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    await expect(execFileP(process.execPath, [cli, "smoke", "--mode", "real", "--agent", "codex", "--json"])).rejects.toMatchObject({
+      stderr: expect.stringContaining("smoke --mode real requires --allow-real-run"),
+    });
+  }, 30_000);
+
+  it("runs real smoke with --prompt-file without putting long prompts in argv", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    const promptFile = path.join(await tempDir(), "prompt.txt");
+    const longPrompt = `agent-runtime prompt-file smoke ${"x".repeat(64 * 1024)}`;
+    await writeFile(promptFile, longPrompt, "utf8");
+    await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("codex-cli test"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-test", display_name: "GPT Test" }] })); process.exit(0); }
+if (args.join("\\n").includes("agent-runtime prompt-file smoke")) {
+  console.error("prompt leaked into argv");
+  process.exit(64);
+}
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => input += chunk);
+process.stdin.on("end", () => {
+  if (!input.includes("agent-runtime prompt-file smoke")) {
+    console.error("prompt missing from stdin");
+    process.exit(65);
+  }
+  console.log(JSON.stringify({ type: "thread.started" }));
+  console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+});
+`);
+    const smoke = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--prompt-file",
+      promptFile,
+      "--timeout-ms",
+      "5000",
+      "--json",
+    ], {
+      env: {
+        ...process.env,
+        CODEX_BIN: path.join(binDir, "codex"),
+      },
+    })).stdout);
+
+    expect(smoke).toMatchObject({ ok: true, mode: "real", agent: "codex", run: { status: "succeeded" } });
+    expect(JSON.stringify(smoke)).not.toContain(longPrompt);
+  }, 30_000);
+
+  it("classifies real smoke auth-missing preflight without launching Claude", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    await writeExecutable(binDir, "claude", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("2.1.178 (Claude Code)"); process.exit(0); }
+if (args[0] === "-p" && args[1] === "--help") { console.log("--include-partial-messages\\n--add-dir"); process.exit(0); }
+if (args[0] === "auth" && args[1] === "status") {
+  console.log(JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }));
+  process.exit(0);
+}
+console.error("real run should not launch when auth is missing");
+process.exit(66);
+`);
+    const smoke = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "claude",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: {
+        ...process.env,
+        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        CLAUDE_BIN: path.join(binDir, "claude"),
+      },
+    })).stdout);
+
+    expect(smoke).toMatchObject({
+      ok: false,
+      mode: "real",
+      agent: "claude",
+      classification: "auth_missing",
+      skipped: true,
+      detection: { available: true, authStatus: "missing" },
+    });
+    expect(smoke.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "auth_missing" })]));
+  }, 30_000);
+
+  it("classifies real smoke unavailable executables before launch", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const missing = path.join(await tempDir(), "missing-codex");
+    const smoke = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: {
+        ...process.env,
+        PATH: "",
+        CODEX_BIN: missing,
+      },
+    })).stdout);
+
+    expect(smoke).toMatchObject({
+      ok: false,
+      mode: "real",
+      agent: "codex",
+      classification: "unavailable_executable",
+      skipped: true,
+      detection: { available: false },
+    });
+    expect(smoke.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "not_installed" })]));
   }, 30_000);
 
   it("keeps Claude auth missing as a doctor diagnostic without failing doctor", async () => {
@@ -279,6 +410,67 @@ process.exit(0);
     expect(writtenText).not.toContain("Bearer");
     expect(writtenText).not.toContain("ANTHROPIC_AUTH_TOKEN");
     expect(writtenText).not.toContain("private-cli-tail");
+  }, 30_000);
+
+  it("exports redacted diagnostics for a real smoke timeout run", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const privateCwd = await tempDir("private-real-smoke-");
+    await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("codex-cli test"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-test", display_name: "GPT Test" }] })); process.exit(0); }
+console.log(JSON.stringify({ type: "thread.started" }));
+console.error("network ETIMEDOUT cwd=" + process.cwd() + " token sk" + "A".repeat(20));
+setInterval(() => {}, 1000);
+`);
+    const smoke = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--cwd",
+      privateCwd,
+      "--timeout-ms",
+      "100",
+      "--storage-dir",
+      storageDir,
+      "--json",
+      "--diagnostics",
+    ], {
+      env: {
+        ...process.env,
+        CODEX_BIN: path.join(binDir, "codex"),
+      },
+      timeout: 10_000,
+    })).stdout);
+    const bundle = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "diagnostics",
+      "run",
+      smoke.run.id,
+      "--storage-dir",
+      storageDir,
+      "--json",
+    ])).stdout) as DiagnosticsBundle;
+    const text = JSON.stringify(bundle);
+
+    expect(smoke).toMatchObject({ ok: false, mode: "real", run: { status: "failed", errorCode: "AGENT_TIMEOUT" } });
+    expect(bundle.adapterSummary).toMatchObject({
+      kind: "run",
+      agentId: "codex",
+      status: "failed",
+      errorCode: "AGENT_TIMEOUT",
+      promptTransport: "stdin:text",
+      parsedEventCount: expect.any(Number),
+    });
+    expect(text).toContain("[REDACTED]");
+    expect(text).not.toContain(privateCwd);
+    expect(text).not.toContain(`sk${"A".repeat(20)}`);
   }, 30_000);
 
   it("keeps reference material out of the npm package dry-run", async () => {

@@ -274,7 +274,29 @@ export class RunScheduler {
       } else if (errorEventCode) {
         this.finish(runId, "failed", close.exitCode, close.signal, { errorCode: errorEventCode });
       } else if (close.exitCode !== 0) {
-        this.store.addDiagnostic(runId, diagnostic("AGENT_EXECUTION_FAILED", `${adapter.displayName} exited with code ${close.exitCode}`, {
+        const diagnosticCode = classifyProcessOutputDiagnosticCode(`${stdoutTail}\n${stderrTail}`);
+        this.store.addDiagnostic(runId, diagnostic(diagnosticCode, diagnosticCode === "unsupported_flag"
+          ? `${adapter.displayName} output indicates an unsupported flag or argument`
+          : `${adapter.displayName} exited with code ${close.exitCode}`, {
+          agentId: adapter.id,
+          argv: safeArgv(args, request.cwd),
+          promptTransport: promptTransportLabel(adapter),
+          streamFormat: adapter.compatibility?.streamFormat,
+          parsedEventCount,
+          exitCode: close.exitCode,
+          signal: close.signal,
+          stdoutTail: sanitizeDiagnosticText(stdoutTail, request.cwd),
+          stderrTail: sanitizeDiagnosticText(stderrTail, request.cwd),
+          actionableHints: timeoutHints(adapter, stdoutTail, stderrTail, parsedEventCount, close),
+          retryable: diagnosticCode === "network_error",
+        }));
+        this.emitError(runId, "AGENT_EXECUTION_FAILED", `${adapter.displayName} exited with code ${close.exitCode ?? "unknown"}`);
+        this.finish(runId, "failed", close.exitCode, close.signal, {
+          error: `${adapter.displayName} exited with code ${close.exitCode ?? "unknown"}`,
+          errorCode: "AGENT_EXECUTION_FAILED",
+        });
+      } else if (!sawSubstantiveEvent) {
+        this.store.addDiagnostic(runId, diagnostic("AGENT_EXECUTION_FAILED", `${adapter.displayName} produced no substantive structured output`, {
           agentId: adapter.id,
           argv: safeArgv(args, request.cwd),
           promptTransport: promptTransportLabel(adapter),
@@ -286,12 +308,6 @@ export class RunScheduler {
           stderrTail: sanitizeDiagnosticText(stderrTail, request.cwd),
           actionableHints: timeoutHints(adapter, stdoutTail, stderrTail, parsedEventCount, close),
         }));
-        this.emitError(runId, "AGENT_EXECUTION_FAILED", `${adapter.displayName} exited with code ${close.exitCode ?? "unknown"}`);
-        this.finish(runId, "failed", close.exitCode, close.signal, {
-          error: `${adapter.displayName} exited with code ${close.exitCode ?? "unknown"}`,
-          errorCode: "AGENT_EXECUTION_FAILED",
-        });
-      } else if (!sawSubstantiveEvent) {
         this.emitError(runId, "AGENT_EXECUTION_FAILED", `${adapter.displayName} produced no output`);
         this.finish(runId, "failed", close.exitCode, close.signal, {
           error: `${adapter.displayName} produced no output`,
@@ -499,6 +515,19 @@ function timeoutHints(adapter: AgentAdapterDef, stdoutTail: string, stderrTail: 
     hints.push("Process closed with exitCode 0 after the runtime timeout fired; treat this run as timeout because no terminal agent result arrived before the deadline.");
   }
   return [...new Set(hints)];
+}
+
+function classifyProcessOutputDiagnosticCode(text: string): string {
+  if (/unknown (option|flag)|unrecognized (option|flag)|unsupported (option|flag)|invalid (option|flag)|unknown argument/i.test(text)) {
+    return "unsupported_flag";
+  }
+  if (/ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|network|fetch failed|socket hang up|Connect|HTTP request failed/i.test(text)) {
+    return "network_error";
+  }
+  if (/auth(entication)? required|not authenticated|not logged in|login required|unauthorized|invalid api key/i.test(text)) {
+    return "auth_missing";
+  }
+  return "AGENT_EXECUTION_FAILED";
 }
 
 function tail(value: string, max = 4_000): string {
