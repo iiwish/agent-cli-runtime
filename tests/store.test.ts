@@ -88,6 +88,26 @@ describe("durable local store", () => {
     expect(badRun?.diagnostics.some((item) => item.code === "AGENT_STORE_RECORD_CORRUPT")).toBe(true);
   });
 
+  it("uses the same strict run manifest validation for runtime load and health scan", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const badRunId = "run_superficially_valid_bad_shape";
+    await mkdir(path.join(storageDir, "runs", badRunId), { recursive: true });
+    await writeFile(path.join(storageDir, "runs", badRunId, "manifest.json"), JSON.stringify({
+      id: badRunId,
+      status: "succeeded",
+    }), "utf8");
+
+    const runtime = createAgentRuntime({ storageDir });
+    const badRun = await runtime.getRun(badRunId);
+    const health = await runtime.inspectStore();
+
+    expect(badRun).toMatchObject({ id: badRunId, status: "failed", errorCode: "AGENT_STORE_RECORD_CORRUPT" });
+    expect(health.ok).toBe(false);
+    expect(health.corruptManifests).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "run", id: badRunId, reason: expect.stringContaining("agentId must be a string") }),
+    ]));
+  });
+
   it("keeps a corrupt goal manifest queryable and reports a diagnostic", async () => {
     const storageDir = await tempDir("agent-runtime-storage-");
     const goodGoalId = "goal_good_record";
@@ -165,6 +185,27 @@ describe("durable local store", () => {
       expect(goal).toMatchObject({ status: "failed", result: "failed" });
       expect(goal?.diagnostics.some((item) => item.code === "AGENT_STORE_RECORD_CORRUPT")).toBe(true);
     }
+  });
+
+  it("uses the same strict goal manifest validation for runtime load and health scan", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const badGoalId = "goal_superficially_valid_bad_shape";
+    await mkdir(path.join(storageDir, "goals", badGoalId), { recursive: true });
+    await writeFile(path.join(storageDir, "goals", badGoalId, "manifest.json"), JSON.stringify({
+      id: badGoalId,
+      status: "succeeded",
+      tasks: [],
+    }), "utf8");
+
+    const runtime = createAgentRuntime({ storageDir });
+    const badGoal = await runtime.getGoal(badGoalId);
+    const health = await runtime.inspectStore();
+
+    expect(badGoal).toMatchObject({ id: badGoalId, status: "failed", result: "failed" });
+    expect(health.ok).toBe(false);
+    expect(health.corruptManifests).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "goal", id: badGoalId, reason: expect.stringContaining("cwd must be a string") }),
+    ]));
   });
 
   it("redacts secret-looking diagnostics before writing to disk", async () => {
@@ -287,6 +328,40 @@ describe("durable local store", () => {
     expect(health.warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: runId, code: "AGENT_STORE_TERMINAL_EVENT_MANIFEST_MISMATCH" }),
     ]));
+    expect(health.activeInterrupted).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "run", id: runId }),
+    ]));
+  });
+
+  it("marks health not ok when storage has an active historical record even without consistency warnings", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_active_without_terminal";
+    const runDir = path.join(storageDir, "runs", runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "running",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: null,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    }), "utf8");
+    await writeFile(path.join(runDir, "events.jsonl"), `${JSON.stringify({
+      id: 1,
+      sequence: 1,
+      timestamp: Date.now(),
+      event: { type: "run_started", runId, agentId: "fake", cwd: "/tmp", timestamp: Date.now() },
+    })}\n`, "utf8");
+
+    const health = await createAgentRuntime().inspectStore({ storageDir });
+
+    expect(health.ok).toBe(false);
+    expect(health.warnings).toEqual([]);
     expect(health.activeInterrupted).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "run", id: runId }),
     ]));

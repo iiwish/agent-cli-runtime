@@ -6,6 +6,7 @@ import type { ReplayEvent } from "../core/events.js";
 import type { AgentEvent, SchedulerEvent } from "../core/events.js";
 import { redactUnknown } from "../core/redaction.js";
 import { readJsonl } from "./jsonl-store.js";
+import { isRecord, validateGoalManifest, validateRunManifest } from "./manifest-validation.js";
 
 export interface InspectStoreOptions {
   storageDir?: string;
@@ -98,7 +99,7 @@ export function inspectStoreDirectory(storageDir: string): StoreHealth {
   const activeInterrupted = records.flatMap((record) => record.activeInterrupted ? [record.activeInterrupted] : []);
   const warnings = records.flatMap((record) => record.warnings);
   const health: StoreHealth = {
-    ok: corruptManifests.length === 0 && corruptEventLogs.length === 0 && warnings.length === 0,
+    ok: corruptManifests.length === 0 && corruptEventLogs.length === 0 && warnings.length === 0 && activeInterrupted.length === 0,
     storageDir,
     checkedAt: Date.now(),
     totals: {
@@ -208,11 +209,9 @@ function readManifest(
 ): { value: Record<string, unknown> | null; issue?: StoreHealthIssue } {
   try {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as unknown;
-    if (!isRecord(parsed)) return { value: null, issue: manifestIssue(storageDir, file, kind, id, "manifest is not an object") };
-    if (parsed.id !== id) return { value: null, issue: manifestIssue(storageDir, file, kind, id, "id does not match storage directory") };
-    if (typeof parsed.status !== "string") return { value: null, issue: manifestIssue(storageDir, file, kind, id, "status is missing or invalid") };
-    if (kind === "goal" && !Array.isArray(parsed.tasks)) return { value: null, issue: manifestIssue(storageDir, file, kind, id, "tasks is missing or invalid") };
-    return { value: parsed };
+    const validated = kind === "run" ? validateRunManifest(parsed, id) : validateGoalManifest(parsed, id);
+    if (validated.error) return { value: null, issue: manifestIssue(storageDir, file, kind, id, validated.error.message) };
+    return { value: validated.value as unknown as Record<string, unknown> };
   } catch (error) {
     return {
       value: null,
@@ -376,10 +375,6 @@ function increment(counts: Record<string, number>, code: string): void {
 
 function relativeFile(storageDir: string, file: string): string {
   return path.relative(storageDir, file).split(path.sep).join("/");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function isRuntimeDiagnostic(value: unknown): value is RuntimeDiagnostic {
