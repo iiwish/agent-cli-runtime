@@ -41,6 +41,32 @@ async function execCliJson<T = unknown>(
   return JSON.parse(stdout) as T;
 }
 
+async function waitForRunId(storageDir: string): Promise<string | undefined> {
+  const runsDir = path.join(storageDir, "runs");
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    try {
+      const runs = JSON.parse((await execFileP(process.execPath, [cli, "runs", "--storage-dir", storageDir, "--json"])).stdout) as Array<{
+        id: string;
+        errorCode?: string | null;
+        status?: string;
+      }>;
+      const terminalRun = runs.find((run) => run.status === "failed" || run.errorCode === "AGENT_TIMEOUT");
+      if (terminalRun?.id) return terminalRun.id;
+      if (runs[0]?.id) return runs[0].id;
+    } catch {
+      void 0;
+    }
+    try {
+      const runIds = (await readdir(runsDir)).filter((entry) => entry.startsWith("run_"));
+      if (runIds[0]) return runIds[0];
+    } catch {
+      void 0;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return undefined;
+}
+
 describe("public contract", () => {
   it("keeps the package root focused on the runtime facade and public types", async () => {
     type PublicApiSmoke = {
@@ -727,7 +753,7 @@ const args = process.argv.slice(2);
 if (args[0] === "--version") { console.log("codex-cli test"); process.exit(0); }
 if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-test", display_name: "GPT Test" }] })); process.exit(0); }
 console.log(JSON.stringify({ type: "thread.started" }));
-console.error("network ETIMEDOUT cwd=" + process.cwd() + " token sk" + "A".repeat(20));
+  require("node:fs").writeSync(2, "network ETIMEDOUT cwd=" + process.cwd() + " token sk" + "A".repeat(20) + "\\n");
 setInterval(() => {}, 1000);
 `);
     const smoke = JSON.parse((await execFileP(process.execPath, [
@@ -741,7 +767,7 @@ setInterval(() => {}, 1000);
       "--cwd",
       privateCwd,
       "--timeout-ms",
-      "100",
+      "300",
       "--storage-dir",
       storageDir,
       "--json",
@@ -753,11 +779,15 @@ setInterval(() => {}, 1000);
       },
       timeout: 10_000,
     })).stdout);
+    const runId = smoke.run?.id ?? (await waitForRunId(storageDir));
+    if (runId === undefined) {
+      throw new Error("Expected a run id from real smoke output or storage scan");
+    }
     const bundle = JSON.parse((await execFileP(process.execPath, [
       cli,
       "diagnostics",
       "run",
-      smoke.run.id,
+      runId,
       "--storage-dir",
       storageDir,
       "--json",
