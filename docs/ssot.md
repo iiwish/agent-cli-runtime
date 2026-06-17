@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P1-5 real CLI smoke matrix and invocation profile calibration
+状态：P1-6 real smoke evidence hardening
 负责人：local project
 最后更新：2026-06-17
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -692,7 +692,7 @@ agent-runtime agents
 agent-runtime smoke --mode detection --json
 agent-runtime smoke --mode fixtures --json
 agent-runtime smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
-agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file task.md --json --diagnostics --timeout-ms 30000
+agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file task.md --expect-text "expected reply" --json --diagnostics --timeout-ms 30000
 agent-runtime run --agent codex --cwd . --prompt "fix lint"
 agent-runtime goal --agent codex --cwd . --prompt "split and execute this objective"
 agent-runtime run --agent claude --cwd . --model sonnet --permission workspace-write --prompt-file prompt.md
@@ -710,7 +710,9 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 - 默认 human-readable；
 - `--json` 输出单个 JSON summary；run/goal 输出最终 run/goal record。
 - `--stream jsonl` 输出 event stream；run/goal 可加 `--diagnostics` 在 terminal event 后追加 redacted summary。
-- `smoke --mode detection` 只做 detection；`smoke --mode fixtures` 离线执行内置 parser conformance fixtures；`smoke --mode real` 必须显式 `--allow-real-run` 和 `--agent <id>`，默认由 runtime 请求 read-only 行为、使用非写入 prompt、未传 `--cwd` 时使用临时目录，并支持 `--prompt-file`、`--timeout-ms`、`--storage-dir`、`--json`、`--stream jsonl`、`--diagnostics`。real smoke 会先做 detection preflight：missing executable / non-executable / auth missing 会分类为 redacted smoke envelope，不强行启动真实 CLI。
+- `smoke --mode detection` 只做 detection；`smoke --mode fixtures` 离线执行内置 parser conformance fixtures；`smoke --mode real` 必须显式 `--allow-real-run` 和 `--agent <id>`，默认由 runtime 请求 read-only 行为、使用非写入 prompt、未传 `--cwd` 时使用临时目录，并支持 `--prompt`、`--prompt-file`、`--expect-text`、`--timeout-ms`、`--storage-dir`、`--json`、`--stream jsonl`、`--diagnostics`。real smoke 会先做 detection preflight：missing executable / non-executable / auth missing 会分类为 redacted smoke envelope，不强行启动真实 CLI。
+- P1-6 起，默认 real smoke prompt 为 `Reply exactly: agent-runtime <agent> smoke ok. Do not edit files.`，并自动要求聚合后的 `text_delta` 包含 `agent-runtime <agent> smoke ok`。`--expect-text <text>` 覆盖 expected text；若用户传 `--prompt` 或 `--prompt-file` 但未传 `--expect-text`，summary 输出 `expectedTextRequired: false`，不强制文本匹配，但仍要求至少有 `text_delta`，避免 status-only exit `0` 被判成功。required text 缺失分类为 `unexpected_output`。
+- P1-6 real smoke 会在 run 前后轻量扫描 cwd，跳过 `.git`、`node_modules`、`dist`、`.agent-runtime` 并设置条目上限。summary 输出 `cwdMutationChecked`、`cwdMutated`、`cwdMutationCount`、`cwdMutationSample`；默认 read-only/non-mutating smoke 检测到新增/修改/删除时分类为 `cwd_mutated`。observed text tail、expected text、mutation sample、cwd 和 diagnostics 必须 redaction/truncation，不泄露 token、Bearer、`sk-*` 或私有绝对路径。
 - `runs` / `goals` 支持 `--status active|<terminal-status>` 过滤。
 - `run-status` / `goal-status` 输出单个历史 record，适合进程重启后的状态查询。
 - `replay-run` / `replay-goal` 支持 `--after <eventId>` 增量 replay；`--jsonl` 每行输出一个 replay envelope，包含 `id`、`sequence`、`timestamp`、`runId` 或 `goalId`。
@@ -790,6 +792,8 @@ Diagnostics 应包含：
 - CLI `runs` / `goals` / `run-status` / `goal-status` / `replay-run` / `replay-goal` 可读取 storageDir；
 - CLI `store-health` / `diagnostics run` / `diagnostics goal --out` 可读取 storageDir 并输出 redacted evidence；
 - CLI `smoke --mode real` 无 `--allow-real-run` 必须拒绝；有 `--prompt-file` 时长 prompt 仍通过 stdin/file transport，不进入 argv；
+- CLI `smoke --mode real` 默认 expected text 匹配才可通过；status-only exit `0` 或 wrong text 分类为 `unexpected_output`；`--prompt-file` 不带 `--expect-text` 时不强制文本匹配但仍要求有 text delta；
+- CLI `smoke --mode real` 输出 cwd mutation evidence，默认 isolated cwd 被写文件时分类为 `cwd_mutated`；
 - real smoke preflight 将 unavailable executable 和 auth missing 分类为诊断，不把 Claude 本机未登录当作 doctor 整体失败；
 - real smoke timeout diagnostics 和 diagnostics bundle 暴露 sanitized argv、promptTransport、streamFormat、parsedEventCount、stdout/stderr tail 与 actionable hints；
 - model list probe 只写 temp cwd。
@@ -904,6 +908,15 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - run diagnostics 对 unsupported flag / auth-looking / network-looking 输出给出 explicit diagnostic 或 actionable hints。
 - diagnostics bundle 的 run `adapterSummary` 汇总 sanitized argv、promptTransport、streamFormat、parsedEventCount 和 hints，方便从 storageDir 导出 real smoke evidence。
 - P1-5 本机 evidence：Codex `codex-cli 0.140.0-alpha.19` detection/live models 通过，read-only real smoke 通过；Claude Code `2.1.178` detection 通过但 auth missing；OpenCode `1.15.6` detection/live models 通过，非写入 isolated real smoke 通过且 stdin prompt 在本机版本已验证，但显式 read-only/workspace-write flags 仍未验证。
+
+### P1-6：Real Smoke Evidence Hardening
+
+- real smoke 从“进程成功”提升为“可验收的非破坏性行为证据”：默认 expected text 必须出现在聚合 `text_delta`；`--expect-text` 可覆盖。
+- 用户自定义 `--prompt` / `--prompt-file` 且未传 `--expect-text` 时，summary 输出 `expectedTextRequired: false`，但 status-only exit `0` 仍分类为 `unexpected_output`。
+- real smoke run 前后扫描 cwd，输出 `cwdMutationChecked`、`cwdMutated`、`cwdMutationCount`、`cwdMutationSample`；检测到 mutation 时分类为 `cwd_mutated`。
+- JSON 和 `--stream jsonl --diagnostics` 都输出同等 redacted `real_smoke_summary`，包含 `expectedTextMatched`、`observedTextTail`、final run record 和 diagnostics。
+- 新增字段和 diagnostics 继续走 redaction；observed text tail 截断，expected text 与 mutation sample 不泄露 token、Bearer、`sk-*` 或私有 cwd。
+- P1-6 本机 evidence：Codex 和 OpenCode real smoke 均 `classification: "success"`、`expectedTextMatched: true`、`cwdMutationChecked: true`、`cwdMutated: false`；Claude Code 仍在 detection preflight 阶段返回 `classification: "auth_missing"`。
 
 ## 19. 待定问题
 

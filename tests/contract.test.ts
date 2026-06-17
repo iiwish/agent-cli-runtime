@@ -31,6 +31,14 @@ const execFileP = promisify(execFile);
 const root = path.resolve(import.meta.dirname, "..");
 const cli = path.join(root, "dist", "cli", "main.js");
 
+async function execCliJson<T = unknown>(
+  args: string[],
+  options?: Parameters<typeof execFileP>[2],
+): Promise<T> {
+  const { stdout } = await execFileP(process.execPath, [cli, ...args], options);
+  return JSON.parse(stdout) as T;
+}
+
 describe("public contract", () => {
   it("keeps the package root focused on the runtime facade and public types", async () => {
     type PublicApiSmoke = {
@@ -95,6 +103,7 @@ describe("public contract", () => {
       "--retryable-error-codes",
       "--retry-backoff-ms",
       "--allow-real-run",
+      "--expect-text",
       "--prompt-file",
     ]) {
       expect(stdout).toContain(word);
@@ -141,8 +150,7 @@ process.stdin.on("end", () => {
   console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
 });
 `);
-    const smoke = JSON.parse((await execFileP(process.execPath, [
-      cli,
+    const smoke = await execCliJson([
       "smoke",
       "--mode",
       "real",
@@ -159,10 +167,253 @@ process.stdin.on("end", () => {
         ...process.env,
         CODEX_BIN: path.join(binDir, "codex"),
       },
-    })).stdout);
+    });
 
     expect(smoke).toMatchObject({ ok: true, mode: "real", agent: "codex", run: { status: "succeeded" } });
+    expect(smoke).toMatchObject({ expectedTextRequired: false, expectedTextMatched: null });
     expect(JSON.stringify(smoke)).not.toContain(longPrompt);
+  }, 30_000);
+
+  it("requires default real smoke expected text evidence", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    await writeFakeCodexSmoke(binDir, `
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+`);
+    const smoke = await execCliJson([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+    });
+
+    expect(smoke).toMatchObject({
+      ok: true,
+      mode: "real",
+      agent: "codex",
+      classification: "success",
+      expectedText: "agent-runtime codex smoke ok",
+      expectedTextRequired: true,
+      expectedTextMatched: true,
+      observedTextTail: "agent-runtime codex smoke ok",
+      cwdMutationChecked: true,
+      cwdMutated: false,
+      run: { status: "succeeded" },
+    });
+  }, 30_000);
+
+  it("does not classify status-only real smoke exit 0 as success", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    await writeFakeCodexSmoke(binDir, `
+console.log(JSON.stringify({ type: "thread.started" }));
+`);
+    const smoke = await execCliJson([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+    });
+
+    expect(smoke).toMatchObject({
+      ok: false,
+      classification: "unexpected_output",
+      expectedTextRequired: true,
+      expectedTextMatched: false,
+      observedTextDeltaCount: 0,
+      observedTextTail: "",
+      run: { status: "succeeded" },
+    });
+  }, 30_000);
+
+  it("classifies wrong real smoke text as unexpected_output", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    await writeFakeCodexSmoke(binDir, `
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "not the expected smoke text" } }));
+`);
+    const smoke = await execCliJson([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+    });
+
+    expect(smoke).toMatchObject({
+      ok: false,
+      classification: "unexpected_output",
+      expectedTextMatched: false,
+      observedTextTail: "not the expected smoke text",
+      run: { status: "succeeded" },
+    });
+  }, 30_000);
+
+  it("classifies default isolated cwd mutation as cwd_mutated", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    await writeFakeCodexSmoke(binDir, `
+const fs = require("node:fs");
+const path = require("node:path");
+fs.writeFileSync(path.join(process.cwd(), "smoke-output.txt"), "mutated");
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+`);
+    const smoke = await execCliJson([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+    });
+
+    expect(smoke).toMatchObject({
+      ok: false,
+      classification: "cwd_mutated",
+      expectedTextMatched: true,
+      cwdMutationChecked: true,
+      cwdMutated: true,
+      cwdMutationCount: 1,
+      cwdMutationSample: [{ path: "smoke-output.txt", action: "created" }],
+      run: { status: "succeeded" },
+    });
+  }, 30_000);
+
+  it("does not require expected text for prompt-file real smoke unless --expect-text is set", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    const promptFile = path.join(await tempDir(), "prompt.txt");
+    await writeFile(promptFile, "custom prompt-file smoke", "utf8");
+    await writeFakeCodexSmoke(binDir, `
+const args = process.argv.slice(2);
+if (args.join("\\n").includes("custom prompt-file smoke")) {
+  console.error("prompt leaked into argv");
+  process.exit(64);
+}
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "custom prompt-file response" } }));
+`);
+    const smoke = await execCliJson([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--prompt-file",
+      promptFile,
+      "--json",
+    ], {
+      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+    });
+
+    expect(smoke).toMatchObject({
+      ok: true,
+      classification: "success",
+      expectedTextRequired: false,
+      expectedTextMatched: null,
+      observedTextTail: "custom prompt-file response",
+      run: { status: "succeeded" },
+    });
+    expect(JSON.stringify(smoke)).not.toContain("custom prompt-file smoke");
+  }, 30_000);
+
+  it("enforces --prompt-file --expect-text real smoke matching", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    const promptFile = path.join(await tempDir(), "prompt.txt");
+    await writeFile(promptFile, "custom expect prompt", "utf8");
+    await writeFakeCodexSmoke(binDir, `
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "custom expected ok" } }));
+`);
+    const smoke = await execCliJson([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--prompt-file",
+      promptFile,
+      "--expect-text",
+      "custom expected ok",
+      "--json",
+    ], {
+      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+    });
+
+    expect(smoke).toMatchObject({
+      ok: true,
+      classification: "success",
+      expectedText: "custom expected ok",
+      expectedTextRequired: true,
+      expectedTextMatched: true,
+    });
+  }, 30_000);
+
+  it("redacts observedTextTail, expected text, mutation samples, and cwd in real smoke summaries", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    const privateCwd = await tempDir("private-real-smoke-");
+    const secret = `sk${"A".repeat(20)}`;
+    await writeFakeCodexSmoke(binDir, `
+const fs = require("node:fs");
+const path = require("node:path");
+fs.writeFileSync(path.join(process.cwd(), "token-sk" + "A".repeat(20) + ".txt"), "secret");
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "wrong token sk" + "A".repeat(20) + " cwd=" + process.cwd() } }));
+`);
+    const smokeStdout = (await execFileP(process.execPath, [
+      cli,
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--cwd",
+      privateCwd,
+      "--expect-text",
+      `expected ${secret}`,
+      "--stream",
+      "jsonl",
+      "--diagnostics",
+    ], {
+      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+    })).stdout;
+    const smoke = smokeStdout.trim().split(/\r?\n/u).map((line) => JSON.parse(line)).at(-1);
+    const text = JSON.stringify(smoke);
+
+    expect(smoke).toMatchObject({
+      type: "real_smoke_summary",
+      classification: "cwd_mutated",
+      expectedText: "expected [REDACTED]",
+      cwdMutationSample: [{ path: "token-[REDACTED].txt", action: "created" }],
+    });
+    expect(text).toContain("[REDACTED]");
+    expect(text).not.toContain(secret);
+    expect(text).not.toContain(privateCwd);
   }, 30_000);
 
   it("classifies real smoke auth-missing preflight without launching Claude", async () => {
@@ -484,3 +735,20 @@ setInterval(() => {}, 1000);
     expect(stdout).not.toContain(`sk${"A".repeat(20)}`);
   });
 });
+
+async function writeFakeCodexSmoke(binDir: string, runBody: string): Promise<void> {
+  await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("codex-cli test"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") {
+  console.log(JSON.stringify({ models: [{ slug: "gpt-test", display_name: "GPT Test" }] }));
+  process.exit(0);
+}
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => input += chunk);
+process.stdin.on("end", () => {
+${runBody}
+});
+`);
+}

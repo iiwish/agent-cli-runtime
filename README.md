@@ -238,7 +238,7 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 agent-runtime store-health --storage-dir .agent-runtime --json
 agent-runtime diagnostics run run_123 --storage-dir .agent-runtime --json
 agent-runtime diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
-agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file task.md --timeout-ms 30000 --json --diagnostics
+agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file task.md --expect-text "expected reply" --timeout-ms 30000 --json --diagnostics
 ```
 
 The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams. For run/goal commands, `--json` prints the final run or goal record. `--stream jsonl --diagnostics` keeps the event stream and appends a redacted `run_summary` or `goal_summary` line after the terminal event.
@@ -247,7 +247,7 @@ The library API is primary. The CLI is a thin wrapper over the same runtime and 
 
 - `--mode detection` runs local executable/model/auth detection only.
 - `--mode fixtures` dry-runs built-in parser conformance fixtures for Codex, Claude, and OpenCode without launching real CLIs.
-- `--mode real` launches one real non-mutating run with runtime-requested read-only behavior, but only when `--allow-real-run` and `--agent <id>` are both supplied. Without `--cwd`, it uses an isolated temp directory and the default prompt asks the agent not to edit files. It accepts `--prompt-file`, `--timeout-ms`, `--storage-dir`, `--json`, `--stream jsonl`, and `--diagnostics`; JSON output is a redacted smoke envelope with `classification`, `isolatedCwd`, the final run record, and diagnostics.
+- `--mode real` launches one real non-mutating run with runtime-requested read-only behavior, but only when `--allow-real-run` and `--agent <id>` are both supplied. Without `--cwd`, it uses an isolated temp directory and the default prompt asks the agent to reply exactly with `agent-runtime <agent> smoke ok` without editing files. The default smoke automatically requires that expected text in aggregated `text_delta` output; `--expect-text <text>` overrides it. If `--prompt` or `--prompt-file` is supplied without `--expect-text`, the summary sets `expectedTextRequired: false` but still requires some observed `text_delta` so status-only exit `0` cannot pass. JSON and `--stream jsonl --diagnostics` output include a redacted `real_smoke_summary` with `classification`, `expectedTextMatched`, `observedTextTail`, cwd mutation evidence, the final run record, and diagnostics. A missing required text is `unexpected_output`; detected cwd writes/updates/deletes are `cwd_mutated`.
 
 Disk storage layout is intentionally simple and tail-friendly:
 
@@ -329,9 +329,9 @@ The core runner owns process lifecycle, process-tree best-effort termination, di
 
 | Adapter | Target binary | Prompt transport | Stream strategy | MVP status |
 | --- | --- | --- | --- | --- |
-| Codex CLI | `codex` | stdin | `codex exec --json` | P1-5 real read-only smoke passed locally; timeout diagnostics classify local network/plugin startup stalls; transient reconnect events are parsed as status |
+| Codex CLI | `codex` | stdin | `codex exec --json` | P1-6 real smoke requires expected text evidence and cwd mutation checks; timeout diagnostics classify local network/plugin startup stalls; transient reconnect events are parsed as status |
 | Claude Code | `claude` | stdin JSONL | `stream-json` | P0-4 detection baseline recorded; local auth still missing |
-| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P1-5 non-mutating isolated smoke passed locally on `opencode` 1.15.6; stdin prompt support is verified, explicit read-only flags remain unverified |
+| OpenCode | `opencode-cli`, `opencode` | stdin | JSON stream | P1-6 non-mutating isolated smoke is checked for expected text and cwd mutation; stdin prompt support is verified on local `opencode` 1.15.6, explicit read-only flags remain unverified |
 
 Future adapters should be possible without changing the core runtime.
 

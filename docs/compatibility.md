@@ -1,17 +1,17 @@
 # Agent CLI Compatibility Matrix
 
-Status: P1-5 real CLI smoke matrix and invocation profile calibration
+Status: P1-6 real smoke evidence hardening
 Last updated: 2026-06-17
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-5 keeps real smoke non-mutating and read-only, adds structured invocation profiles, and records current local Codex/OpenCode real smoke evidence without committing raw CLI output.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-6 keeps real smoke non-mutating and read-only, and hardens the evidence gate: default smoke must include expected `text_delta` output and must not mutate the checked cwd. Raw CLI output and private paths are not committed.
 
 ## Summary
 
 | Adapter | CLI path | CLI version tested | Detection | Run smoke | Goal smoke | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Codex CLI | redacted local app path | `codex-cli 0.140.0-alpha.19` | Pass | Pass: `smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000` completed in an isolated temp cwd with read-only permission. | Not run in P1-5 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. Timeout diagnostics still show sanitized argv/profile, parsed event count, stdout/stderr tails, and startup diagnostic hints when needed. |
+| Codex CLI | redacted local app path | `codex-cli 0.140.0-alpha.19` | Pass | Pass: P1-6 real smoke matched expected text and reported no cwd mutation. | Not run in P1-6 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. Timeout diagnostics still show sanitized argv/profile, parsed event count, stdout/stderr tails, and startup diagnostic hints when needed. |
 | Claude Code | `/opt/homebrew/bin/claude` | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P0-4 | `claude auth status` returned `loggedIn:false`, `authMethod:none`, `apiProvider:firstParty`. |
-| OpenCode | `/opt/homebrew/bin/opencode` | `1.15.6` | Pass | Pass: `smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000` completed in an isolated temp cwd with the runtime requesting read-only behavior. | Not run in P1-5 | `opencode-cli` was not installed; fallback `opencode` was used. Live model probe passed. Stdin prompt support is verified for local `opencode run --format json --dir <cwd>` on 1.15.6; explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
+| OpenCode | `/opt/homebrew/bin/opencode` | `1.15.6` | Pass | Pass: P1-6 real smoke matched expected text and reported no cwd mutation. | Not run in P1-6 | `opencode-cli` was not installed; fallback `opencode` was used. Live model probe passed. Stdin prompt support is verified for local `opencode run --format json --dir <cwd>` on 1.15.6; explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
 
 ## Verified Invocation Shapes
 
@@ -130,7 +130,7 @@ node ./dist/cli/main.js smoke \
   --timeout-ms 30000
 ```
 
-The same command accepts `--prompt-file <file>` for longer prompts. Prompt text is still transported through the adapter transport and must not appear in argv or diagnostics.
+The same command accepts `--prompt-file <file>` for longer prompts and `--expect-text <text>` to override the required expected text. Prompt text is still transported through the adapter transport and must not appear in argv or diagnostics. Without a custom prompt, the default expected text is `agent-runtime <agent> smoke ok`; if it is missing from aggregated `text_delta`, the smoke summary is `classification: "unexpected_output"`. If cwd changes are detected, the summary is `classification: "cwd_mutated"`. JSON output and `--stream jsonl --diagnostics` include the same redacted `real_smoke_summary` fields: `expectedTextRequired`, `expectedTextMatched`, `observedTextTail`, `cwdMutationChecked`, `cwdMutated`, `cwdMutationCount`, `cwdMutationSample`, final run record, and diagnostics.
 
 Equivalent lower-level run command:
 
@@ -199,7 +199,7 @@ node ./dist/cli/main.js goal \
 ## Known MVP Gaps
 
 - Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
-- P1-5 verifies the real smoke harness, current Codex read-only invocation path, and current OpenCode non-mutating isolated invocation path with runtime-requested read-only behavior. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment, nor that OpenCode exposes a verified explicit read-only flag.
+- P1-6 verifies the real smoke harness against stronger fake CLI contract tests and local real Codex/OpenCode smoke runs with expected text matched and no cwd mutation. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment, nor that OpenCode exposes a verified explicit read-only flag.
 - JSONL append is still a simple append-only file, not fsync-backed and not segmented. P1-4 verifies corrupt/partial tail prefix replay plus explicit health diagnostics, but a host crash can still lose the final in-flight line.
 - There is still no long-lived daemon, WAL, fsync group commit, segment compaction, or automatic destructive repair.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
@@ -320,6 +320,29 @@ Covered behavior:
 - health and bundle output redact token-looking values, Bearer values, auth-token assignments, and absolute private paths;
 - package root value exports remain limited to `createAgentRuntime`;
 - `npm pack --dry-run` excludes `.reference/`, test fixtures/secrets, and real smoke output.
+
+## P1-6 Real Smoke Evidence Hardening
+
+Commands verified in this stage:
+
+```bash
+npm test -- tests/contract.test.ts
+npm run typecheck
+node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent claude --allow-real-run --json --diagnostics --timeout-ms 30000
+```
+
+Covered behavior:
+
+- default real smoke expects `agent-runtime <agent> smoke ok` in aggregated `text_delta`;
+- status-only exit `0` and wrong text classify as `unexpected_output`;
+- default isolated cwd mutation classifies as `cwd_mutated`;
+- `--prompt-file` without `--expect-text` does not force text matching and still keeps prompt content out of argv;
+- `--prompt-file --expect-text ...` enforces the override;
+- `observedTextTail`, expected text, cwd, diagnostics, and mutation samples are redacted and observed text is truncated.
+- local Codex and OpenCode real smoke passed with `expectedTextMatched: true`, `cwdMutationChecked: true`, and `cwdMutated: false`;
+- local Claude real smoke preflight returned `classification: "auth_missing"` without launching a run.
 
 ## P1-5 Real Smoke And Profile Evidence
 

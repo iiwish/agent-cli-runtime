@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, mkdtemp, readFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createAgentRuntime } from "../index.js";
@@ -7,6 +7,41 @@ import { redactText } from "../core/redaction.js";
 import { runParserFixtureCases } from "../smoke/parser-fixtures.js";
 import { atomicWriteJsonFile, exportDiagnosticsBundle, inspectStoreDirectory } from "../storage/store-inspection.js";
 import type { DetectedAgent, RunRecord } from "../index.js";
+
+const DEFAULT_OBSERVED_TEXT_TAIL_BYTES = 2_048;
+const MAX_CWD_SCAN_ENTRIES = 1_000;
+const MAX_CWD_MUTATION_SAMPLE = 20;
+const SKIPPED_CWD_SCAN_DIRS = new Set([".git", "node_modules", "dist", ".agent-runtime"]);
+
+interface RealSmokeExpectation {
+  prompt: string;
+  expectedText?: string;
+  expectedTextRequired: boolean;
+}
+
+interface RealSmokeEvidence {
+  observedText: string;
+  textDeltaCount: number;
+  expectedText?: string;
+  expectedTextRequired: boolean;
+}
+
+interface CwdSnapshot {
+  checked: boolean;
+  entries: Map<string, string>;
+  entryCount: number;
+  limitReached: boolean;
+  error?: string;
+}
+
+interface CwdMutationEvidence {
+  cwdMutationChecked: boolean;
+  cwdMutated: boolean;
+  cwdMutationCount: number;
+  cwdMutationSample: Array<{ path: string; action: "created" | "updated" | "deleted" }>;
+  cwdMutationLimitReached?: boolean;
+  cwdMutationError?: string;
+}
 
 interface ParsedArgs {
   command: string;
@@ -163,18 +198,36 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
     }
     const cwdFlag = stringFlag(parsed, "cwd");
     const cwd = path.resolve(cwdFlag ?? await mkdtemp(path.join(os.tmpdir(), "agent-runtime-real-smoke-")));
-    const prompt = await optionalPromptFromFlags(parsed) ?? `Reply exactly: agent-runtime ${agent} smoke ok. Do not edit files.`;
+    const expectation = await realSmokeExpectation(parsed, agent);
+    const beforeCwd = await snapshotCwd(cwd);
     const handle = await runtime.run({
       agentId: agent,
       cwd,
-      prompt,
+      prompt: expectation.prompt,
       permissionPolicy: "read-only",
       timeoutMs: numberFlag(parsed, "timeout-ms") ?? 30_000,
     });
-    await streamRealSmoke(parsed, agent, cwd, cwdFlag === undefined, handle.events, () => runtime.getRun(handle.runId));
+    await streamRealSmoke(parsed, agent, cwd, cwdFlag === undefined, expectation, beforeCwd, handle.events, () => runtime.getRun(handle.runId));
     return;
   }
   throw new Error("--mode must be one of: detection, fixtures, real");
+}
+
+async function realSmokeExpectation(parsed: ParsedArgs, agent: string): Promise<RealSmokeExpectation> {
+  const explicitPrompt = parsed.flags.has("prompt") || parsed.flags.has("prompt-file");
+  const prompt = await optionalPromptFromFlags(parsed) ?? defaultRealSmokePrompt(agent);
+  const expectText = stringFlag(parsed, "expect-text");
+  if (expectText !== undefined) return { prompt, expectedText: expectText, expectedTextRequired: true };
+  if (explicitPrompt) return { prompt, expectedTextRequired: false };
+  return { prompt, expectedText: defaultRealSmokeExpectedText(agent), expectedTextRequired: true };
+}
+
+function defaultRealSmokePrompt(agent: string): string {
+  return `Reply exactly: ${defaultRealSmokeExpectedText(agent)}. Do not edit files.`;
+}
+
+function defaultRealSmokeExpectedText(agent: string): string {
+  return `agent-runtime ${agent} smoke ok`;
 }
 
 function realSmokePreflight(agent: string, detected: DetectedAgent | undefined): unknown | null {
@@ -281,20 +334,33 @@ async function streamRealSmoke(
   agent: string,
   cwd: string,
   isolatedCwd: boolean,
+  expectation: RealSmokeExpectation,
+  beforeCwd: CwdSnapshot,
   events: AsyncIterable<unknown>,
   loadRun: () => Promise<RunRecord | null>,
 ): Promise<void> {
+  const evidence: RealSmokeEvidence = {
+    observedText: "",
+    textDeltaCount: 0,
+    expectedText: expectation.expectedText,
+    expectedTextRequired: expectation.expectedTextRequired,
+  };
   if (parsed.flags.get("stream") === "jsonl") {
-    for await (const event of events) process.stdout.write(`${JSON.stringify(redactForCli(event))}\n`);
+    for await (const event of events) {
+      collectRealSmokeEvidence(evidence, event);
+      process.stdout.write(`${JSON.stringify(redactForCli(event))}\n`);
+    }
     if (parsed.flags.has("diagnostics")) {
       const run = await loadRun();
-      process.stdout.write(`${JSON.stringify(redactForCli(realSmokeSummary(agent, cwd, isolatedCwd, run)))}\n`);
+      const mutation = await cwdMutationEvidence(cwd, beforeCwd);
+      process.stdout.write(`${JSON.stringify(redactForCli(realSmokeSummary(agent, cwd, isolatedCwd, run, evidence, mutation)))}\n`);
     }
     return;
   }
   let last: unknown = null;
   for await (const event of events) {
     last = event;
+    collectRealSmokeEvidence(evidence, event);
     if (parsed.flags.has("json")) continue;
     if (typeof event === "object" && event && "type" in event) {
       const typed = event as { type: string; text?: string; message?: string; result?: string };
@@ -304,31 +370,156 @@ async function streamRealSmoke(
     }
   }
   const run = await loadRun();
-  output(parsed, realSmokeSummary(agent, cwd, isolatedCwd, run ?? (last as RunRecord | null)));
+  const mutation = await cwdMutationEvidence(cwd, beforeCwd);
+  output(parsed, realSmokeSummary(agent, cwd, isolatedCwd, run ?? (last as RunRecord | null), evidence, mutation));
 }
 
-function realSmokeSummary(agent: string, cwd: string, isolatedCwd: boolean, run: RunRecord | null): unknown {
-  const classification = classifyRealSmokeRun(run);
+function collectRealSmokeEvidence(evidence: RealSmokeEvidence, event: unknown): void {
+  if (!event || typeof event !== "object" || !("type" in event)) return;
+  const typed = event as { type?: unknown; text?: unknown };
+  if (typed.type !== "text_delta" || typeof typed.text !== "string") return;
+  evidence.observedText += typed.text;
+  evidence.textDeltaCount += 1;
+}
+
+function realSmokeSummary(
+  agent: string,
+  cwd: string,
+  isolatedCwd: boolean,
+  run: RunRecord | null,
+  evidence: RealSmokeEvidence,
+  mutation: CwdMutationEvidence,
+): unknown {
+  const expectedTextMatched = evidence.expectedText ? evidence.observedText.includes(evidence.expectedText) : null;
+  const hasObservedText = evidence.observedText.trim().length > 0;
+  const classification = classifyRealSmokeRun(run, {
+    hasObservedText,
+    expectedTextMatched,
+    expectedTextRequired: evidence.expectedTextRequired,
+    cwdMutated: mutation.cwdMutated,
+  });
   return {
-    ok: run?.status === "succeeded",
+    type: "real_smoke_summary",
+    ok: classification === "success",
     mode: "real",
     agent,
-    cwd,
+    cwd: isolatedCwd ? "<isolated-cwd>" : "<cwd>",
     isolatedCwd,
+    expectedText: evidence.expectedText,
+    expectedTextRequired: evidence.expectedTextRequired,
+    expectedTextMatched,
+    observedTextDeltaCount: evidence.textDeltaCount,
+    observedTextTail: tailText(evidence.observedText, DEFAULT_OBSERVED_TEXT_TAIL_BYTES),
+    ...mutation,
     classification,
     run,
     diagnostics: run?.diagnostics ?? [],
   };
 }
 
-function classifyRealSmokeRun(run: RunRecord | null): string {
+function classifyRealSmokeRun(
+  run: RunRecord | null,
+  evidence?: {
+    hasObservedText: boolean;
+    expectedTextMatched: boolean | null;
+    expectedTextRequired: boolean;
+    cwdMutated: boolean;
+  },
+): string {
   if (!run) return "missing_run_record";
-  if (run.status === "succeeded") return "success";
+  if (run.status === "succeeded") {
+    if (evidence?.cwdMutated) return "cwd_mutated";
+    if (!evidence?.hasObservedText) return "unexpected_output";
+    if (evidence.expectedTextRequired && !evidence.expectedTextMatched) return "unexpected_output";
+    return "success";
+  }
   if (run.errorCode === "AGENT_TIMEOUT") return "timeout";
   if (run.errorCode === "AGENT_UNAVAILABLE" || run.errorCode === "AGENT_NOT_EXECUTABLE") return "unavailable_executable";
   if (run.diagnostics.some((diagnostic) => diagnostic.code === "unsupported_flag")) return "unsupported_flag";
   if (run.diagnostics.some((diagnostic) => diagnostic.code === "auth_missing" || diagnostic.code === "AGENT_AUTH_REQUIRED")) return "auth_missing";
   return run.errorCode ?? "failed";
+}
+
+async function snapshotCwd(cwd: string): Promise<CwdSnapshot> {
+  const entries = new Map<string, string>();
+  try {
+    let entryCount = 0;
+    let limitReached = false;
+    async function visit(dir: string): Promise<void> {
+      if (limitReached) return;
+      const dirents = await readdir(dir, { withFileTypes: true });
+      for (const dirent of dirents) {
+        if (limitReached) return;
+        if (dirent.isDirectory() && SKIPPED_CWD_SCAN_DIRS.has(dirent.name)) continue;
+        const absolute = path.join(dir, dirent.name);
+        const relative = path.relative(cwd, absolute);
+        entryCount += 1;
+        if (entryCount > MAX_CWD_SCAN_ENTRIES) {
+          limitReached = true;
+          return;
+        }
+        const stats = await lstat(absolute);
+        entries.set(relative, `${entryKind(stats)}:${stats.size}:${Math.trunc(stats.mtimeMs)}`);
+        if (dirent.isDirectory()) await visit(absolute);
+      }
+    }
+    await visit(cwd);
+    return { checked: true, entries, entryCount: Math.min(entryCount, MAX_CWD_SCAN_ENTRIES), limitReached };
+  } catch (error) {
+    return {
+      checked: true,
+      entries,
+      entryCount: entries.size,
+      limitReached: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function cwdMutationEvidence(cwd: string, before: CwdSnapshot): Promise<CwdMutationEvidence> {
+  const after = await snapshotCwd(cwd);
+  if (!before.checked || !after.checked) {
+    return {
+      cwdMutationChecked: false,
+      cwdMutated: false,
+      cwdMutationCount: 0,
+      cwdMutationSample: [],
+    };
+  }
+  const mutations: Array<{ path: string; action: "created" | "updated" | "deleted" }> = [];
+  for (const [entryPath, signature] of after.entries) {
+    const beforeSignature = before.entries.get(entryPath);
+    if (beforeSignature === undefined) mutations.push({ path: sanitizeRelativePath(entryPath), action: "created" });
+    else if (beforeSignature !== signature) mutations.push({ path: sanitizeRelativePath(entryPath), action: "updated" });
+  }
+  for (const entryPath of before.entries.keys()) {
+    if (!after.entries.has(entryPath)) mutations.push({ path: sanitizeRelativePath(entryPath), action: "deleted" });
+  }
+  mutations.sort((left, right) => left.path.localeCompare(right.path) || left.action.localeCompare(right.action));
+  const error = before.error ?? after.error;
+  return {
+    cwdMutationChecked: true,
+    cwdMutated: mutations.length > 0,
+    cwdMutationCount: mutations.length,
+    cwdMutationSample: mutations.slice(0, MAX_CWD_MUTATION_SAMPLE),
+    cwdMutationLimitReached: before.limitReached || after.limitReached || undefined,
+    cwdMutationError: error ? redactText(error) : undefined,
+  };
+}
+
+function entryKind(stats: Awaited<ReturnType<typeof lstat>>): string {
+  if (stats.isDirectory()) return "dir";
+  if (stats.isFile()) return "file";
+  if (stats.isSymbolicLink()) return "symlink";
+  return "other";
+}
+
+function sanitizeRelativePath(value: string): string {
+  return redactText(value.split(path.sep).join("/"));
+}
+
+function tailText(value: string, max: number): string {
+  return value.length > max ? value.slice(value.length - max) : value;
 }
 
 function output(parsed: ParsedArgs, value: unknown): void {
@@ -410,7 +601,7 @@ function enumFlag(parsed: ParsedArgs, key: string, allowed: string[]): string | 
 function printHelp(): void {
   process.stdout.write(`agent-runtime agents [--json] [--storage-dir <dir>]
 agent-runtime doctor [--json] [--storage-dir <dir>]
-agent-runtime smoke [--mode detection|fixtures|real] [--agent all|codex|claude|opencode] [--allow-real-run] [--cwd <dir>] [--prompt-file <file>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
+agent-runtime smoke [--mode detection|fixtures|real] [--agent all|codex|claude|opencode] [--allow-real-run] [--cwd <dir>] [--prompt <text>] [--prompt-file <file>] [--expect-text <text>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime run --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--model <id>] [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime goal --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--permission <policy>] [--timeout-ms <ms>] [--max-concurrent-tasks <n>] [--max-attempts <n>] [--retryable-error-codes <codes>] [--retry-backoff-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime runs [--storage-dir <dir>] [--status active|queued|running|succeeded|failed|canceled] [--json]
