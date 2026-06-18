@@ -198,6 +198,92 @@ describe("GoalScheduler", () => {
     expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "failed" });
   });
 
+  it("classifies validation timeouts and exports redacted replayable evidence", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    const storageDir = await tempDir("agent-runtime-storage-");
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({
+      adapters: [fakeAdapter()],
+      env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` },
+      searchPath: [dir],
+      storageDir,
+    });
+    const secret = `sk${"A".repeat(20)}`;
+    const handle = await runtime.createGoal({
+      cwd,
+      objective: "validation-timeout",
+      defaultAgentId: "fake",
+      validationTimeoutMs: 100,
+      env: { VALIDATION_TOKEN: secret },
+    });
+    const events = await collect(handle.events);
+    const goal = await runtime.getGoal(handle.goalId);
+    const evidence = goal?.tasks[0]?.evidence;
+    const validation = evidence?.validationResults?.[0];
+    const bundle = await runtime.exportDiagnostics({ kind: "goal", goalId: handle.goalId });
+    const bundleText = JSON.stringify(bundle);
+
+    expect(events.some((event) => event.type === "task_finished" && event.result === "failed")).toBe(true);
+    expect(goal).toMatchObject({ status: "failed", result: "failed" });
+    expect(validation).toMatchObject({
+      passed: false,
+      classification: "timeout",
+      cwd: "<cwd>",
+      timeoutMs: 100,
+      env: { VALIDATION_TOKEN: "[REDACTED]" },
+    });
+    expect(evidence?.attempts?.[0]?.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "AGENT_TIMEOUT", message: expect.stringContaining("validation timeout") }),
+    ]));
+    expect(bundle.attemptEvidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ taskId: "T001", attempt: expect.objectContaining({ result: "failed" }) }),
+    ]));
+    expect(bundle.supervisorSummary).toMatchObject({
+      kind: "goal",
+      status: "failed",
+      result: "failed",
+      terminalReason: "failed",
+    });
+    expect(bundleText).toContain("[REDACTED]");
+    expect(bundleText).not.toContain(secret);
+    expect(bundleText).not.toContain(cwd);
+  }, 30_000);
+
+  it("does not classify validationTimeoutMs 0 command failures as timeouts", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({
+      adapters: [fakeAdapter()],
+      env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` },
+      searchPath: [dir],
+    });
+    const handle = await runtime.createGoal({
+      cwd,
+      objective: "bad-validation",
+      defaultAgentId: "fake",
+      validationTimeoutMs: 0,
+    });
+    await collect(handle.events);
+    const goal = await runtime.getGoal(handle.goalId);
+    const evidence = goal?.tasks[0]?.evidence;
+
+    expect(goal).toMatchObject({ status: "failed", result: "failed" });
+    expect(evidence?.validationResults?.[0]).toMatchObject({
+      passed: false,
+      classification: "failed",
+      timeoutMs: 0,
+      exitCode: 7,
+    });
+    expect(evidence?.attempts?.[0]?.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "AGENT_EXECUTION_FAILED", message: expect.stringContaining("validation failed") }),
+    ]));
+    expect(evidence?.attempts?.[0]?.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "AGENT_TIMEOUT" }),
+    ]));
+  });
+
   it("classifies planner validation failure as scheduler_error and fails the goal", async () => {
     const dir = await tempDir();
     const cwd = await tempDir();
@@ -292,6 +378,7 @@ describe("GoalScheduler", () => {
     }
     await delay(25);
     expect(events.at(-1)).toMatchObject({ type: "goal_finished", result: "cancelled" });
+    expect(events.filter((event) => event.type === "goal_finished")).toHaveLength(1);
     expect(await runtime.getGoal(handle.goalId)).toMatchObject({ status: "canceled", result: "cancelled" });
     expect(await runtime.listGoals({ status: "active" })).toEqual([]);
     const restarted = createAgentRuntime({ storageDir });

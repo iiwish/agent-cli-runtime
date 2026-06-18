@@ -189,13 +189,18 @@ export class GoalScheduler {
           env: request.env,
           timeoutMs: request.validationTimeoutMs,
         });
-        if (validationResults.some((validation) => !validation.passed)) {
+        const failedValidation = validationResults.find((validation) => !validation.passed);
+        if (failedValidation) {
           finalResult = "failed";
-          lastErrorCode = "AGENT_EXECUTION_FAILED";
+          lastErrorCode = failedValidation.classification === "timeout" ? "AGENT_TIMEOUT" : "AGENT_EXECUTION_FAILED";
           attempt.evidence.result = "failed";
           attempt.evidence.diagnostics = [
             ...attempt.evidence.diagnostics,
-            diagnostic("AGENT_EXECUTION_FAILED", `Task ${task.id} validation failed.`, { retryable: isRetryable(lastErrorCode, retryPolicy) }),
+            diagnostic(lastErrorCode, `Task ${task.id} validation ${failedValidation.classification}.`, {
+              retryable: isRetryable(lastErrorCode, retryPolicy),
+              exitCode: failedValidation.exitCode,
+              signal: failedValidation.signal,
+            }),
           ];
           this.updateAttemptEvidence(goalId, task, attempts, attempt.evidence, finalResult, validationResults);
         }

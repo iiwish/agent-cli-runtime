@@ -596,6 +596,7 @@ describe("durable local store", () => {
       schemaVersion: "agent-runtime.diagnostics.v1",
       subject: { kind: "run", id: runId },
       events: { total: 1, retained: 1, eventTypes: { error: 1 } },
+      supervisorSummary: { kind: "run", status: "failed", terminalReason: "failed", terminalEventCount: 0 },
       adapterSummary: { kind: "run", agentId: "fake" },
     });
     expect(bundle.diagnostics).toEqual(expect.arrayContaining([
@@ -668,6 +669,14 @@ describe("durable local store", () => {
       expect.objectContaining({ taskId: "T001", attempt: expect.objectContaining({ runId: "run_attempt" }) }),
     ]));
     expect(bundle.adapterSummary).toMatchObject({ kind: "goal", taskAgentIds: ["fake"] });
+    expect(bundle.supervisorSummary).toMatchObject({
+      kind: "goal",
+      status: "failed",
+      result: "failed",
+      terminalReason: "failed",
+      terminalEventCount: 1,
+      taskStatusCounts: { failed: 1 },
+    });
     expect(text).toContain("[REDACTED]");
     expect(text).not.toContain("Bearer");
     expect(text).not.toContain("ANTHROPIC_AUTH_TOKEN");

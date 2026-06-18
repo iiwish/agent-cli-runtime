@@ -25,7 +25,8 @@
     "LICENSE",
     "docs/release-checklist.md",
     "docs/ssot.md",
-    "docs/compatibility.md"
+    "docs/compatibility.md",
+    "docs/production-readiness.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

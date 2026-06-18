@@ -8,6 +8,10 @@
 - [ ] `npm test`
 - [ ] `npm run build`
 - [ ] `npm run ci`
+- [ ] `node ./dist/cli/main.js conformance --mode fixtures --json`
+- [ ] `node ./dist/cli/main.js conformance --mode fake --json`
+- [ ] `node ./dist/cli/main.js agents --json`
+- [ ] `node ./dist/cli/main.js doctor --json`
 - [ ] `npm audit --omit=dev`
 - [ ] `npm pack --dry-run`
 
@@ -32,16 +36,20 @@
 - [ ] `node -e "(async()=>{ const m = await import('agent-cli-runtime'); if (typeof m.createAgentRuntime !== 'function') process.exit(1); console.log(typeof m.createAgentRuntime); })()"`.
 - [ ] `node ./node_modules/.bin/agent-runtime agents --json` returns JSON.
 - [ ] `node ./node_modules/.bin/agent-runtime doctor --json` returns an object with `ok`.
+- [ ] `node ./node_modules/.bin/agent-runtime conformance --mode fixtures --json` returns stable adapter summaries.
+- [ ] `node ./node_modules/.bin/agent-runtime conformance --mode fake --json` returns stable adapter summaries.
 - [ ] `node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json` returns `{ ok: true, mode: "fixtures" }`.
 
 ## Artifact review
 
 - [ ] `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md` are present and up to date.
-- [ ] `docs/ssot.md` and `docs/compatibility.md` are synced to current P1-8 status.
+- [ ] `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-1 status.
 - [ ] `README` and `README.zh-CN` include pre-alpha developer-preview boundary and quick verification commands.
 
 ## Final review notes
 
 - [ ] No stable API guarantee language is used for this release track.
 - [ ] Confirm no daemon/WAL/remote runtime promises are made in public docs.
+- [ ] Confirm OpenDesign daemon-level gaps are named without implying parity.
+- [ ] Confirm real conformance requires `--allow-real-run` and safely skips unauthorized CLIs.
 - [ ] Confirm package install smoke is added/updated in `tests/contract.test.ts`.

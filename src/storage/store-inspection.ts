@@ -112,6 +112,7 @@ export interface DiagnosticsBundle {
   storageDiagnostics: RuntimeDiagnostic[];
   consistencyWarnings: StoreHealthWarning[];
   attemptEvidence?: unknown[];
+  supervisorSummary: Record<string, unknown>;
   adapterSummary: Record<string, unknown>;
 }
 
@@ -239,6 +240,7 @@ export function exportDiagnosticsBundle(request: ExportDiagnosticsRequest, stora
     storageDiagnostics,
     consistencyWarnings: record.warnings,
     attemptEvidence: kind === "goal" ? attemptEvidenceFromGoalManifest(manifest) : undefined,
+    supervisorSummary: supervisorSummary(record),
     adapterSummary: adapterSummary(record),
   };
   return redactUnknown(bundle);
@@ -488,6 +490,72 @@ function adapterSummary(record: ScannedRecord): Record<string, unknown> {
     result: record.manifest.result,
     taskAgentIds,
   };
+}
+
+function supervisorSummary(record: ScannedRecord): Record<string, unknown> {
+  const terminalEvents = record.events.filter((event) =>
+    record.kind === "run" ? event.event.type === "run_finished" : event.event.type === "goal_finished",
+  );
+  if (!record.manifest) {
+    return {
+      kind: record.kind,
+      id: record.id,
+      status: "unknown",
+      terminalEventCount: terminalEvents.length,
+      terminalReason: "manifest_unavailable",
+    };
+  }
+  if (record.kind === "run") {
+    return {
+      kind: "run",
+      id: record.id,
+      status: record.manifest.status,
+      result: runResultFromStatus(record.manifest.status),
+      errorCode: record.manifest.errorCode,
+      signal: record.manifest.signal,
+      terminalReason: terminalReason(record.manifest),
+      terminalEventCount: terminalEvents.length,
+      activeReloadRecovered: hasDiagnostic(record, "AGENT_RUNTIME_INTERRUPTED"),
+    };
+  }
+  const tasks = Array.isArray(record.manifest.tasks) ? record.manifest.tasks.filter(isRecord) : [];
+  const taskStatusCounts: Record<string, number> = {};
+  for (const task of tasks) {
+    if (typeof task.status === "string") increment(taskStatusCounts, task.status);
+  }
+  return {
+    kind: "goal",
+    id: record.id,
+    status: record.manifest.status,
+    result: record.manifest.result,
+    terminalReason: terminalReason(record.manifest),
+    terminalEventCount: terminalEvents.length,
+    activeReloadRecovered: hasDiagnostic(record, "AGENT_RUNTIME_INTERRUPTED"),
+    taskStatusCounts,
+  };
+}
+
+function runResultFromStatus(status: unknown): string | undefined {
+  if (status === "succeeded") return "success";
+  if (status === "canceled") return "cancelled";
+  if (status === "failed") return "failed";
+  return undefined;
+}
+
+function terminalReason(manifest: Record<string, unknown>): string {
+  const errorCode = typeof manifest.errorCode === "string" ? manifest.errorCode : undefined;
+  const signal = typeof manifest.signal === "string" ? manifest.signal : undefined;
+  if (errorCode === "AGENT_RUNTIME_INTERRUPTED" || signal === "RUNTIME_RESTART") return "interrupted";
+  if (errorCode === "AGENT_CANCELLED" || manifest.status === "canceled") return "canceled";
+  if (errorCode === "AGENT_TIMEOUT") return "timeout";
+  if (manifest.status === "succeeded") return "success";
+  if (manifest.status === "failed") return "failed";
+  return "active";
+}
+
+function hasDiagnostic(record: ScannedRecord, code: string): boolean {
+  return manifestDiagnostics(record.manifest).some((item) => item.code === code)
+    || record.events.some((event) => eventDiagnosticCode(event.event) === code);
 }
 
 function isTerminalManifest(kind: "run" | "goal", status: unknown): boolean {

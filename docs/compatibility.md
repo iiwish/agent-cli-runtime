@@ -1,13 +1,13 @@
 # Agent CLI Compatibility Matrix
 
-Status: P1-8 Release Candidate Hardening
+Status: P2-1 Production Runtime Hardening
 Last updated: 2026-06-17
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P1-8 release candidate hardening keeps the P1-6 real-smoke evidence gate and adds release-hygiene coverage: npm package boundary checks, publish/install smoke evidence, and explicit release scope notes. The opt-in durable store now includes explicit `fsync` durability, JSONL corrupt-line health diagnostics, active-record interruption handling, and a dry-run-only repair model. Raw CLI output and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P2-1 production runtime hardening adds the `conformance` gate, supervisor summary diagnostics, validation timeout classification, parser noise contracts, and explicit production-readiness scope notes. The opt-in durable store includes explicit `fsync` durability, JSONL corrupt-line health diagnostics, active-record interruption handling, and a dry-run-only repair model. Raw CLI output, tokens, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P1-8 pre-alpha release-candidate evidence, which is intended to be the default interpretation for this matrix.
+Current status is P2-1 pre-alpha production-hardening evidence, which is intended to be the default interpretation for this matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack` and install-smoke checks.
 - P1-6 and earlier notes in this file are historical references for parser fixtures, timeout/reconnect evidence, and compatibility context; they are not equivalent to current "latest expected" contract assumptions.
@@ -107,10 +107,11 @@ node ./dist/cli/main.js doctor --json
 node ./dist/cli/main.js smoke --mode detection --json
 ```
 
-Dry-run parser conformance fixtures without launching real agent CLIs:
+Production conformance gates without launching real agent CLIs:
 
 ```bash
-node ./dist/cli/main.js smoke --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fake --json
 ```
 
 Durable store query/replay smoke with fake or test-generated records:
@@ -131,16 +132,15 @@ node ./dist/cli/main.js diagnostics goal goal_123 --storage-dir .agent-runtime -
 Optional real non-mutating run smoke, only when the relevant local CLI auth is available. This is disabled unless `--allow-real-run` is present; without `--cwd`, it uses an isolated temp directory and runtime-requested `read-only` behavior:
 
 ```bash
-node ./dist/cli/main.js smoke \
+node ./dist/cli/main.js conformance \
   --mode real \
   --agent codex \
   --allow-real-run \
   --json \
-  --diagnostics \
   --timeout-ms 30000
 ```
 
-The same command accepts `--prompt-file <file>` for longer prompts and `--expect-text <text>` to override the required expected text. Prompt text is still transported through the adapter transport and must not appear in argv or diagnostics. Without a custom prompt, the default expected text is `agent-runtime <agent> smoke ok`; if it is missing from aggregated `text_delta`, the smoke summary is `classification: "unexpected_output"`. If cwd changes are detected, the summary is `classification: "cwd_mutated"`. JSON output and `--stream jsonl --diagnostics` include the same redacted `real_smoke_summary` fields: `expectedTextRequired`, `expectedTextMatched`, `observedTextTail`, `cwdMutationChecked`, `cwdMutated`, `cwdMutationCount`, `cwdMutationSample`, final run record, and diagnostics.
+`conformance --mode real` requires `--allow-real-run` and returns stable per-adapter fields: `adapter`, `version`, `auth`, `modelsSource`, `runClassification`, `expectedTextMatched`, `cwdMutated`, `diagnosticsCount`, and `skippedReason`. `--agent all` keeps one adapter fail/skip isolated in the summary. The legacy `smoke --mode real` command remains available for detailed run-summary evidence with `--stream jsonl --diagnostics`.
 
 Equivalent lower-level run command:
 
@@ -420,6 +420,35 @@ Covered behavior:
 - interrupted running runs and interrupted planning/running goals reload as failed, update manifests, append diagnostic/terminal replay events, clear active lists, and appear in store health;
 - health, repair dry-run, and diagnostics bundle output remain redacted;
 - `npm pack --dry-run` remains covered by the public contract test and excludes `.reference/`, fixtures, and real smoke output.
+
+## P2-1 Production Runtime Hardening
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run ci
+node ./dist/cli/main.js conformance --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js agents --json
+node ./dist/cli/main.js doctor --json
+```
+
+Covered behavior:
+
+- `conformance --mode fixtures` returns stable per-adapter summaries without launching CLIs;
+- `conformance --mode fake` runs temporary fake CLIs through the real adapter argv/stdin/parser path;
+- `conformance --mode real` refuses without `--allow-real-run`;
+- `--agent all` preserves one adapter fail/skip alongside other adapter summaries;
+- validation timeout evidence records classification, timeout, redacted env override, and replayable diagnostics export;
+- diagnostics bundle includes `supervisorSummary` without raw env, prompt, token, or private path data;
+- reload, cancel, and shutdown terminal events remain idempotent;
+- parser fixtures cover warning/log/noise and corrupt lines without producing `text_delta`;
+- package dry-run excludes `.reference/`, tests, private fixture paths, and secret-looking values;
+- production scope and OpenDesign daemon-level gaps are documented in `docs/production-readiness.md`.
 
 ## P1-8 Release Candidate Hardening
 

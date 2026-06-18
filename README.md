@@ -257,14 +257,17 @@ Use one of the quick verification command sets before release:
 ```bash
 node ./dist/cli/main.js agents --json
 node ./dist/cli/main.js doctor --json
-node ./dist/cli/main.js smoke --mode detection --json
-node ./dist/cli/main.js smoke --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fake --json
 ```
 
 ## CLI
 
 ```bash
 agent-runtime agents
+agent-runtime conformance --mode fixtures --json
+agent-runtime conformance --mode fake --json
+agent-runtime conformance --mode real --agent codex --allow-real-run --json
 agent-runtime smoke --mode detection --json
 agent-runtime smoke --mode fixtures --json
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
@@ -289,6 +292,12 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file tas
 
 The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams. For run/goal commands, `--json` prints the final run or goal record. `--stream jsonl --diagnostics` keeps the event stream and appends a redacted `run_summary` or `goal_summary` line after the terminal event.
 
+`agent-runtime conformance` is the production gate wrapper. It emits a stable per-adapter JSON summary with `adapter`, `version`, `auth`, `modelsSource`, `runClassification`, `expectedTextMatched`, `cwdMutated`, `diagnosticsCount`, and `skippedReason`.
+
+- `--mode fixtures` checks parser contracts offline.
+- `--mode fake` creates local fake CLIs and runs the real adapter argv/stdin/parser path offline.
+- `--mode real` launches real local CLIs only when `--allow-real-run` is explicit. `--agent all` keeps one adapter fail/skip isolated in the summary.
+
 `agent-runtime smoke` has three modes:
 
 - `--mode detection` runs local executable/model/auth detection only.
@@ -311,7 +320,9 @@ Each JSONL line is one append record: `{ "id": 1, "sequence": 1, "runId": "run_1
 
 `store-repair --dry-run --json` reports the non-destructive repair plan for corrupt event logs. Partial tails are reported as `truncate_partial_tail`; middle corrupt lines are reported as `isolate_corrupt_line`/manual-review actions. The dry-run does not modify files and redacts corrupt tail previews. Destructive repair is intentionally not implemented yet; any future apply mode must be explicit and backup the original file first.
 
-Diagnostics bundles are redacted JSON evidence packets for one run or goal. A bundle includes the sanitized manifest, an event summary rather than full event payloads, diagnostics, storage-level diagnostics, goal task attempt evidence when present, and an environment-safe adapter summary. `--out <file>` writes the bundle with a temp-file-and-rename atomic write. Bundles and health output do not include raw corrupt JSONL lines, tokens, Bearer values, auth-token environment assignments, full environment dumps, or absolute private paths.
+Diagnostics bundles are redacted JSON evidence packets for one run or goal. A bundle includes the sanitized manifest, an event summary rather than full event payloads, diagnostics, storage-level diagnostics, goal task attempt evidence when present, a supervisor summary, and an environment-safe adapter summary. `--out <file>` writes the bundle with a temp-file-and-rename atomic write. Bundles and health output do not include raw corrupt JSONL lines, tokens, Bearer values, auth-token environment assignments, full environment dumps, or absolute private paths.
+
+Production readiness scope is tracked in [docs/production-readiness.md](./docs/production-readiness.md). The local-first production target is single-machine, local CLI execution with explicit `storageDir`, auditable redacted diagnostics, and no silent privilege escalation; daemon/API server, WAL, live resume/session attachment, distributed execution, UI/artifacts, telemetry, and database layers remain outside this package.
 
 ## Configuration
 

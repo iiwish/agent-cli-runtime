@@ -304,6 +304,7 @@ process.exit(2);
     await runtime.shutdown("test shutdown");
     const events = await collect(handle.events);
     expect(events.at(-1)).toMatchObject({ type: "run_finished", result: "cancelled" });
+    expect(events.filter((event) => event.type === "run_finished")).toHaveLength(1);
     expect(await runtime.getRun(handle.runId)).toMatchObject({ status: "canceled", errorCode: "AGENT_CANCELLED" });
     expect(await runtime.listRuns({ status: "active" })).toEqual([]);
     const restarted = createAgentRuntime({ storageDir });

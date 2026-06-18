@@ -57,6 +57,18 @@ export const parserFixtureCases: ParserFixtureCase[] = [
   },
   {
     agentId: "codex",
+    name: "warning log noise",
+    chunks: ['WARN reconnecting without json\n{"level":"warn","message":"ignore me"}\n'],
+    expectedTypes: [],
+  },
+  {
+    agentId: "codex",
+    name: "corrupt line noise",
+    chunks: ['{"type":"item.completed","item":{"type":"agent_message","text":"unterminated"\n'],
+    expectedTypes: [],
+  },
+  {
+    agentId: "codex",
     name: "unknown event",
     chunks: ['{"type":"new.future.event","payload":true}\n'],
     expectedTypes: [],
@@ -92,6 +104,18 @@ export const parserFixtureCases: ParserFixtureCase[] = [
     name: "partial line",
     chunks: ['{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"hel', 'lo"}}}\n'],
     expectedTypes: ["text_delta"],
+  },
+  {
+    agentId: "claude",
+    name: "warning log noise",
+    chunks: ['Warning: using cached settings\n{"level":"warn","message":"ignore me"}\n'],
+    expectedTypes: [],
+  },
+  {
+    agentId: "claude",
+    name: "corrupt line noise",
+    chunks: ['{"type":"assistant","message":{"content":[{"type":"text","text":"unterminated"}]}\n'],
+    expectedTypes: [],
   },
   {
     agentId: "claude",
@@ -131,6 +155,18 @@ export const parserFixtureCases: ParserFixtureCase[] = [
     name: "partial line",
     chunks: ['{"type":"text","part":{"text":"hel', 'lo"}}\n'],
     expectedTypes: ["text_delta"],
+  },
+  {
+    agentId: "opencode",
+    name: "warning log noise",
+    chunks: ['INFO starting opencode\n{"level":"warn","message":"ignore me"}\n'],
+    expectedTypes: [],
+  },
+  {
+    agentId: "opencode",
+    name: "corrupt line noise",
+    chunks: ['{"type":"text","part":{"text":"unterminated"}\n'],
+    expectedTypes: [],
   },
   {
     agentId: "opencode",

@@ -104,6 +104,8 @@ process.stdin.on("end", () => {
     const taskObjective = input.includes("task-timeout") ? "cancel" : input.includes("fail-task") ? "fail-task" : "do second";
     const validationCommand = input.includes("secret-validation")
       ? "node -e \\"console.log('s' + 'k' + 'A'.repeat(20)); console.error('Bearer ' + 'B'.repeat(20))\\""
+      : input.includes("validation-timeout")
+      ? "node -e \\"setInterval(() => {}, 1000)\\""
       : input.includes("bad-validation")
       ? "node -e \\"process.exit(7)\\""
       : "node -e \\"process.exit(0)\\"";

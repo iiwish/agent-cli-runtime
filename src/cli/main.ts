@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { lstat, mkdir, mkdtemp, readFile, readdir } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createAgentRuntime } from "../index.js";
@@ -41,6 +41,18 @@ interface CwdMutationEvidence {
   cwdMutationSample: Array<{ path: string; action: "created" | "updated" | "deleted" }>;
   cwdMutationLimitReached?: boolean;
   cwdMutationError?: string;
+}
+
+interface ConformanceAdapterSummary {
+  adapter: string;
+  version: string | null;
+  auth: DetectedAgent["authStatus"] | "not_checked";
+  modelsSource: DetectedAgent["modelsSource"] | "fixtures" | "fake" | "none";
+  runClassification: string;
+  expectedTextMatched: boolean | null;
+  cwdMutated: boolean | null;
+  diagnosticsCount: number;
+  skippedReason: string | null;
 }
 
 interface ParsedArgs {
@@ -87,6 +99,10 @@ async function main(): Promise<void> {
   }
   if (parsed.command === "smoke") {
     await runSmoke(parsed);
+    return;
+  }
+  if (parsed.command === "conformance") {
+    await runConformance(parsed);
     return;
   }
   if (parsed.command === "runs") {
@@ -218,6 +234,203 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
     return;
   }
   throw new Error("--mode must be one of: detection, fixtures, real");
+}
+
+async function runConformance(parsed: ParsedArgs): Promise<void> {
+  const mode = enumFlag(parsed, "mode", ["fixtures", "fake", "real"]) ?? "fixtures";
+  const requestedAgent = stringFlag(parsed, "agent") ?? "all";
+  const agents = selectedAgents(requestedAgent);
+  if (mode === "real" && !parsed.flags.has("allow-real-run")) {
+    throw new Error("conformance --mode real requires --allow-real-run");
+  }
+  if (mode === "fixtures") {
+    const summaries = agents.map((agentId) => fixtureConformanceSummary(agentId));
+    output(parsed, {
+      ok: summaries.every((summary) => summary.runClassification === "success"),
+      mode,
+      agents: summaries,
+    });
+    return;
+  }
+
+  const fake = mode === "fake" ? await setupFakeConformanceEnv() : undefined;
+  const runMode = mode as "fake" | "real";
+  const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed, fake ? { env: fake.env, searchPath: [fake.binDir] } : undefined));
+  const detected = await runtime.detect({ includeUnavailable: true });
+  const summaries: ConformanceAdapterSummary[] = [];
+  for (const agentId of agents) {
+    const detection = detected.find((item) => item.id === agentId);
+    summaries.push(await runAgentConformance(parsed, runtime, agentId, detection, runMode));
+  }
+  output(parsed, {
+    ok: conformanceOk(mode, requestedAgent, summaries),
+    mode,
+    agents: summaries,
+  });
+}
+
+function conformanceOk(mode: string, requestedAgent: string, summaries: ConformanceAdapterSummary[]): boolean {
+  if (mode !== "real") return summaries.every((summary) => summary.runClassification === "success");
+  if (requestedAgent !== "all") return summaries.every((summary) => summary.runClassification === "success");
+  const successCount = summaries.filter((summary) => summary.runClassification === "success").length;
+  const failedRuns = summaries.filter((summary) => summary.skippedReason === null && summary.runClassification !== "success");
+  return successCount > 0 && failedRuns.length === 0;
+}
+
+function selectedAgents(agent: string): Array<"codex" | "claude" | "opencode"> {
+  const all: Array<"codex" | "claude" | "opencode"> = ["codex", "claude", "opencode"];
+  if (agent === "all") return all;
+  if (agent === "codex" || agent === "claude" || agent === "opencode") return [agent];
+  throw new Error("--agent must be one of: codex, claude, opencode, all");
+}
+
+function fixtureConformanceSummary(agent: "codex" | "claude" | "opencode"): ConformanceAdapterSummary {
+  const fixtures = runParserFixtureCases(agent);
+  const ok = fixtures.length > 0 && fixtures.every((fixture) => fixture.ok);
+  return {
+    adapter: agent,
+    version: null,
+    auth: "not_checked",
+    modelsSource: "fixtures",
+    runClassification: ok ? "success" : "parser_fixture_failed",
+    expectedTextMatched: null,
+    cwdMutated: null,
+    diagnosticsCount: fixtures.filter((fixture) => !fixture.ok).length,
+    skippedReason: null,
+  };
+}
+
+async function runAgentConformance(
+  parsed: ParsedArgs,
+  runtime: ReturnType<typeof createAgentRuntime>,
+  agent: string,
+  detected: DetectedAgent | undefined,
+  mode: "fake" | "real",
+): Promise<ConformanceAdapterSummary> {
+  const preflight = conformancePreflight(agent, detected);
+  if (preflight) return preflight;
+  const cwdFlag = stringFlag(parsed, "cwd");
+  const cwd = path.resolve(cwdFlag ?? await mkdtemp(path.join(os.tmpdir(), `agent-runtime-${mode}-conformance-`)));
+  const expectation = await realSmokeExpectation(parsed, agent);
+  const beforeCwd = await snapshotCwd(cwd);
+  const handle = await runtime.run({
+    agentId: agent,
+    cwd,
+    prompt: expectation.prompt,
+    permissionPolicy: "read-only",
+    timeoutMs: numberFlag(parsed, "timeout-ms") ?? 30_000,
+  });
+  const evidence: RealSmokeEvidence = {
+    observedText: "",
+    textDeltaCount: 0,
+    expectedText: expectation.expectedText,
+    expectedTextRequired: expectation.expectedTextRequired,
+  };
+  for await (const event of handle.events) collectRealSmokeEvidence(evidence, event);
+  const run = await runtime.getRun(handle.runId);
+  const mutation = await cwdMutationEvidence(cwd, beforeCwd);
+  const expectedTextMatched = evidence.expectedText ? evidence.observedText.includes(evidence.expectedText) : null;
+  const classification = classifyRealSmokeRun(run, {
+    hasObservedText: evidence.observedText.trim().length > 0,
+    expectedTextMatched,
+    expectedTextRequired: evidence.expectedTextRequired,
+    cwdMutated: mutation.cwdMutated,
+  });
+  return {
+    adapter: agent,
+    version: detected?.version ?? null,
+    auth: detected?.authStatus ?? "unknown",
+    modelsSource: detected?.modelsSource ?? "none",
+    runClassification: classification,
+    expectedTextMatched,
+    cwdMutated: mutation.cwdMutated,
+    diagnosticsCount: (detected?.diagnostics.length ?? 0) + (run?.diagnostics.length ?? 0),
+    skippedReason: null,
+  };
+}
+
+function conformancePreflight(agent: string, detected: DetectedAgent | undefined): ConformanceAdapterSummary | null {
+  if (!detected) {
+    return skippedConformance(agent, "unavailable_executable", "no_detection_result", 1);
+  }
+  if (!detected.available) {
+    return skippedConformance(agent, "unavailable_executable", "unavailable_executable", detected.diagnostics.length, detected);
+  }
+  if (detected.authStatus === "missing" || detected.authStatus === "expired") {
+    return skippedConformance(agent, "auth_missing", "auth_missing", detected.diagnostics.length, detected);
+  }
+  return null;
+}
+
+function skippedConformance(
+  agent: string,
+  classification: string,
+  reason: string,
+  diagnosticsCount: number,
+  detected?: DetectedAgent,
+): ConformanceAdapterSummary {
+  return {
+    adapter: agent,
+    version: detected?.version ?? null,
+    auth: detected?.authStatus ?? "unknown",
+    modelsSource: detected?.modelsSource ?? "none",
+    runClassification: classification,
+    expectedTextMatched: null,
+    cwdMutated: null,
+    diagnosticsCount,
+    skippedReason: reason,
+  };
+}
+
+async function setupFakeConformanceEnv(): Promise<{ binDir: string; env: NodeJS.ProcessEnv }> {
+  const binDir = await mkdtemp(path.join(os.tmpdir(), "agent-runtime-conformance-bin-"));
+  await writeFakeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("codex-cli fake-conformance"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-fake", display_name: "GPT Fake" }] })); process.exit(0); }
+process.stdin.resume();
+process.stdin.on("end", () => {
+  console.log(JSON.stringify({ type: "thread.started" }));
+  console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+});
+`);
+  await writeFakeExecutable(binDir, "claude", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("Claude Code fake-conformance"); process.exit(0); }
+if (args[0] === "-p" && args[1] === "--help") { console.log("--include-partial-messages\\n--add-dir"); process.exit(0); }
+if (args[0] === "auth" && args[1] === "status") { console.log(JSON.stringify({ loggedIn: true, authMethod: "fake", apiProvider: "anthropic-compatible" })); process.exit(0); }
+process.stdin.resume();
+process.stdin.on("end", () => {
+  console.log(JSON.stringify({ type: "system" }));
+  console.log(JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "agent-runtime claude smoke ok" }] } }));
+});
+`);
+  await writeFakeExecutable(binDir, "opencode", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("opencode fake-conformance"); process.exit(0); }
+if (args[0] === "models") { console.log("openai/gpt-fake"); process.exit(0); }
+process.stdin.resume();
+process.stdin.on("end", () => {
+  console.log(JSON.stringify({ type: "step_start" }));
+  console.log(JSON.stringify({ type: "text", part: { text: "agent-runtime opencode smoke ok" } }));
+});
+`);
+  return {
+    binDir,
+    env: {
+      ...process.env,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+      CODEX_BIN: path.join(binDir, "codex"),
+      CLAUDE_BIN: path.join(binDir, "claude"),
+      OPENCODE_BIN: path.join(binDir, "opencode"),
+    },
+  };
+}
+
+async function writeFakeExecutable(binDir: string, name: string, body: string): Promise<void> {
+  const file = path.join(binDir, name);
+  await writeFile(file, `#!/usr/bin/env node\n${body}`, "utf8");
+  await chmod(file, 0o755);
 }
 
 async function realSmokeExpectation(parsed: ParsedArgs, agent: string): Promise<RealSmokeExpectation> {
@@ -584,9 +797,11 @@ function retryPolicyFromFlags(parsed: ParsedArgs) {
   return { maxAttempts, retryableErrorCodes, backoffMs };
 }
 
-function runtimeOptionsFromFlags(parsed: ParsedArgs) {
+function runtimeOptionsFromFlags(parsed: ParsedArgs, override?: { env?: NodeJS.ProcessEnv; searchPath?: string[] }) {
   const durability = enumFlag(parsed, "storage-durability", ["relaxed", "fsync"]) as "relaxed" | "fsync" | undefined;
   return {
+    env: override?.env,
+    searchPath: override?.searchPath,
     storageDir: stringFlag(parsed, "storage-dir"),
     storage: durability ? { durability } : undefined,
   };
@@ -617,6 +832,7 @@ function printHelp(): void {
   process.stdout.write(`agent-runtime agents [--json] [--storage-dir <dir>]
 agent-runtime doctor [--json] [--storage-dir <dir>]
 agent-runtime smoke [--mode detection|fixtures|real] [--agent all|codex|claude|opencode] [--allow-real-run] [--cwd <dir>] [--prompt <text>] [--prompt-file <file>] [--expect-text <text>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
+agent-runtime conformance [--mode fixtures|fake|real] [--agent all|codex|claude|opencode] [--allow-real-run] [--cwd <dir>] [--prompt <text>] [--prompt-file <file>] [--expect-text <text>] [--timeout-ms <ms>] [--json] [--storage-dir <dir>]
 agent-runtime run --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--model <id>] [--permission <policy>] [--timeout-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime goal --agent <id> --cwd <dir> (--prompt "..." | --prompt-file <file>) [--permission <policy>] [--timeout-ms <ms>] [--max-concurrent-tasks <n>] [--max-attempts <n>] [--retryable-error-codes <codes>] [--retry-backoff-ms <ms>] [--json] [--stream jsonl] [--diagnostics] [--storage-dir <dir>]
 agent-runtime runs [--storage-dir <dir>] [--status active|queued|running|succeeded|failed|canceled] [--json]

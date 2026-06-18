@@ -71,12 +71,16 @@ export interface TaskAttemptEvidence {
 
 export interface ValidationCommandResult {
   command: string;
+  cwd?: string;
+  timeoutMs?: number;
+  env?: Record<string, string>;
   exitCode: number | null;
   signal?: string | null;
   stdout: string;
   stderr: string;
   durationMs: number;
   passed: boolean;
+  classification: "success" | "failed" | "timeout" | "spawn_error";
 }
 
 export interface ScheduledTask {

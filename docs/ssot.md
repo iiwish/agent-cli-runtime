@@ -1,11 +1,11 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P1-8 Release Candidate Hardening
+状态：P2-1 Production Runtime Hardening
 负责人：local project
 最后更新：2026-06-17
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
 
-本页同时记录了当前边界与历史里程碑；凡未以“当前”或“P1-8”明确标注者，均作为历史证据归档，不代表当前承诺 API。
+本页同时记录了当前边界与历史里程碑；凡未以“当前”或“P2-1”明确标注者，均作为历史证据归档，不代表当前承诺 API。
 
 ## 1. 产品意图
 
@@ -111,7 +111,7 @@ nexu-io/open-design HEAD c54e49aae9d2dc8b044467187c081d5d7c50bebc
 
 ### 发布边界（pre-alpha / developer preview）
 
-- 当前阶段为 pre-alpha / developer preview（P1-8）；
+- 当前阶段为 pre-alpha / developer preview（P2-1）；
 - 不承诺稳定 API，主要关注本地编排与验证边界；
 - 不提供后台 daemon、数据库同步服务、WAL、或 remote runtime；
 - package root 保持精简，内部 adapter/parser/store 仅作内部实现，不作为包根 API 承诺。
@@ -291,7 +291,7 @@ P1-2 cancellation / failure contract：
 - task failed 且 `continueOnFailure` 未开启时采用 fail-fast：失败 task 标记 `failed`；直接或传递依赖该 task 的 pending dependents 标记 `blocked`；其他尚未启动 pending tasks 标记 `canceled`；并发 running tasks 会被 cancel，但 goal terminal result 仍保持 `failed`。
 - `continueOnFailure` 开启时，失败 task 的 dependents 标记 `blocked`，不依赖失败 task 的 ready work 可继续；只要存在 failed/blocked task，最终 goal result 为 `failed`。
 
-Task run 成功后，如果 task 带有 `validationCommands`，runtime 会在 task `cwd` 依次执行这些 shell commands；任一 command 非零退出则 task failed，validation stdout/stderr tail 会 redacted 后写入 task evidence。调用方应只对可信目标或可信 planner 开启自动 validation。
+Task run 成功后，如果 task 带有 `validationCommands`，runtime 会在 task `cwd` 依次执行这些 shell commands；任一 command 非零退出则 task failed，validation stdout/stderr tail 会 redacted 后写入 task evidence。P2-1 起 validation evidence 还记录 redacted command、logical cwd、timeout、redacted caller env overrides、exitCode、signal、duration、passed 和 `classification`（`success` / `failed` / `timeout` / `spawn_error`）。Validation timeout 产生 `AGENT_TIMEOUT` diagnostic；其他 validation failure 产生 `AGENT_EXECUTION_FAILED`。状态机必须单调：validation 未通过前 task 不得先写成 `succeeded`。调用方应只对可信目标或可信 planner 开启自动 validation。
 
 `shutdown(reason?)` 用于 library caller 主动收尾：runtime 会 cancel 所有 active goals/runs，尽力终止子进程树，并短暂等待它们写入 terminal manifest/events。若进程重启而不是显式 shutdown，`storageDir` reload 仍沿用 interrupted recovery：历史 active run/goal 标记为 failed 并写入 `AGENT_RUNTIME_INTERRUPTED`。
 
@@ -330,7 +330,7 @@ P1-4 storage health / diagnostics bundle contract：
 - terminal manifest 缺少 terminal event 时报告 `AGENT_STORE_TERMINAL_EVENT_MISSING` warning。
 - event log 有 terminal event 但 manifest status 非 terminal 时报告 `AGENT_STORE_TERMINAL_EVENT_MANIFEST_MISMATCH` warning；health scan 不自动静默改写 manifest。
 - `runtime.exportDiagnostics(request)` 和 CLI `agent-runtime diagnostics run|goal <id> --storage-dir <dir> --json [--out <file>]` 导出 redacted JSON bundle。
-- diagnostics bundle 包含 schema version、subject、redacted manifest、event summary、diagnostics、storage-level diagnostics、consistency warnings、goal task attempt evidence 和 environment-safe adapter summary；它不导出完整 event payload、不导出完整 env dump。
+- diagnostics bundle 包含 schema version、subject、redacted manifest、event summary、diagnostics、storage-level diagnostics、consistency warnings、goal task attempt evidence、supervisor summary 和 environment-safe adapter summary；它不导出完整 event payload、不导出完整 env dump。
 - `--out <file>` 使用 temp file + rename 原子写入。
 - P1-7 新增 CLI `agent-runtime store-repair --storage-dir <dir> --dry-run --json`。dry-run 只报告会对 partial tail 做 `truncate_partial_tail`、对中间坏行做 `isolate_corrupt_line` / manual review，不实际改文件。P1-7 不实现 destructive repair；未来若加入真实 repair，必须显式 `--apply`，并先备份原文件。
 - health、bundle 和未来 repair diagnostics 均走统一 redaction：token、Bearer value、auth-token env assignment、secret-looking value、绝对私密路径都不得泄露。
@@ -707,6 +707,9 @@ CLI 主要用于 smoke testing 和简单 local scripting。
 
 ```bash
 agent-runtime agents
+agent-runtime conformance --mode fixtures --json
+agent-runtime conformance --mode fake --json
+agent-runtime conformance --mode real --agent codex --allow-real-run --json
 agent-runtime smoke --mode detection --json
 agent-runtime smoke --mode fixtures --json
 agent-runtime smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
@@ -728,6 +731,7 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 - 默认 human-readable；
 - `--json` 输出单个 JSON summary；run/goal 输出最终 run/goal record。
 - `--stream jsonl` 输出 event stream；run/goal 可加 `--diagnostics` 在 terminal event 后追加 redacted summary。
+- `conformance --mode fixtures|fake|real` 是 P2-1 production gate。输出 per-adapter 稳定 summary：`adapter`、`version`、`auth`、`modelsSource`、`runClassification`、`expectedTextMatched`、`cwdMutated`、`diagnosticsCount`、`skippedReason`。`fake` 通过临时 fake CLIs 走真实 adapter argv/stdin/parser；`real` 必须显式 `--allow-real-run`；`--agent all` 中单 adapter fail/skip 不得吞掉其他 adapter summary。
 - `smoke --mode detection` 只做 detection；`smoke --mode fixtures` 离线执行内置 parser conformance fixtures；`smoke --mode real` 必须显式 `--allow-real-run` 和 `--agent <id>`，默认由 runtime 请求 read-only 行为、使用非写入 prompt、未传 `--cwd` 时使用临时目录，并支持 `--prompt`、`--prompt-file`、`--expect-text`、`--timeout-ms`、`--storage-dir`、`--json`、`--stream jsonl`、`--diagnostics`。real smoke 会先做 detection preflight：missing executable / non-executable / auth missing 会分类为 redacted smoke envelope，不强行启动真实 CLI。
 - P1-6 起，默认 real smoke prompt 为 `Reply exactly: agent-runtime <agent> smoke ok. Do not edit files.`，并自动要求聚合后的 `text_delta` 包含 `agent-runtime <agent> smoke ok`。`--expect-text <text>` 覆盖 expected text；若用户传 `--prompt` 或 `--prompt-file` 但未传 `--expect-text`，summary 输出 `expectedTextRequired: false`，不强制文本匹配，但仍要求至少有 `text_delta`，避免 status-only exit `0` 被判成功。required text 缺失分类为 `unexpected_output`。
 - P1-6 real smoke 会在 run 前后轻量扫描 cwd，跳过 `.git`、`node_modules`、`dist`、`.agent-runtime` 并设置条目上限。summary 输出 `cwdMutationChecked`、`cwdMutated`、`cwdMutationCount`、`cwdMutationSample`；默认 read-only/non-mutating smoke 检测到新增/修改/删除时分类为 `cwd_mutated`。observed text tail、expected text、mutation sample、cwd 和 diagnostics 必须 redaction/truncation，不泄露 token、Bearer、`sk-*` 或私有绝对路径。
@@ -802,11 +806,12 @@ Diagnostics 应包含：
 - `cancelGoal()` 同时覆盖 running run 和 queued/ready pending tasks；
 - partial/corrupt JSONL tail line replay 可读 prefix，并产生 `AGENT_EVENT_LOG_CORRUPT`；
 - store health scan 覆盖 empty store、corrupt run/goal manifest、partial JSONL tail、terminal manifest/event 不一致、active/interrupted records 和 redaction；
-- diagnostics bundle 覆盖 run/goal manifest、event summary、diagnostics、goal task attempt evidence、`--out` 原子写入和 redaction；
+- diagnostics bundle 覆盖 run/goal manifest、event summary、diagnostics、goal task attempt evidence、supervisor summary、`--out` 原子写入和 redaction；
 - planner fenced JSON / surrounding prose 可提取；multiple JSON、malformed JSON、非法 task graph 字段类型以 `AGENT_TASK_GRAPH_INVALID` 进入 `scheduler_error` 并使 goal failed；
-- parser conformance fixtures 覆盖 Codex / Claude / OpenCode 的 normal output、structured error、usage、tool/file event、partial line 和 unknown event；
+- parser conformance fixtures 覆盖 Codex / Claude / OpenCode 的 normal output、structured error、usage、tool/file event、warning/log/noise、partial line、corrupt line 和 unknown event；非 JSON 噪声不得转成 `text_delta`；
 - adapter `buildArgs` contract 覆盖长 prompt 不进入 argv，以及 cwd/model/permission/session/extra dir 映射；
-- CLI `smoke --mode detection` / `smoke --mode fixtures` 不联网、不启动真实 agent write run；Claude auth missing 对 doctor 是 expected diagnostic，不导致整体失败；
+- CLI `conformance --mode fixtures` / `conformance --mode fake` 不联网、不启动真实 agent；CLI `smoke --mode detection` / `smoke --mode fixtures` 不联网、不启动真实 agent write run；Claude auth missing 对 doctor 是 expected diagnostic，不导致整体失败；
+- CLI `conformance --mode real` 无 `--allow-real-run` 必须拒绝；real all-agent summary 中单 adapter fail/skip 不影响其他 adapter summary；
 - CLI `runs` / `goals` / `run-status` / `goal-status` / `replay-run` / `replay-goal` 可读取 storageDir；
 - CLI `store-health` / `diagnostics run` / `diagnostics goal --out` 可读取 storageDir 并输出 redacted evidence；
 - CLI `smoke --mode real` 无 `--allow-real-run` 必须拒绝；有 `--prompt-file` 时长 prompt 仍通过 stdin/file transport，不进入 argv；

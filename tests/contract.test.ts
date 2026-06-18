@@ -137,6 +137,7 @@ describe("public contract", () => {
       "agents",
       "doctor",
       "smoke",
+      "conformance",
       "run",
       "goal",
       "runs",
@@ -175,7 +176,187 @@ describe("public contract", () => {
     await execFileP("npm", ["run", "build"], { cwd: root });
     const smoke = JSON.parse((await execFileP(process.execPath, [cli, "smoke", "--mode", "fixtures", "--json"])).stdout);
     expect(smoke).toMatchObject({ ok: true, mode: "fixtures" });
-    expect(smoke.fixtures).toHaveLength(18);
+    expect(smoke.fixtures).toHaveLength(24);
+  }, 30_000);
+
+  it("runs offline conformance fixtures with stable adapter summaries", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const conformance = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "conformance",
+      "--mode",
+      "fixtures",
+      "--json",
+    ])).stdout);
+
+    expect(conformance).toMatchObject({
+      ok: true,
+      mode: "fixtures",
+      agents: [
+        {
+          adapter: "codex",
+          version: null,
+          auth: "not_checked",
+          modelsSource: "fixtures",
+          runClassification: "success",
+          expectedTextMatched: null,
+          cwdMutated: null,
+          diagnosticsCount: 0,
+          skippedReason: null,
+        },
+        expect.objectContaining({ adapter: "claude", runClassification: "success" }),
+        expect.objectContaining({ adapter: "opencode", runClassification: "success" }),
+      ],
+    });
+  }, 30_000);
+
+  it("runs fake conformance through real adapter argv and parsers", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const conformance = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "conformance",
+      "--mode",
+      "fake",
+      "--json",
+    ])).stdout);
+
+    expect(conformance).toMatchObject({
+      ok: true,
+      mode: "fake",
+      agents: [
+        expect.objectContaining({
+          adapter: "codex",
+          version: "codex-cli fake-conformance",
+          auth: "unknown",
+          modelsSource: "live",
+          runClassification: "success",
+          expectedTextMatched: true,
+          cwdMutated: false,
+          skippedReason: null,
+        }),
+        expect.objectContaining({
+          adapter: "claude",
+          auth: "ok",
+          modelsSource: "fallback",
+          runClassification: "success",
+          expectedTextMatched: true,
+          cwdMutated: false,
+        }),
+        expect.objectContaining({
+          adapter: "opencode",
+          modelsSource: "live",
+          runClassification: "success",
+          expectedTextMatched: true,
+          cwdMutated: false,
+        }),
+      ],
+    });
+  }, 30_000);
+
+  it("refuses real conformance unless --allow-real-run is explicit", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    await expect(execFileP(process.execPath, [cli, "conformance", "--mode", "real", "--agent", "codex", "--json"])).rejects.toMatchObject({
+      stderr: expect.stringContaining("conformance --mode real requires --allow-real-run"),
+    });
+  }, 30_000);
+
+  it("does not pass real conformance when the selected adapter only skips", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    await writeExecutable(binDir, "claude", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("2.1.178 (Claude Code)"); process.exit(0); }
+if (args[0] === "-p" && args[1] === "--help") { console.log("--include-partial-messages\\n--add-dir"); process.exit(0); }
+if (args[0] === "auth" && args[1] === "status") {
+  console.log(JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }));
+  process.exit(0);
+}
+process.exit(66);
+`);
+    const conformance = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "conformance",
+      "--mode",
+      "real",
+      "--agent",
+      "claude",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: {
+        ...process.env,
+        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        CLAUDE_BIN: path.join(binDir, "claude"),
+      },
+    })).stdout);
+
+    expect(conformance).toMatchObject({
+      ok: false,
+      mode: "real",
+      agents: [expect.objectContaining({
+        adapter: "claude",
+        runClassification: "auth_missing",
+        skippedReason: "auth_missing",
+      })],
+    });
+  }, 30_000);
+
+  it("keeps all-agent conformance summaries when one adapter skips", async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+    const binDir = await tempDir();
+    await writeFakeCodexSmoke(binDir, `
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+`);
+    await writeExecutable(binDir, "claude", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("2.1.178 (Claude Code)"); process.exit(0); }
+if (args[0] === "-p" && args[1] === "--help") { console.log("--include-partial-messages\\n--add-dir"); process.exit(0); }
+if (args[0] === "auth" && args[1] === "status") {
+  console.log(JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }));
+  process.exit(0);
+}
+process.exit(66);
+`);
+    await writeExecutable(binDir, "opencode", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("opencode test"); process.exit(0); }
+if (args[0] === "models") { console.log("openai/gpt-test"); process.exit(0); }
+console.log(JSON.stringify({ type: "step_start" }));
+`);
+    const conformance = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "conformance",
+      "--mode",
+      "real",
+      "--agent",
+      "all",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: {
+        ...process.env,
+        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        CODEX_BIN: path.join(binDir, "codex"),
+        CLAUDE_BIN: path.join(binDir, "claude"),
+        OPENCODE_BIN: path.join(binDir, "opencode"),
+      },
+    })).stdout);
+
+    expect(conformance.agents).toHaveLength(3);
+    expect(conformance.agents.find((agent: { adapter: string }) => agent.adapter === "codex")).toMatchObject({
+      runClassification: "success",
+      skippedReason: null,
+    });
+    expect(conformance.agents.find((agent: { adapter: string }) => agent.adapter === "claude")).toMatchObject({
+      runClassification: "auth_missing",
+      skippedReason: "auth_missing",
+    });
+    expect(conformance.agents.find((agent: { adapter: string }) => agent.adapter === "opencode")).toMatchObject({
+      runClassification: "unexpected_output",
+      skippedReason: null,
+    });
+    expect(conformance.ok).toBe(false);
   }, 30_000);
 
   it("refuses real smoke unless --allow-real-run is explicit", async () => {
@@ -842,6 +1023,7 @@ setInterval(() => {}, 1000);
     const files = packed.flatMap((entry) => entry.files.map((file) => file.path));
     expect(files).toContain("LICENSE");
     expect(files).toContain("README.md");
+    expect(files).toContain("docs/production-readiness.md");
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\//u));
@@ -865,6 +1047,32 @@ setInterval(() => {}, 1000);
 
     await execFileP("npm", ["init", "-y"], { cwd: tempProject });
     await execFileP("npm", ["install", tarball, "--no-save"], { cwd: tempProject });
+    const installedFakeBinDir = path.join(tempProject, "fake-bin");
+    await mkdir(installedFakeBinDir, { recursive: true });
+    await writeFakeCodexSmoke(installedFakeBinDir, `
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+`);
+    await writeExecutable(installedFakeBinDir, "claude", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("Claude Code install-smoke"); process.exit(0); }
+if (args[0] === "-p" && args[1] === "--help") { console.log("--include-partial-messages\\n--add-dir"); process.exit(0); }
+if (args[0] === "auth" && args[1] === "status") { console.log(JSON.stringify({ loggedIn: true })); process.exit(0); }
+process.exit(0);
+`);
+    await writeExecutable(installedFakeBinDir, "opencode", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("opencode install-smoke"); process.exit(0); }
+if (args[0] === "models") { console.log("openai/gpt-install-smoke"); process.exit(0); }
+process.exit(0);
+`);
+    const installedEnv = {
+      ...process.env,
+      PATH: `${installedFakeBinDir}${delimiter}${process.env.PATH ?? ""}`,
+      CODEX_BIN: path.join(installedFakeBinDir, "codex"),
+      CLAUDE_BIN: path.join(installedFakeBinDir, "claude"),
+      OPENCODE_BIN: path.join(installedFakeBinDir, "opencode"),
+    };
 
     const imported = await execFileP(process.execPath, [
       "-e",
@@ -876,16 +1084,22 @@ setInterval(() => {}, 1000);
       cwd: tempProject,
     });
     const installedCli = path.join(tempProject, "node_modules", ".bin", "agent-runtime");
-    const agents = await execInstalledCliJson<DetectedAgent[]>(installedCli, ["agents", "--json"], { cwd: tempProject });
-    const doctor = await execInstalledCliJson<{ ok: boolean }>(installedCli, ["doctor", "--json"], { cwd: tempProject });
+    const agents = await execInstalledCliJson<DetectedAgent[]>(installedCli, ["agents", "--json"], { cwd: tempProject, env: installedEnv });
+    const doctor = await execInstalledCliJson<{ ok: boolean }>(installedCli, ["doctor", "--json"], { cwd: tempProject, env: installedEnv });
     const smoke = await execInstalledCliJson<{ ok: true; mode: string }>(installedCli, ["smoke", "--mode", "fixtures", "--json"], {
       cwd: tempProject,
+      env: installedEnv,
+    });
+    const conformance = await execInstalledCliJson<{ ok: true; mode: string }>(installedCli, ["conformance", "--mode", "fixtures", "--json"], {
+      cwd: tempProject,
+      env: installedEnv,
     });
 
     expect(imported.stdout.trim()).toBe("function");
     expect(agents.length).toBeGreaterThan(0);
     expect(doctor.ok).toBe(true);
     expect(smoke).toMatchObject({ ok: true, mode: "fixtures" });
+    expect(conformance).toMatchObject({ ok: true, mode: "fixtures" });
   }, 60_000);
 
   it("does not ship docs fixtures with raw auth token patterns", async () => {

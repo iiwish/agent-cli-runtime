@@ -155,10 +155,12 @@ describe("MVP adapters", () => {
 
   it("passes built-in parser conformance fixtures, including partial and unknown events", () => {
     const results = runParserFixtureCases();
-    expect(results).toHaveLength(18);
+    expect(results).toHaveLength(24);
     expect(results.every((result) => result.ok)).toBe(true);
     expect(results.filter((result) => result.name === "partial line").every((result) => result.eventTypes.length === 1)).toBe(true);
     expect(results.filter((result) => result.name === "unknown event").every((result) => result.eventTypes.length === 0)).toBe(true);
+    expect(results.filter((result) => result.name === "warning log noise").every((result) => result.eventTypes.length === 0)).toBe(true);
+    expect(results.filter((result) => result.name === "corrupt line noise").every((result) => result.eventTypes.length === 0)).toBe(true);
   });
 
   it("parses Codex JSON while ignoring noisy non-JSON lines", () => {
