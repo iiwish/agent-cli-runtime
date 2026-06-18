@@ -80,28 +80,83 @@ setInterval(() => {}, 1000);
           buildArgs(input) {
             return ["run", "--dir", input.cwd];
           },
+          compatibility: {
+            executableNames: ["fake-agent"],
+            versionProbe: { args: ["--version"] },
+            defaultArgs: [],
+            knownFlags: [],
+            promptTransport: "stdin:text",
+            streamFormat: "fake-json-or-text",
+            capabilityNotes: [],
+          },
         }),
       ],
       env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` },
       searchPath: [dir],
     });
     const handle = await runtime.run({ agentId: "fake", cwd, prompt: "timeout-diagnostic", timeoutMs: 5_000 });
-    await collect(handle.events);
+    const events = await collect(handle.events);
     const run = await runtime.getRun(handle.runId);
     const timeoutDiagnostic = run?.diagnostics.find((item) => item.code === "AGENT_TIMEOUT");
+    expect(events.at(-1)).toMatchObject({ type: "run_finished", result: "failed" });
+    expect(run).toMatchObject({ status: "failed", errorCode: "AGENT_TIMEOUT" });
     expect(timeoutDiagnostic).toMatchObject({
+      code: "AGENT_TIMEOUT",
       agentId: "fake",
       argv: ["run", "--dir", "<cwd>"],
       promptTransport: "stdin:text",
-      parsedEventCount: expect.any(Number),
-      stdoutTail: expect.stringContaining("diagnostic started"),
+      streamFormat: "fake-json-or-text",
+      actionableHints: expect.arrayContaining([expect.stringMatching(/timeout/i)]),
+      retryable: false,
+    });
+    const diagnosticText = JSON.stringify(timeoutDiagnostic);
+    expect(diagnosticText).not.toContain(cwd);
+    expect(diagnosticText).not.toContain(`sk${"A".repeat(20)}`);
+    if (process.env.HOME) expect(diagnosticText).not.toContain(process.env.HOME);
+  }, 10_000);
+
+  it("redacts stdout and stderr tails for deterministic non-timeout failures", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    const secret = `sk${"A".repeat(20)}`;
+    await writeExecutable(dir, "fake-agent", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("fake 1.0.0"); process.exit(0); }
+process.stdin.resume();
+process.stdin.on("end", () => {
+  console.log("stdout token ${secret} cwd=" + process.cwd());
+  console.error("stderr Bearer " + "B".repeat(20) + " cwd=" + process.cwd());
+  process.exit(2);
+});
+`);
+    const runtime = createAgentRuntime({
+      adapters: [fakeAdapter({
+        buildArgs(input) {
+          return ["run", "--dir", input.cwd];
+        },
+      })],
+      env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` },
+      searchPath: [dir],
+    });
+    const handle = await runtime.run({ agentId: "fake", cwd, prompt: "redact failure tails" });
+    const events = await collect(handle.events);
+    const run = await runtime.getRun(handle.runId);
+    const diagnosticItem = run?.diagnostics.find((item) => item.code === "AGENT_EXECUTION_FAILED");
+
+    expect(events.at(-1)).toMatchObject({ type: "run_finished", result: "failed" });
+    expect(run).toMatchObject({ status: "failed", errorCode: "AGENT_EXECUTION_FAILED" });
+    expect(diagnosticItem).toMatchObject({
+      code: "AGENT_EXECUTION_FAILED",
+      argv: ["run", "--dir", "<cwd>"],
+      promptTransport: "stdin:text",
+      stdoutTail: expect.stringContaining("[REDACTED]"),
       stderrTail: expect.stringContaining("[REDACTED]"),
     });
-    expect(timeoutDiagnostic?.parsedEventCount).toBeGreaterThan(0);
-    expect(timeoutDiagnostic?.stderrTail).not.toContain(cwd);
-    if (process.env.HOME) expect(timeoutDiagnostic?.stderrTail).not.toContain(process.env.HOME);
-    expect(timeoutDiagnostic?.actionableHints?.join("\n")).toContain("network");
-  }, 10_000);
+    const diagnosticText = JSON.stringify(diagnosticItem);
+    expect(diagnosticText).not.toContain(secret);
+    expect(diagnosticText).not.toContain(cwd);
+    if (process.env.HOME) expect(diagnosticText).not.toContain(process.env.HOME);
+  });
 
   it("classifies unsupported flag output as an explicit diagnostic", async () => {
     const dir = await tempDir();

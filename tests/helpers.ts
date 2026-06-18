@@ -11,7 +11,7 @@ export async function tempDir(prefix = "agent-runtime-test-"): Promise<string> {
 
 export async function writeExecutable(dir: string, name: string, body: string): Promise<string> {
   const file = path.join(dir, name);
-  await writeFile(file, `#!/usr/bin/env node\n${body}`, "utf8");
+  await writeFile(file, `#!${process.execPath}\n${body}`, "utf8");
   await chmod(file, 0o755);
   return file;
 }

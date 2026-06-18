@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
-import { delimiter } from "node:path";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { constants, accessSync } from "node:fs";
 import { parseCodexDebugModels } from "../src/adapters/codex.js";
@@ -21,19 +20,24 @@ describe("detection", () => {
       fallbackBins: ["fallback-agent"],
       binEnvVar: "FAKE_BIN",
     });
-    expect(resolveExecutable(adapter, { env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` } }).selectedPath).toBe(primary);
-    expect(resolveExecutable(adapter, { env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`, FAKE_BIN: override } }).selectedPath).toBe(override);
+    expect(resolveExecutable(adapter, { env: { PATH: dir } }).selectedPath).toBe(primary);
+    expect(resolveExecutable(adapter, { env: { PATH: dir, FAKE_BIN: override } }).selectedPath).toBe(override);
   });
 
   it("isolates a failed adapter from other adapter detection", async () => {
     const dir = await tempDir();
-    await writeExecutable(dir, "good-agent", "if (process.argv[2] === '--version') console.log('good 1.0.0');");
-    const good = fakeAdapter({ id: "good", bin: "good-agent" });
-    const bad = fakeAdapter({ id: "bad", bin: "missing-agent" });
-    const agents = await detectAgents({ adapters: [bad, good], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` } }, { includeUnavailable: true });
-    expect(agents.find((agent) => agent.id === "bad")?.available).toBe(false);
-    expect(agents.find((agent) => agent.id === "bad")?.diagnostics[0]?.code).toBe("not_installed");
-    expect(agents.find((agent) => agent.id === "good")?.available).toBe(true);
+    const goodAgent = await writeExecutable(dir, "good-agent", "if (process.argv[2] === '--version') console.log('good 1.0.0');");
+    const good = fakeAdapter({ id: "good", bin: "good-agent", binEnvVar: "GOOD_AGENT_BIN" });
+    const bad = fakeAdapter({ id: "bad", bin: "missing-agent", binEnvVar: undefined });
+    const agents = await detectAgents(
+      { adapters: [bad, good], env: { PATH: "", GOOD_AGENT_BIN: goodAgent }, searchPath: [dir] },
+      { includeUnavailable: true },
+    );
+    const badAgent = agents.find((agent) => agent.id === "bad");
+    expect(badAgent?.available).toBe(false);
+    expect(badAgent?.diagnostics[0]?.code).toBe("not_installed");
+    expect(badAgent?.diagnostics[0]?.searchedLocations).toEqual(expect.arrayContaining([path.join(dir, "missing-agent")]));
+    expect(agents.find((agent) => agent.id === "good")).toMatchObject({ available: true, path: goodAgent });
   });
 
   it("classifies existing non-executable detection candidates", async () => {
@@ -44,29 +48,33 @@ describe("detection", () => {
     await chmod(notExecutable, 0o644);
     const adapter = fakeAdapter({ id: "not-exec", bin: "not-executable-agent", binEnvVar: undefined });
     const agents = await detectAgents(
-      { adapters: [adapter], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] },
+      { adapters: [adapter], env: { PATH: "" }, searchPath: [dir] },
       { includeUnavailable: true },
     );
     expect(agents[0]).toMatchObject({ available: false });
     expect(agents[0]?.diagnostics[0]?.code).toBe("not_executable");
+    expect(agents[0]?.diagnostics[0]?.searchedLocations).toEqual(expect.arrayContaining([notExecutable]));
   });
 
   it("runs metadata probes in a neutral temp cwd", async () => {
     const dir = await tempDir();
     const project = await tempDir("agent-runtime-project-");
     const marker = "probe-marker.txt";
-    await writeExecutable(dir, "probe-agent", `
+    const probeAgent = await writeExecutable(dir, "probe-agent", `
 if (process.argv[2] === "--version") { require("fs").writeFileSync("${marker}", process.cwd()); console.log("probe 1.0.0"); process.exit(0); }
 `);
     const adapter = fakeAdapter({ id: "probe", bin: "probe-agent" });
-    const agents = await detectAgents({ adapters: [adapter], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] }, { includeUnavailable: true });
-    expect(agents[0]?.available).toBe(true);
+    const agents = await detectAgents(
+      { adapters: [adapter], env: { PATH: "", FAKE_BIN: probeAgent }, searchPath: [dir] },
+      { includeUnavailable: true },
+    );
+    expect(agents[0]).toMatchObject({ available: true, path: probeAgent });
     await expect(readFile(path.join(project, marker), "utf8")).rejects.toThrow();
   });
 
   it("records unsupported flag and redacted probe diagnostics without making the adapter unavailable", async () => {
     const dir = await tempDir();
-    await writeExecutable(dir, "model-agent", `
+    const modelAgent = await writeExecutable(dir, "model-agent", `
 if (process.argv[2] === "--version") { console.log("model 1.0.0"); process.exit(0); }
 if (process.argv[2] === "models") { console.error("unknown option --models token sk" + "A".repeat(20)); process.exit(2); }
 `);
@@ -81,10 +89,10 @@ if (process.argv[2] === "models") { console.error("unknown option --models token
       },
     });
     const agents = await detectAgents(
-      { adapters: [adapter], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` } },
+      { adapters: [adapter], env: { PATH: "", FAKE_BIN: modelAgent }, searchPath: [dir] },
       { includeUnavailable: true },
     );
-    expect(agents[0]).toMatchObject({ available: true, modelsSource: "fallback" });
+    expect(agents[0]).toMatchObject({ available: true, modelsSource: "fallback", path: modelAgent });
     expect(agents[0]?.diagnostics).toEqual([
       expect.objectContaining({
         code: "unsupported_flag",
@@ -97,7 +105,7 @@ if (process.argv[2] === "models") { console.error("unknown option --models token
 
   it("records unsupported capability flags from help output", async () => {
     const dir = await tempDir();
-    await writeExecutable(dir, "cap-agent", `
+    const capAgent = await writeExecutable(dir, "cap-agent", `
 if (process.argv[2] === "--version") { console.log("cap 1.0.0"); process.exit(0); }
 if (process.argv[2] === "help") { console.log("Usage: cap-agent --verified-flag"); process.exit(0); }
 `);
@@ -111,10 +119,10 @@ if (process.argv[2] === "help") { console.log("Usage: cap-agent --verified-flag"
       },
     });
     const agents = await detectAgents(
-      { adapters: [adapter], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` } },
+      { adapters: [adapter], env: { PATH: "", FAKE_BIN: capAgent }, searchPath: [dir] },
       { includeUnavailable: true },
     );
-    expect(agents[0]).toMatchObject({ available: true });
+    expect(agents[0]).toMatchObject({ available: true, path: capAgent });
     expect(agents[0]?.diagnostics).toEqual([
       expect.objectContaining({ code: "unsupported_flag", probe: "capabilities", message: expect.stringContaining("--missing-flag") }),
     ]);
@@ -122,7 +130,7 @@ if (process.argv[2] === "help") { console.log("Usage: cap-agent --verified-flag"
 
   it("classifies model probe network failures", async () => {
     const dir = await tempDir();
-    await writeExecutable(dir, "network-agent", `
+    const networkAgent = await writeExecutable(dir, "network-agent", `
 if (process.argv[2] === "--version") { console.log("network 1.0.0"); process.exit(0); }
 if (process.argv[2] === "models") { console.error("network error: ECONNRESET"); process.exit(1); }
 `);
@@ -132,9 +140,10 @@ if (process.argv[2] === "models") { console.error("network error: ECONNRESET"); 
       listModels: { args: ["models"], parse: parseLineSeparatedModels },
     });
     const agents = await detectAgents(
-      { adapters: [adapter], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` } },
+      { adapters: [adapter], env: { PATH: "", FAKE_BIN: networkAgent }, searchPath: [dir] },
       { includeUnavailable: true },
     );
+    expect(agents[0]).toMatchObject({ available: true, path: networkAgent });
     expect(agents[0]?.diagnostics[0]?.code).toBe("network_error");
   });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { chmod, mkdir, readFile, readdir, writeFile, lstat } from "node:fs/promises";
@@ -32,6 +32,14 @@ import { tempDir, writeExecutable } from "./helpers.js";
 const execFileP = promisify(execFile);
 const root = path.resolve(import.meta.dirname, "..");
 const cli = path.join(root, "dist", "cli", "main.js");
+
+function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+    ...env,
+  };
+}
 
 async function execCliJson<T = unknown>(
   args: string[],
@@ -96,6 +104,10 @@ function isLikelyBinary(buffer: Buffer): boolean {
 }
 
 describe("public contract", () => {
+  beforeAll(async () => {
+    await execFileP("npm", ["run", "build"], { cwd: root });
+  }, 60_000);
+
   it("keeps the package root focused on the runtime facade and public types", async () => {
     type PublicApiSmoke = {
       adapter: AgentAdapterDef;
@@ -131,7 +143,6 @@ describe("public contract", () => {
   });
 
   it("prints CLI help with all frozen commands and key flags", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const { stdout } = await execFileP(process.execPath, [cli, "help"]);
     for (const word of [
       "agents",
@@ -174,14 +185,12 @@ describe("public contract", () => {
   }, 30_000);
 
   it("runs offline parser fixture smoke through the CLI", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const smoke = JSON.parse((await execFileP(process.execPath, [cli, "smoke", "--mode", "fixtures", "--json"])).stdout);
     expect(smoke).toMatchObject({ ok: true, mode: "fixtures" });
     expect(smoke.fixtures).toHaveLength(24);
   }, 30_000);
 
   it("runs offline conformance fixtures with stable adapter summaries", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const conformance = JSON.parse((await execFileP(process.execPath, [
       cli,
       "conformance",
@@ -212,7 +221,6 @@ describe("public contract", () => {
   }, 30_000);
 
   it("runs fake conformance through real adapter argv and parsers", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const conformance = JSON.parse((await execFileP(process.execPath, [
       cli,
       "conformance",
@@ -255,14 +263,12 @@ describe("public contract", () => {
   }, 30_000);
 
   it("refuses real conformance unless --allow-real-run is explicit", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     await expect(execFileP(process.execPath, [cli, "conformance", "--mode", "real", "--agent", "codex", "--json"])).rejects.toMatchObject({
       stderr: expect.stringContaining("conformance --mode real requires --allow-real-run"),
     });
   }, 30_000);
 
   it("does not pass real conformance when the selected adapter only skips", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     await writeShellExecutable(binDir, "claude", `
 if [ "$1" = "--version" ]; then
@@ -308,7 +314,6 @@ exit 66
   }, 60_000);
 
   it("keeps all-agent conformance summaries when one adapter skips", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     await writeFakeCodexSmoke(binDir, `
 console.log(JSON.stringify({ type: "thread.started" }));
@@ -377,14 +382,12 @@ echo '{"type":"step_start"}'
   }, 60_000);
 
   it("refuses real smoke unless --allow-real-run is explicit", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     await expect(execFileP(process.execPath, [cli, "smoke", "--mode", "real", "--agent", "codex", "--json"])).rejects.toMatchObject({
       stderr: expect.stringContaining("smoke --mode real requires --allow-real-run"),
     });
   }, 30_000);
 
   it("runs real smoke with --prompt-file without putting long prompts in argv", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     const promptFile = path.join(await tempDir(), "prompt.txt");
     const longPrompt = `agent-runtime prompt-file smoke ${"x".repeat(64 * 1024)}`;
@@ -422,10 +425,7 @@ process.stdin.on("end", () => {
       "5000",
       "--json",
     ], {
-      env: {
-        ...process.env,
-        CODEX_BIN: path.join(binDir, "codex"),
-      },
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     });
 
     expect(smoke).toMatchObject({ ok: true, mode: "real", agent: "codex", run: { status: "succeeded" } });
@@ -434,7 +434,6 @@ process.stdin.on("end", () => {
   }, 30_000);
 
   it("requires default real smoke expected text evidence", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     await writeFakeCodexSmoke(binDir, `
 console.log(JSON.stringify({ type: "thread.started" }));
@@ -449,7 +448,7 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
       "--allow-real-run",
       "--json",
     ], {
-      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     });
 
     expect(smoke).toMatchObject({
@@ -468,7 +467,6 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
   }, 30_000);
 
   it("does not classify status-only real smoke exit 0 as success", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     await writeFakeCodexSmoke(binDir, `
 console.log(JSON.stringify({ type: "thread.started" }));
@@ -482,7 +480,7 @@ console.log(JSON.stringify({ type: "thread.started" }));
       "--allow-real-run",
       "--json",
     ], {
-      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     });
 
     expect(smoke).toMatchObject({
@@ -497,7 +495,6 @@ console.log(JSON.stringify({ type: "thread.started" }));
   }, 30_000);
 
   it("classifies wrong real smoke text as unexpected_output", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     await writeFakeCodexSmoke(binDir, `
 console.log(JSON.stringify({ type: "thread.started" }));
@@ -512,7 +509,7 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
       "--allow-real-run",
       "--json",
     ], {
-      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     });
 
     expect(smoke).toMatchObject({
@@ -525,7 +522,6 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
   }, 30_000);
 
   it("classifies default isolated cwd mutation as cwd_mutated", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     await writeFakeCodexSmoke(binDir, `
 const fs = require("node:fs");
@@ -543,7 +539,7 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
       "--allow-real-run",
       "--json",
     ], {
-      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     });
 
     expect(smoke).toMatchObject({
@@ -559,7 +555,6 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
   }, 30_000);
 
   it("does not require expected text for prompt-file real smoke unless --expect-text is set", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     const promptFile = path.join(await tempDir(), "prompt.txt");
     await writeFile(promptFile, "custom prompt-file smoke", "utf8");
@@ -583,7 +578,7 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
       promptFile,
       "--json",
     ], {
-      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     });
 
     expect(smoke).toMatchObject({
@@ -598,7 +593,6 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
   }, 30_000);
 
   it("enforces --prompt-file --expect-text real smoke matching", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     const promptFile = path.join(await tempDir(), "prompt.txt");
     await writeFile(promptFile, "custom expect prompt", "utf8");
@@ -619,7 +613,7 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
       "custom expected ok",
       "--json",
     ], {
-      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     });
 
     expect(smoke).toMatchObject({
@@ -632,7 +626,6 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
   }, 30_000);
 
   it("redacts observedTextTail, expected text, mutation samples, and cwd in real smoke summaries", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     const privateCwd = await tempDir("private-real-smoke-");
     const secret = `sk${"A".repeat(20)}`;
@@ -659,7 +652,7 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
       "jsonl",
       "--diagnostics",
     ], {
-      env: { ...process.env, CODEX_BIN: path.join(binDir, "codex") },
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     })).stdout;
     const smoke = smokeStdout.trim().split(/\r?\n/u).map((line) => JSON.parse(line)).at(-1);
     const text = JSON.stringify(smoke);
@@ -676,7 +669,6 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
   }, 30_000);
 
   it("classifies real smoke auth-missing preflight without launching Claude", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     await writeExecutable(binDir, "claude", `
 const args = process.argv.slice(2);
@@ -718,7 +710,6 @@ process.exit(66);
   }, 30_000);
 
   it("classifies real smoke unavailable executables before launch", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const missing = path.join(await tempDir(), "missing-codex");
     const smoke = JSON.parse((await execFileP(process.execPath, [
       cli,
@@ -749,7 +740,6 @@ process.exit(66);
   }, 30_000);
 
   it("keeps Claude auth missing as a doctor diagnostic without failing doctor", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     await writeExecutable(binDir, "claude", `
 const args = process.argv.slice(2);
@@ -783,7 +773,6 @@ process.exit(0);
   }, 30_000);
 
   it("prints final run records and JSONL diagnostics without requiring a real CLI", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const cwd = await tempDir();
     const jsonRun = JSON.parse((await execFileP(process.execPath, [
       cli,
@@ -816,7 +805,6 @@ process.exit(0);
   }, 30_000);
 
   it("redacts concise CLI errors", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const secretCommand = `unknown-${"sk" + "A".repeat(20)}`;
     await expect(execFileP(process.execPath, [cli, secretCommand])).rejects.toMatchObject({
       stderr: expect.stringContaining("[REDACTED]"),
@@ -824,7 +812,6 @@ process.exit(0);
   }, 30_000);
 
   it("redacts runtime-emitted CLI errors and summaries", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const cwd = await tempDir();
     const secretAgent = `missing-${"sk" + "A".repeat(20)}`;
     const human = await execFileP(process.execPath, [
@@ -869,7 +856,6 @@ process.exit(0);
   }, 30_000);
 
   it("writes diagnostics bundles through --out without leaking secrets", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const storageDir = await tempDir("agent-runtime-storage-");
     const runId = "run_cli_bundle";
     const runDir = path.join(storageDir, "runs", runId);
@@ -931,7 +917,6 @@ process.exit(0);
   }, 30_000);
 
   it("prints redacted store-repair dry-run actions without applying changes", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const storageDir = await tempDir("agent-runtime-storage-");
     const runId = "run_cli_repair";
     const runDir = path.join(storageDir, "runs", runId);
@@ -977,8 +962,51 @@ process.exit(0);
     expect(text).not.toContain("private-cli-repair");
   }, 30_000);
 
+  it("redacts diagnostics bundle secret tails deterministically", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_cli_bundle_redaction";
+    const runDir = path.join(storageDir, "runs", runId);
+    const privateCwd = await tempDir("private-diagnostics-");
+    const secret = `sk${"A".repeat(20)}`;
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "codex",
+      cwd: privateCwd,
+      status: "failed",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: null,
+      signal: "SIGTERM",
+      error: `Run timed out with token ${secret}`,
+      errorCode: "AGENT_TIMEOUT",
+      diagnostics: [{
+        code: "AGENT_TIMEOUT",
+        message: `timeout cwd=${privateCwd} token ${secret}`,
+        stdoutTail: `stdout ${secret}`,
+        stderrTail: `stderr cwd=${privateCwd} Bearer ${"B".repeat(20)}`,
+        argv: ["exec", "--cwd", privateCwd, secret],
+      }],
+    }), "utf8");
+    await writeFile(path.join(runDir, "events.jsonl"), "", "utf8");
+
+    const bundle = await execCliJson<DiagnosticsBundle>([
+      "diagnostics",
+      "run",
+      runId,
+      "--storage-dir",
+      storageDir,
+      "--json",
+    ]);
+    const text = JSON.stringify(bundle);
+
+    expect(text).toContain("[REDACTED]");
+    expect(text).not.toContain(secret);
+    expect(text).not.toContain(privateCwd);
+    expect(text).not.toContain("Bearer");
+  }, 30_000);
+
   it("exports redacted diagnostics for a real smoke timeout run", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
     const storageDir = await tempDir("agent-runtime-storage-");
     const privateCwd = await tempDir("private-real-smoke-");
@@ -1007,10 +1035,7 @@ setInterval(() => {}, 1000);
       "--json",
       "--diagnostics",
     ], {
-      env: {
-        ...process.env,
-        CODEX_BIN: path.join(binDir, "codex"),
-      },
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
       timeout: 10_000,
     })).stdout);
     const runId = smoke.run?.id ?? (await waitForRunId(storageDir));
@@ -1037,7 +1062,6 @@ setInterval(() => {}, 1000);
       promptTransport: "stdin:text",
       parsedEventCount: expect.any(Number),
     });
-    expect(text).toContain("[REDACTED]");
     expect(text).not.toContain(privateCwd);
     expect(text).not.toContain(`sk${"A".repeat(20)}`);
   }, 30_000);
@@ -1058,7 +1082,6 @@ setInterval(() => {}, 1000);
   });
 
   it("supports package install smoke from npm pack tarball", async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
     const tempProject = await tempDir("agent-runtime-install-smoke-");
     const packInfoText = (await execFileP("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", tempProject], { cwd: root }))
       .stdout.trim();
