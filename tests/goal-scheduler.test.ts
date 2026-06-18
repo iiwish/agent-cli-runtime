@@ -383,6 +383,7 @@ describe("GoalScheduler", () => {
     expect(await runtime.listGoals({ status: "active" })).toEqual([]);
     const restarted = createAgentRuntime({ storageDir });
     expect(await restarted.getGoal(handle.goalId)).toMatchObject({ status: "canceled" });
+    await restarted.shutdown("test complete");
   });
 
   it("persists goal events, tasks, and redacted validation evidence", async () => {
@@ -421,6 +422,7 @@ describe("GoalScheduler", () => {
       retryPolicy: { maxAttempts: 2, retryableErrorCodes: ["AGENT_EXECUTION_FAILED"], backoffMs: 1 },
     });
     await collect(handle.events);
+    await runtime.shutdown("test complete");
     const restarted = createAgentRuntime({ storageDir });
     const replayed = await restarted.replayGoalEvents(handle.goalId);
     const attemptEvents = replayed.filter((record) => record.event.type === "task_attempt_started" || record.event.type === "task_attempt_finished");
@@ -428,6 +430,7 @@ describe("GoalScheduler", () => {
     expect(replayed.map((record) => record.id)).toEqual([...replayed].sort((a, b) => a.sequence - b.sequence).map((record) => record.id));
     expect(attemptEvents).toHaveLength(4);
     expect(attemptEvents.every((record) => record.goalId === handle.goalId && typeof record.sequence === "number" && typeof record.timestamp === "number")).toBe(true);
+    await restarted.shutdown("test complete");
   });
 
   it("loads terminal goals from a new runtime using the same storage dir", async () => {
@@ -439,10 +442,12 @@ describe("GoalScheduler", () => {
     const handle = await runtime.createGoal({ cwd, objective: "ship mvp", defaultAgentId: "fake" });
     await collect(handle.events);
 
+    await runtime.shutdown("test complete");
     const restarted = createAgentRuntime({ storageDir });
     expect(await restarted.getGoal(handle.goalId)).toMatchObject({ id: handle.goalId, status: "succeeded" });
     const goals = await restarted.listGoals({ status: "succeeded" });
     expect(goals.map((goal) => goal.id)).toContain(handle.goalId);
+    await restarted.shutdown("test complete");
   });
 
   it("marks active goals as failed with a diagnostic event when storage is loaded", async () => {
@@ -482,6 +487,49 @@ describe("GoalScheduler", () => {
     expect(health.activeInterrupted).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "goal", id: goalId, reason: expect.stringContaining("interrupted") }),
     ]));
+    await runtime.shutdown("test complete");
+  });
+
+  it("recovers a stale-owner active goal and cancels pending or running tasks", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const cwd = await tempDir();
+    const goalId = "goal_stale_owner_tasks";
+    const goalDir = path.join(storageDir, "goals", goalId);
+    await mkdir(goalDir, { recursive: true });
+    await writeFile(path.join(goalDir, "manifest.json"), JSON.stringify({
+      id: goalId,
+      cwd,
+      objective: "stale active tasks",
+      status: "running",
+      tasks: [
+        { id: "T001", title: "Running", objective: "running", status: "running", dependencies: [], cwd, permissionPolicy: "workspace-write" },
+        { id: "T002", title: "Pending", objective: "pending", status: "pending", dependencies: ["T001"], cwd, permissionPolicy: "workspace-write" },
+        { id: "T003", title: "Done", objective: "done", status: "succeeded", dependencies: [], cwd, permissionPolicy: "workspace-write" },
+      ],
+      diagnostics: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      owner: {
+        runtimeInstanceId: "runtime_old_goal",
+        pid: 999_999,
+        startedAt: Date.now() - 120_000,
+        heartbeatAt: Date.now() - 120_000,
+      },
+    }), "utf8");
+    await writeFile(path.join(goalDir, "events.jsonl"), "", "utf8");
+
+    const runtime = createAgentRuntime({ storageDir });
+    const goal = await runtime.getGoal(goalId);
+    const events = await runtime.replayGoalEvents(goalId);
+
+    expect(goal).toMatchObject({ status: "failed", result: "failed" });
+    expect(goal?.tasks.map((task) => [task.id, task.status])).toEqual([
+      ["T001", "canceled"],
+      ["T002", "canceled"],
+      ["T003", "succeeded"],
+    ]);
+    expect(events.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
+    await runtime.shutdown("test complete");
   });
 
   it("marks planning goals as failed with a diagnostic event when storage is loaded", async () => {
@@ -514,6 +562,7 @@ describe("GoalScheduler", () => {
     expect(events.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
     expect(events.at(-1)?.event).toMatchObject({ type: "goal_finished", result: "failed" });
     expect(await runtime.listGoals({ status: "active" })).toEqual([]);
+    await runtime.shutdown("test complete");
   });
 
   it("replays interrupted + finished events after active goal recovery over a partial tail across reloads", async () => {
@@ -549,12 +598,14 @@ describe("GoalScheduler", () => {
     const rawAfterFirstReload = await readFile(eventsFile, "utf8");
     expect(rawAfterFirstReload).toMatch(/\}\n\{"id":2/);
 
+    await firstRuntime.shutdown("test complete");
     const secondRuntime = createAgentRuntime({ storageDir });
     const secondEvents = await secondRuntime.replayGoalEvents(goalId);
 
     expect(secondEvents.some((record) => record.event.type === "goal_finished" && record.event.result === "failed")).toBe(true);
     expect(secondEvents.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
     expect(secondEvents.some((record) => record.event.type === "scheduler_error" && record.event.code === "AGENT_EVENT_LOG_CORRUPT")).toBe(true);
+    await secondRuntime.shutdown("test complete");
   });
 
   it("CLI reads persisted runs and goals from storage dir", async () => {

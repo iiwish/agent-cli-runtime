@@ -24,6 +24,7 @@ import type { FileStorage, StorageDurability, StorageSyncHooks, StoredGoalSnapsh
 export interface JsonFileStorageOptions {
   durability?: StorageDurability;
   sync?: StorageSyncHooks;
+  canWrite?: () => boolean;
 }
 
 export class JsonFileStorage implements FileStorage {
@@ -55,10 +56,12 @@ export class JsonFileStorage implements FileStorage {
   }
 
   writeRunManifest(record: RunRecord): void {
+    this.assertCanWrite();
     atomicWriteJson(this.runManifestPath(record.id), sanitizeForStorage(record), this.writeOptions("manifest"));
   }
 
   appendRunEvent(runId: string, event: ReplayEvent<AgentEvent>): void {
+    this.assertCanWrite();
     this.ensureRunDir(runId);
     appendJsonl(this.runEventsPath(runId), sanitizeForStorage(event), this.writeOptions("event"));
   }
@@ -79,10 +82,12 @@ export class JsonFileStorage implements FileStorage {
   }
 
   writeGoalManifest(record: GoalRecord): void {
+    this.assertCanWrite();
     atomicWriteJson(this.goalManifestPath(record.id), sanitizeForStorage(record), this.writeOptions("manifest"));
   }
 
   appendGoalEvent(goalId: string, event: ReplayEvent<SchedulerEvent>): void {
+    this.assertCanWrite();
     this.ensureGoalDir(goalId);
     appendJsonl(this.goalEventsPath(goalId), sanitizeForStorage(event), this.writeOptions("event"));
   }
@@ -149,6 +154,12 @@ export class JsonFileStorage implements FileStorage {
       })}\n`, "utf8");
     } catch {
       // Sync fallback diagnostics are best-effort and must not make the primary write fail.
+    }
+  }
+
+  private assertCanWrite(): void {
+    if (this.options.canWrite && !this.options.canWrite()) {
+      throw new Error("storage lease is no longer held by this runtime");
     }
   }
 }

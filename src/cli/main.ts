@@ -5,7 +5,19 @@ import path from "node:path";
 import { createAgentRuntime } from "../index.js";
 import { redactText } from "../core/redaction.js";
 import { runParserFixtureCases } from "../smoke/parser-fixtures.js";
-import { atomicWriteJsonFile, exportDiagnosticsBundle, inspectStoreDirectory, inspectStoreRepairDryRun } from "../storage/store-inspection.js";
+import {
+  atomicWriteJsonFile,
+  exportDiagnosticsBundle,
+  getStoredGoal,
+  getStoredRun,
+  inspectStoreDirectory,
+  inspectStoreLock,
+  inspectStoreRepairDryRun,
+  listStoredGoals,
+  listStoredRuns,
+  replayStoredGoalEvents,
+  replayStoredRunEvents,
+} from "../storage/store-inspection.js";
 import type { DetectedAgent, RunRecord } from "../index.js";
 
 const DEFAULT_OBSERVED_TEXT_TAIL_BYTES = 2_048;
@@ -72,6 +84,11 @@ async function main(): Promise<void> {
     output(parsed, inspectStoreDirectory(path.resolve(storageDir)));
     return;
   }
+  if (parsed.command === "store-lock") {
+    const storageDir = requiredStringFlag(parsed, "storage-dir", "store-lock requires --storage-dir <dir>");
+    output(parsed, inspectStoreLock(path.resolve(storageDir)));
+    return;
+  }
   if (parsed.command === "store-repair") {
     const storageDir = requiredStringFlag(parsed, "storage-dir", "store-repair requires --storage-dir <dir>");
     if (parsed.flags.has("apply")) throw new Error("store-repair --apply is not implemented; run --dry-run to inspect repair actions");
@@ -83,7 +100,20 @@ async function main(): Promise<void> {
     await runDiagnosticsCommand(parsed);
     return;
   }
+  if (isReadOnlyStoreCommand(parsed.command)) {
+    runReadOnlyStoreCommand(parsed);
+    return;
+  }
+  if (parsed.command === "smoke") {
+    await runSmoke(parsed);
+    return;
+  }
+  if (parsed.command === "conformance") {
+    await runConformance(parsed);
+    return;
+  }
   const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed));
+  try {
   if (parsed.command === "agents") {
     const agents = await runtime.detect({ includeUnavailable: true });
     output(parsed, agents);
@@ -95,46 +125,6 @@ async function main(): Promise<void> {
       ok: agents.some((agent) => agent.available),
       agents,
     });
-    return;
-  }
-  if (parsed.command === "smoke") {
-    await runSmoke(parsed);
-    return;
-  }
-  if (parsed.command === "conformance") {
-    await runConformance(parsed);
-    return;
-  }
-  if (parsed.command === "runs") {
-    output(parsed, await runtime.listRuns({ status: runStatusFlag(parsed) }));
-    return;
-  }
-  if (parsed.command === "run-status") {
-    const runId = parsed.positional[0];
-    if (!runId) throw new Error("run-status requires a runId");
-    output(parsed, await runtime.getRun(runId));
-    return;
-  }
-  if (parsed.command === "replay-run" || parsed.command === "run-events") {
-    const runId = parsed.positional[0];
-    if (!runId) throw new Error(`${parsed.command} requires a runId`);
-    outputReplay(parsed, await runtime.replayRunEvents(runId, { afterEventId: numberFlag(parsed, "after") }));
-    return;
-  }
-  if (parsed.command === "goals") {
-    output(parsed, await runtime.listGoals({ status: goalStatusFlag(parsed) }));
-    return;
-  }
-  if (parsed.command === "goal-status") {
-    const goalId = parsed.positional[0];
-    if (!goalId) throw new Error("goal-status requires a goalId");
-    output(parsed, await runtime.getGoal(goalId));
-    return;
-  }
-  if (parsed.command === "replay-goal" || parsed.command === "goal-events") {
-    const goalId = parsed.positional[0];
-    if (!goalId) throw new Error(`${parsed.command} requires a goalId`);
-    outputReplay(parsed, await runtime.replayGoalEvents(goalId, { afterEventId: numberFlag(parsed, "after") }));
     return;
   }
   if (parsed.command === "run") {
@@ -165,6 +155,56 @@ async function main(): Promise<void> {
     return;
   }
   throw new Error(`Unknown command: ${parsed.command}`);
+  } finally {
+    await runtime.shutdown("CLI command complete");
+  }
+}
+
+function isReadOnlyStoreCommand(command: string): boolean {
+  return command === "runs"
+    || command === "run-status"
+    || command === "replay-run"
+    || command === "run-events"
+    || command === "goals"
+    || command === "goal-status"
+    || command === "replay-goal"
+    || command === "goal-events";
+}
+
+function runReadOnlyStoreCommand(parsed: ParsedArgs): void {
+  const storageDirFlag = stringFlag(parsed, "storage-dir");
+  const storageDir = storageDirFlag ? path.resolve(storageDirFlag) : undefined;
+  if (parsed.command === "runs") {
+    output(parsed, storageDir ? listStoredRuns(storageDir, { status: runStatusFlag(parsed) }) : []);
+    return;
+  }
+  if (parsed.command === "run-status") {
+    const runId = parsed.positional[0];
+    if (!runId) throw new Error("run-status requires a runId");
+    output(parsed, storageDir ? getStoredRun(storageDir, runId) : null);
+    return;
+  }
+  if (parsed.command === "replay-run" || parsed.command === "run-events") {
+    const runId = parsed.positional[0];
+    if (!runId) throw new Error(`${parsed.command} requires a runId`);
+    outputReplay(parsed, storageDir ? replayStoredRunEvents(storageDir, runId, numberFlag(parsed, "after")) : []);
+    return;
+  }
+  if (parsed.command === "goals") {
+    output(parsed, storageDir ? listStoredGoals(storageDir, { status: goalStatusFlag(parsed) }) : []);
+    return;
+  }
+  if (parsed.command === "goal-status") {
+    const goalId = parsed.positional[0];
+    if (!goalId) throw new Error("goal-status requires a goalId");
+    output(parsed, storageDir ? getStoredGoal(storageDir, goalId) : null);
+    return;
+  }
+  if (parsed.command === "replay-goal" || parsed.command === "goal-events") {
+    const goalId = parsed.positional[0];
+    if (!goalId) throw new Error(`${parsed.command} requires a goalId`);
+    outputReplay(parsed, storageDir ? replayStoredGoalEvents(storageDir, goalId, numberFlag(parsed, "after")) : []);
+  }
 }
 
 async function runDiagnosticsCommand(parsed: ParsedArgs): Promise<void> {
@@ -190,12 +230,16 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
   const agent = stringFlag(parsed, "agent") ?? "all";
   if (mode === "detection") {
     const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed));
-    const agents = await runtime.detect({ includeUnavailable: true });
-    output(parsed, {
-      ok: agents.some((item) => item.available),
-      mode,
-      agents: agent === "all" ? agents : agents.filter((item) => item.id === agent),
-    });
+    try {
+      const agents = await runtime.detect({ includeUnavailable: true });
+      output(parsed, {
+        ok: agents.some((item) => item.available),
+        mode,
+        agents: agent === "all" ? agents : agents.filter((item) => item.id === agent),
+      });
+    } finally {
+      await runtime.shutdown("CLI command complete");
+    }
     return;
   }
   if (mode === "fixtures") {
@@ -213,24 +257,28 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
     }
     if (agent === "all") throw new Error("smoke --mode real requires --agent <id>");
     const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed));
-    const detected = (await runtime.detect({ includeUnavailable: true })).find((item) => item.id === agent);
-    const preflight = realSmokePreflight(agent, detected);
-    if (preflight) {
-      output(parsed, preflight);
-      return;
+    try {
+      const detected = (await runtime.detect({ includeUnavailable: true })).find((item) => item.id === agent);
+      const preflight = realSmokePreflight(agent, detected);
+      if (preflight) {
+        output(parsed, preflight);
+        return;
+      }
+      const cwdFlag = stringFlag(parsed, "cwd");
+      const cwd = path.resolve(cwdFlag ?? await mkdtemp(path.join(os.tmpdir(), "agent-runtime-real-smoke-")));
+      const expectation = await realSmokeExpectation(parsed, agent);
+      const beforeCwd = await snapshotCwd(cwd);
+      const handle = await runtime.run({
+        agentId: agent,
+        cwd,
+        prompt: expectation.prompt,
+        permissionPolicy: "read-only",
+        timeoutMs: numberFlag(parsed, "timeout-ms") ?? 30_000,
+      });
+      await streamRealSmoke(parsed, agent, cwd, cwdFlag === undefined, expectation, beforeCwd, handle.events, () => runtime.getRun(handle.runId));
+    } finally {
+      await runtime.shutdown("CLI command complete");
     }
-    const cwdFlag = stringFlag(parsed, "cwd");
-    const cwd = path.resolve(cwdFlag ?? await mkdtemp(path.join(os.tmpdir(), "agent-runtime-real-smoke-")));
-    const expectation = await realSmokeExpectation(parsed, agent);
-    const beforeCwd = await snapshotCwd(cwd);
-    const handle = await runtime.run({
-      agentId: agent,
-      cwd,
-      prompt: expectation.prompt,
-      permissionPolicy: "read-only",
-      timeoutMs: numberFlag(parsed, "timeout-ms") ?? 30_000,
-    });
-    await streamRealSmoke(parsed, agent, cwd, cwdFlag === undefined, expectation, beforeCwd, handle.events, () => runtime.getRun(handle.runId));
     return;
   }
   throw new Error("--mode must be one of: detection, fixtures, real");
@@ -256,17 +304,21 @@ async function runConformance(parsed: ParsedArgs): Promise<void> {
   const fake = mode === "fake" ? await setupFakeConformanceEnv() : undefined;
   const runMode = mode as "fake" | "real";
   const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed, fake ? { env: fake.env, searchPath: [fake.binDir] } : undefined));
-  const detected = await runtime.detect({ includeUnavailable: true });
-  const summaries: ConformanceAdapterSummary[] = [];
-  for (const agentId of agents) {
-    const detection = detected.find((item) => item.id === agentId);
-    summaries.push(await runAgentConformance(parsed, runtime, agentId, detection, runMode));
+  try {
+    const detected = await runtime.detect({ includeUnavailable: true });
+    const summaries: ConformanceAdapterSummary[] = [];
+    for (const agentId of agents) {
+      const detection = detected.find((item) => item.id === agentId);
+      summaries.push(await runAgentConformance(parsed, runtime, agentId, detection, runMode));
+    }
+    output(parsed, {
+      ok: conformanceOk(mode, requestedAgent, summaries),
+      mode,
+      agents: summaries,
+    });
+  } finally {
+    await runtime.shutdown("CLI command complete");
   }
-  output(parsed, {
-    ok: conformanceOk(mode, requestedAgent, summaries),
-    mode,
-    agents: summaries,
-  });
 }
 
 function conformanceOk(mode: string, requestedAgent: string, summaries: ConformanceAdapterSummary[]): boolean {
@@ -842,6 +894,7 @@ agent-runtime goals [--storage-dir <dir>] [--status active|planning|running|succ
 agent-runtime goal-status <goalId> [--storage-dir <dir>] [--json]
 agent-runtime replay-goal <goalId> [--storage-dir <dir>] [--after <eventId>] [--jsonl]
 agent-runtime store-health --storage-dir <dir> [--json]
+agent-runtime store-lock --storage-dir <dir> [--json]
 agent-runtime store-repair --storage-dir <dir> --dry-run [--json]
 agent-runtime diagnostics run <runId> --storage-dir <dir> [--json] [--out <file>]
 agent-runtime diagnostics goal <goalId> --storage-dir <dir> [--json] [--out <file>]

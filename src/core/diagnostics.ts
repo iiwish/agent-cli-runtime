@@ -14,6 +14,7 @@ export type RuntimeErrorCode =
   | "AGENT_EVENT_LOG_CORRUPT"
   | "AGENT_EVENT_PERSIST_FAILED"
   | "AGENT_STORAGE_SYNC_FALLBACK"
+  | "AGENT_STORAGE_LEASE_TAKEOVER"
   | "AGENT_STORE_RECORD_CORRUPT";
 
 export interface RuntimeDiagnostic {

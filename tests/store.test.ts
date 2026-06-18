@@ -3,10 +3,170 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createAgentRuntime } from "../src/index.js";
 import { JsonFileStorage } from "../src/storage/file-storage.js";
-import { inspectStoreRepairDryRun } from "../src/storage/store-inspection.js";
+import { getStoredGoal, getStoredRun, inspectStoreDirectory, inspectStoreLock, inspectStoreRepairDryRun, listStoredGoals, listStoredRuns } from "../src/storage/store-inspection.js";
+import { StorageLease } from "../src/storage/storage-lease.js";
 import { tempDir } from "./helpers.js";
 
 describe("durable local store", () => {
+  it("blocks two writer runtimes from opening the same storage dir", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runtime = createAgentRuntime({ storageDir });
+
+    expect(() => createAgentRuntime({ storageDir })).toThrow(/already open for writing/u);
+
+    const health = await runtime.inspectStore();
+    expect(health.lock).toMatchObject({ status: "live", owner: expect.objectContaining({ pid: process.pid }) });
+    await runtime.shutdown("test complete");
+  });
+
+  it("takes over a stale storage lock and records a redacted diagnostic", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    await writeFile(path.join(storageDir, "runtime.lock.json"), JSON.stringify({
+      runtimeInstanceId: "runtime_stale",
+      pid: 999_999,
+      startedAt: Date.now() - 120_000,
+      heartbeatAt: Date.now() - 120_000,
+    }), "utf8");
+
+    const runtime = createAgentRuntime({ storageDir });
+    const health = await runtime.inspectStore();
+    const text = JSON.stringify(health);
+
+    expect(health.lock).toMatchObject({ status: "live", owner: expect.objectContaining({ pid: process.pid }) });
+    expect(health.storageDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "AGENT_STORAGE_LEASE_TAKEOVER" }),
+    ]));
+    expect(text).not.toContain(storageDir);
+    expect(text).not.toContain("AUTH_TOKEN");
+    await runtime.shutdown("test complete");
+  });
+
+  it("does not let an old lease overwrite a new lock owner after takeover", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const oldLease = StorageLease.acquire(storageDir);
+    const newOwner = {
+      runtimeInstanceId: "runtime_new_owner",
+      pid: process.pid,
+      startedAt: Date.now(),
+      heartbeatAt: Date.now(),
+    };
+    await writeFile(path.join(storageDir, "runtime.lock.json"), JSON.stringify(newOwner), "utf8");
+    const guardedStorage = new JsonFileStorage(storageDir, { canWrite: () => oldLease.ownsCurrentLock() });
+    const cwd = await tempDir();
+
+    expect(oldLease.heartbeat()).toBeUndefined();
+    expect(oldLease.close()).toBeUndefined();
+    expect(() => guardedStorage.writeRunManifest({
+      id: "run_lost_lease",
+      agentId: "fake",
+      cwd,
+      status: "running",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: null,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    })).toThrow(/storage lease is no longer held/u);
+    const lock = JSON.parse(await readFile(path.join(storageDir, "runtime.lock.json"), "utf8"));
+    expect(lock).toMatchObject(newOwner);
+  });
+
+  it("lets read-only inspection commands inspect a live owner without taking the writer lock", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runtime = createAgentRuntime({ storageDir });
+
+    const lock = inspectStoreLock(storageDir);
+    const health = inspectStoreDirectory(storageDir);
+    const runs = listStoredRuns(storageDir);
+
+    expect(lock).toMatchObject({ status: "live", owner: expect.objectContaining({ pid: process.pid }) });
+    expect(health.lock.status).toBe("live");
+    expect(runs).toEqual([]);
+    await runtime.shutdown("test complete");
+  });
+
+  it("marks the lock closed on shutdown", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runtime = createAgentRuntime({ storageDir });
+
+    await runtime.shutdown("test shutdown");
+
+    expect(inspectStoreLock(storageDir)).toMatchObject({ status: "closed", owner: expect.objectContaining({ closedAt: expect.any(Number) }) });
+  });
+
+  it("does not interrupt live-owner active records when a second writer is refused", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runtime = createAgentRuntime({ storageDir });
+    const owner = inspectStoreLock(storageDir).owner;
+    const runId = "run_live_owner";
+    const runDir = path.join(storageDir, "runs", runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "running",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: null,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+      owner,
+    }), "utf8");
+    await writeFile(path.join(runDir, "events.jsonl"), "", "utf8");
+
+    expect(() => createAgentRuntime({ storageDir })).toThrow(/already open for writing/u);
+    const manifest = JSON.parse(await readFile(path.join(runDir, "manifest.json"), "utf8"));
+    const health = inspectStoreDirectory(storageDir);
+
+    expect(manifest).toMatchObject({ status: "running", errorCode: null });
+    expect(health.activeRecords).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "run", id: runId, ownerStatus: "live" }),
+    ]));
+    expect(health.activeInterrupted).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "run", id: runId }),
+    ]));
+    await runtime.shutdown("test complete");
+  });
+
+  it("recovers a stale-owner active run as interrupted", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_stale_owner";
+    const runDir = path.join(storageDir, "runs", runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "running",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: null,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+      owner: {
+        runtimeInstanceId: "runtime_old",
+        pid: 999_999,
+        startedAt: Date.now() - 120_000,
+        heartbeatAt: Date.now() - 120_000,
+      },
+    }), "utf8");
+    await writeFile(path.join(runDir, "events.jsonl"), "", "utf8");
+
+    const runtime = createAgentRuntime({ storageDir });
+    const run = await runtime.getRun(runId);
+
+    expect(run).toMatchObject({ status: "failed", errorCode: "AGENT_RUNTIME_INTERRUPTED", signal: "RUNTIME_RESTART" });
+    expect(run?.owner).toMatchObject({ pid: process.pid });
+    await runtime.shutdown("test complete");
+  });
+
   it("reports an empty store as healthy", async () => {
     const storageDir = await tempDir("agent-runtime-storage-");
     const runtime = createAgentRuntime({ storageDir });
@@ -15,12 +175,14 @@ describe("durable local store", () => {
 
     expect(health).toMatchObject({
       ok: true,
+      lock: { status: "live" },
       totals: { runs: 0, goals: 0 },
       corruptManifests: [],
       corruptEventLogs: [],
       partialTails: [],
       warnings: [],
     });
+    await runtime.shutdown("test complete");
   });
 
   it("creates the store directory tree automatically", async () => {
@@ -288,6 +450,35 @@ describe("durable local store", () => {
     expect(health.ok).toBe(false);
     expect(health.corruptManifests).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "goal", id: badGoalId, reason: expect.stringContaining("cwd must be a string") }),
+    ]));
+  });
+
+  it("returns corrupt manifest placeholders from read-only status and list helpers", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const badRunId = "run_readonly_bad_manifest";
+    const badGoalId = "goal_readonly_bad_manifest";
+    await mkdir(path.join(storageDir, "runs", badRunId), { recursive: true });
+    await mkdir(path.join(storageDir, "goals", badGoalId), { recursive: true });
+    await writeFile(path.join(storageDir, "runs", badRunId, "manifest.json"), "{", "utf8");
+    await writeFile(path.join(storageDir, "goals", badGoalId, "manifest.json"), "{", "utf8");
+
+    expect(getStoredRun(storageDir, badRunId)).toMatchObject({
+      id: badRunId,
+      status: "failed",
+      errorCode: "AGENT_STORE_RECORD_CORRUPT",
+      diagnostics: [expect.objectContaining({ code: "AGENT_STORE_RECORD_CORRUPT" })],
+    });
+    expect(listStoredRuns(storageDir, { status: "failed" })).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: badRunId, errorCode: "AGENT_STORE_RECORD_CORRUPT" }),
+    ]));
+    expect(getStoredGoal(storageDir, badGoalId)).toMatchObject({
+      id: badGoalId,
+      status: "failed",
+      result: "failed",
+      diagnostics: [expect.objectContaining({ code: "AGENT_STORE_RECORD_CORRUPT" })],
+    });
+    expect(listStoredGoals(storageDir, { status: "failed" })).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: badGoalId, result: "failed" }),
     ]));
   });
 
@@ -596,7 +787,7 @@ describe("durable local store", () => {
       schemaVersion: "agent-runtime.diagnostics.v1",
       subject: { kind: "run", id: runId },
       events: { total: 1, retained: 1, eventTypes: { error: 1 } },
-      supervisorSummary: { kind: "run", status: "failed", terminalReason: "failed", terminalEventCount: 0 },
+      supervisorSummary: { kind: "run", status: "failed", terminalReason: "failed", terminalEventCount: 0, lease: { ownerStatus: "missing" } },
       adapterSummary: { kind: "run", agentId: "fake" },
     });
     expect(bundle.diagnostics).toEqual(expect.arrayContaining([
@@ -676,6 +867,7 @@ describe("durable local store", () => {
       terminalReason: "failed",
       terminalEventCount: 1,
       taskStatusCounts: { failed: 1 },
+      lease: { ownerStatus: "missing" },
     });
     expect(text).toContain("[REDACTED]");
     expect(text).not.toContain("Bearer");

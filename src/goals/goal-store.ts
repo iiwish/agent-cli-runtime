@@ -6,6 +6,7 @@ import { diagnostic } from "../core/diagnostics.js";
 import type { CreateGoalRequest, GoalRecord, ScheduledTask } from "./goal-types.js";
 import type { RunResult } from "../runs/run-result.js";
 import type { FileStorage } from "../storage/storage-types.js";
+import { inspectOwner, type RuntimeOwner } from "../storage/storage-lease.js";
 
 interface StoredGoal extends GoalRecord {
   subscribers: Set<AsyncQueue<SchedulerEvent>>;
@@ -17,7 +18,10 @@ interface StoredGoal extends GoalRecord {
 export class GoalStore {
   private readonly goals = new Map<string, StoredGoal>();
 
-  constructor(private readonly storage?: FileStorage) {
+  constructor(
+    private readonly storage?: FileStorage,
+    private readonly options: { owner?: () => RuntimeOwner | undefined; staleMs?: number } = {},
+  ) {
     this.loadFromStorage();
   }
 
@@ -32,6 +36,7 @@ export class GoalStore {
       diagnostics: [],
       createdAt: now,
       updatedAt: now,
+      owner: this.currentOwner(),
       events: [],
       nextEventId: 1,
       subscribers: new Set(),
@@ -125,6 +130,15 @@ export class GoalStore {
     return goal ? isTerminalGoal(goal.status) : true;
   }
 
+  heartbeatActive(owner: RuntimeOwner): void {
+    for (const goal of this.goals.values()) {
+      if (isTerminalGoal(goal.status) || goal.persistenceFailed) continue;
+      goal.owner = { ...owner };
+      goal.updatedAt = Date.now();
+      this.tryPersistManifest(goal);
+    }
+  }
+
   private mustGet(goalId: string): StoredGoal {
     const goal = this.goals.get(goalId);
     if (!goal) throw new Error(`Unknown goal: ${goalId}`);
@@ -176,9 +190,14 @@ export class GoalStore {
         };
         goal.events.push(syntheticEvent);
       }
-      if (!isTerminalGoal(goal.status)) this.markInterrupted(goal);
+      if (!isTerminalGoal(goal.status) && this.canRecoverActive(goal.owner)) this.markInterrupted(goal);
       else if (!snapshot.manifestError) this.tryPersistManifest(goal);
     }
+  }
+
+  private canRecoverActive(owner: RuntimeOwner | undefined): boolean {
+    const inspected = inspectOwner(owner, { staleMs: this.options.staleMs });
+    return inspected.status === "missing" || inspected.status === "stale" || inspected.status === "closed" || inspected.status === "invalid";
   }
 
   private markInterrupted(goal: StoredGoal): void {
@@ -188,6 +207,7 @@ export class GoalStore {
     for (const task of goal.tasks) {
       if (task.status === "pending" || task.status === "running") task.status = "canceled";
     }
+    goal.owner = this.currentOwner();
     this.tryPersistManifest(goal);
     this.emit(goal.id, {
       type: "scheduler_error",
@@ -231,6 +251,7 @@ export class GoalStore {
   private tryPersistManifest(goal: StoredGoal): boolean {
     if (!this.storage || goal.persistenceFailed) return true;
     try {
+      if (!isTerminalGoal(goal.status)) goal.owner = this.currentOwner();
       this.storage.writeGoalManifest(this.publicRecord(goal));
       return true;
     } catch (error) {
@@ -248,6 +269,11 @@ export class GoalStore {
       this.markPersistenceFailed(goal, error);
       return false;
     }
+  }
+
+  private currentOwner(): RuntimeOwner | undefined {
+    const owner = this.options.owner?.();
+    return owner ? { ...owner } : undefined;
   }
 }
 

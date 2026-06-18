@@ -1,9 +1,9 @@
 # Agent CLI Compatibility Matrix
 
-Status: P2-1 Production Runtime Hardening
-Last updated: 2026-06-17
+Status: P2-2 Local Supervisor Lease And Storage Concurrency Hardening
+Last updated: 2026-06-18
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P2-1 production runtime hardening adds the `conformance` gate, supervisor summary diagnostics, validation timeout classification, parser noise contracts, and explicit production-readiness scope notes. The opt-in durable store includes explicit `fsync` durability, JSONL corrupt-line health diagnostics, active-record interruption handling, and a dry-run-only repair model. Raw CLI output, tokens, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P2-2 local supervisor lease hardening adds same-machine single-writer `storageDir` protection, runtime instance owner metadata, stale-owner recovery, read-only inspection paths, and owner/lease diagnostics. The opt-in durable store includes explicit `fsync` durability, JSONL corrupt-line health diagnostics, active-record interruption handling, and a dry-run-only repair model. Raw CLI output, tokens, and private paths are not committed.
 
 ## Evidence policy
 
@@ -124,6 +124,7 @@ node ./dist/cli/main.js goals --storage-dir .agent-runtime --json
 node ./dist/cli/main.js goal-status goal_123 --storage-dir .agent-runtime --json
 node ./dist/cli/main.js replay-goal goal_123 --storage-dir .agent-runtime --jsonl
 node ./dist/cli/main.js store-health --storage-dir .agent-runtime --json
+node ./dist/cli/main.js store-lock --storage-dir .agent-runtime --json
 node ./dist/cli/main.js store-repair --storage-dir .agent-runtime --dry-run --json
 node ./dist/cli/main.js diagnostics run run_123 --storage-dir .agent-runtime --json
 node ./dist/cli/main.js diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
@@ -209,6 +210,8 @@ node ./dist/cli/main.js goal \
 ## Known MVP Gaps
 
 - Durable run/goal replay storage is opt-in via `storageDir`; default runtime behavior remains memory-only.
+- Durable `storageDir` writer mode uses a local single-writer lease. It prevents accidental same-machine multi-writer corruption but is not a distributed lock, daemon, WAL, or transactional database.
+- Read-only CLI inspection paths do not acquire the writer lease and are intended to work while another live owner is active.
 - P1-6 verifies the real smoke harness against stronger fake CLI contract tests and local real Codex/OpenCode smoke runs with expected text matched and no cwd mutation. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment, nor that OpenCode exposes a verified explicit read-only flag.
 - JSONL append is still a simple append-only file and not segmented. Default durability is `relaxed`; callers can request `storage.durability: "fsync"` for best-effort fdatasync/fsync after manifest writes and event appends, but there is no WAL or group commit.
 - There is still no long-lived daemon, database, WAL, segment compaction, or automatic destructive repair. `store-repair` is dry-run only in P1-8.
@@ -220,6 +223,34 @@ node ./dist/cli/main.js goal \
 - Historical P0-4 Codex smoke showed reconnect/timeout behavior; parser fixtures and timeout diagnostics preserve that coverage.
 - Historical P0-4 OpenCode smoke timed out with zero parsed events, but P1-5 local `opencode` 1.15.6 real smoke passed and verifies stdin prompt support for this version.
 - Claude Code run/goal smoke is blocked by local auth until `claude auth status` reports a logged-in account or a supported Anthropic-compatible provider env is supplied.
+
+## P2-2 Local Supervisor Lease Evidence
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run ci
+node ./dist/cli/main.js conformance --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js store-health --storage-dir <temp-dir> --json
+```
+
+Covered behavior:
+
+- two writer runtimes for the same `storageDir` conflict with a concise actionable error;
+- stale lock takeover records a redacted storage diagnostic;
+- read-only store inspection commands do not require the writer lock;
+- live-owner active records are not interrupted by another writer attempt;
+- stale-owner active runs/goals become interrupted, with pending/running goal tasks canceled;
+- active run manifests receive heartbeat owner updates while the run is active;
+- shutdown marks the lease closed;
+- `store-health` reports lock/lease and active owner status;
+- diagnostics `supervisorSummary` includes redacted owner/lease status;
+- lock diagnostics and package dry-run remain secret/path safe.
 
 ## P1-1 Durable Store Evidence
 

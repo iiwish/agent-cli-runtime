@@ -7,6 +7,7 @@ import type { AgentId } from "../adapters/adapter-types.js";
 import type { RunRecord } from "./run-types.js";
 import type { RunStatus } from "./run-result.js";
 import type { FileStorage } from "../storage/storage-types.js";
+import { inspectOwner, type RuntimeOwner } from "../storage/storage-lease.js";
 
 interface StoredRun extends RunRecord {
   events: Array<ReplayEvent<AgentEvent>>;
@@ -21,6 +22,7 @@ export class RunStore {
   constructor(
     private readonly maxEvents = 2_000,
     private readonly storage?: FileStorage,
+    private readonly options: { owner?: () => RuntimeOwner | undefined; staleMs?: number } = {},
   ) {
     this.loadFromStorage();
   }
@@ -39,6 +41,7 @@ export class RunStore {
       error: null,
       errorCode: null,
       diagnostics: [],
+      owner: this.currentOwner(),
       events: [],
       subscribers: new Set(),
       nextEventId: 1,
@@ -122,6 +125,15 @@ export class RunStore {
     return Boolean(this.runs.get(runId)?.persistenceFailed);
   }
 
+  heartbeatActive(owner: RuntimeOwner): void {
+    for (const run of this.runs.values()) {
+      if (isTerminal(run.status) || run.persistenceFailed) continue;
+      run.owner = { ...owner };
+      run.updatedAt = Date.now();
+      this.tryPersistManifest(run);
+    }
+  }
+
   private mustGet(runId: string): StoredRun {
     const run = this.runs.get(runId);
     if (!run) throw new Error(`Unknown run: ${runId}`);
@@ -167,9 +179,14 @@ export class RunStore {
         });
       }
       this.runs.set(run.id, run);
-      if (!isTerminal(run.status)) this.markInterrupted(run);
+      if (!isTerminal(run.status) && this.canRecoverActive(run.owner)) this.markInterrupted(run);
       else if (!snapshot.manifestError) this.tryPersistManifest(run);
     }
+  }
+
+  private canRecoverActive(owner: RuntimeOwner | undefined): boolean {
+    const inspected = inspectOwner(owner, { staleMs: this.options.staleMs });
+    return inspected.status === "missing" || inspected.status === "stale" || inspected.status === "closed" || inspected.status === "invalid";
   }
 
   private markInterrupted(run: StoredRun): void {
@@ -179,6 +196,7 @@ export class RunStore {
     run.signal = "RUNTIME_RESTART";
     run.error = "Run was active when storage was loaded and cannot be resumed.";
     run.errorCode = "AGENT_RUNTIME_INTERRUPTED";
+    run.owner = this.currentOwner();
     run.diagnostics.push(diagnostic("AGENT_RUNTIME_INTERRUPTED", run.error, { signal: run.signal }));
     this.tryPersistManifest(run);
     this.append(run.id, {
@@ -234,6 +252,7 @@ export class RunStore {
   private tryPersistManifest(run: StoredRun): boolean {
     if (!this.storage || run.persistenceFailed) return true;
     try {
+      if (!isTerminal(run.status)) run.owner = this.currentOwner();
       this.storage.writeRunManifest(this.publicRecord(run));
       return true;
     } catch (error) {
@@ -251,6 +270,11 @@ export class RunStore {
       this.markPersistenceFailed(run, error);
       return false;
     }
+  }
+
+  private currentOwner(): RuntimeOwner | undefined {
+    const owner = this.options.owner?.();
+    return owner ? { ...owner } : undefined;
   }
 }
 

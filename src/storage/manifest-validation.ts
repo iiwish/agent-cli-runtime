@@ -1,5 +1,6 @@
 import type { GoalRecord } from "../goals/goal-types.js";
 import type { RunRecord } from "../runs/run-types.js";
+import { parseRuntimeOwner } from "./storage-lease.js";
 
 export function validateRunManifest(value: unknown, runId: string): { value?: RunRecord; error?: Error } {
   if (!isRecord(value)) return invalidManifest("run", "manifest is not an object");
@@ -24,6 +25,7 @@ export function validateRunManifest(value: unknown, runId: string): { value?: Ru
       error: typeof value.error === "string" || value.error === null ? value.error : null,
       errorCode: typeof value.errorCode === "string" || value.errorCode === null ? value.errorCode : null,
       diagnostics: Array.isArray(value.diagnostics) ? value.diagnostics : [],
+      owner: parseRuntimeOwner(value.owner),
     },
   };
 }
@@ -52,6 +54,7 @@ export function validateGoalManifest(value: unknown, goalId: string): { value?: 
       createdAt: value.createdAt,
       updatedAt: value.updatedAt,
       result: value.result as GoalRecord["result"],
+      owner: parseRuntimeOwner(value.owner),
     },
   };
 }

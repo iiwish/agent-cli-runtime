@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P2-1 production runtime hardening
-Last updated: 2026-06-17
+Status: P2-2 local supervisor lease and storage concurrency hardening
+Last updated: 2026-06-18
 
-This project is still **pre-alpha / developer preview**. P2-1 defines a local-first production target for embedding the runtime on one machine; it does not claim OpenDesign daemon-level production parity.
+This project is still **pre-alpha / developer preview**. P2-2 defines a local-first production target for embedding the runtime on one machine with a best-effort single-writer storage lease; it does not claim OpenDesign daemon-level production parity.
 
 ## Local-First Production Definition
 
@@ -14,7 +14,8 @@ For this repository, "production-ready local runtime" means:
 - explicit `cwd`, permission policy, and optional `storageDir`;
 - no silent permission escalation and no silent adapter fallback;
 - durable local manifests/events when `storageDir` is supplied;
-- active run/goal reload is conservative: records are marked interrupted, not resumed;
+- one writer runtime per `storageDir` by default, with read-only inspection paths that do not acquire the writer lease;
+- active run/goal reload is conservative: only records owned by a missing/stale/closed owner are marked interrupted, not resumed;
 - diagnostics are auditable and redacted before storage/export;
 - real CLI conformance is opt-in and requires `--allow-real-run`;
 - validation evidence is replayable through goal manifests and diagnostics export.
@@ -31,6 +32,7 @@ npm run build
 npm run ci
 node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js store-health --storage-dir <temp-dir> --json
 node ./dist/cli/main.js agents --json
 node ./dist/cli/main.js doctor --json
 ```
@@ -59,14 +61,21 @@ Stable conformance summary fields per adapter:
 
 ## Durable Supervisor Contract
 
-The runtime does not resume live processes after a process restart. When a new runtime loads a durable store:
+The runtime does not resume live processes after a process restart. When `storageDir` is supplied, `createAgentRuntime()` opens a local single-writer lease in `runtime.lock.json`. The owner includes `runtimeInstanceId`, `pid`, `startedAt`, and `heartbeatAt`; active run/goal manifests carry the same owner metadata. Heartbeat is enabled only for durable storage; memory-only runtimes do not create a lease.
 
-- active runs become `failed` with `AGENT_RUNTIME_INTERRUPTED` and signal `RUNTIME_RESTART`;
-- active goals become `failed`, pending/running tasks become `canceled`, and a scheduler error is replayed;
+- a second writer runtime for the same `storageDir` is refused while the owner is live;
+- stale or closed lock owners may be taken over, with a redacted `AGENT_STORAGE_LEASE_TAKEOVER` diagnostic;
+- read-only inspection commands (`runs`, `goals`, `run-status`, `goal-status`, `replay-run`, `replay-goal`, `store-health`, `store-lock`, `diagnostics`) do not acquire the writer lease and must not mutate active work;
+- active runs owned by a stale/missing/closed owner become `failed` with `AGENT_RUNTIME_INTERRUPTED` and signal `RUNTIME_RESTART`;
+- active goals owned by a stale/missing/closed owner become `failed`, pending/running tasks become `canceled`, and a scheduler error is replayed;
+- active records owned by another live runtime are left untouched and reported through health/diagnostics owner status;
 - terminal events are appended once and replay remains ordered by `sequence`;
-- `shutdown()`, `cancelRun()`, and `cancelGoal()` are idempotent around terminal events.
+- `shutdown()`, `cancelRun()`, and `cancelGoal()` are idempotent around terminal events;
+- `shutdown()` releases or marks the storage lease closed.
 
-Diagnostics export includes a `supervisorSummary` with terminal reason, terminal event count, active reload recovery, and task status counts for goals. It intentionally omits env values, prompts, raw private paths, and tokens.
+Diagnostics export includes a `supervisorSummary` with terminal reason, terminal event count, active reload recovery, owner/lease status, and task status counts for goals. It intentionally omits env values, prompts, raw private paths, and tokens.
+
+This lease is a same-machine best-effort guard for local embedded runtimes. It is not a daemon coordination protocol, distributed lock, WAL, group commit, database transaction layer, multi-host scheduler, or live process resume/session attachment.
 
 ## Validation Contract
 
@@ -101,7 +110,7 @@ This repository deliberately does not include the following OpenDesign daemon la
 - daemon/API server lifecycle and multi-client coordination;
 - WAL, segmented logs, compaction, and transactional repair;
 - live process resume/session attachment after restart;
-- distributed execution, remote workers, Docker/SSH runtime, or queue leasing;
+- distributed execution, distributed locking, remote workers, Docker/SSH runtime, or queue leasing;
 - browser/UI surfaces, artifact viewers, project workspaces, and media pipelines;
 - telemetry pipeline, metrics database, tracing backend, or hosted analytics;
 - database-backed auth, tenancy, teams, policy management, or audit log service;

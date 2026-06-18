@@ -36,6 +36,7 @@ export type {
   ExportDiagnosticsRequest,
   InspectStoreOptions,
   StoreHealth,
+  StoreActiveRecord,
   StoreHealthIssue,
   StoreRepairAction,
   StoreRepairReport,

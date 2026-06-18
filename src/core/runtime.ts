@@ -19,6 +19,7 @@ import {
   type InspectStoreOptions,
   type StoreHealth,
 } from "../storage/store-inspection.js";
+import { DEFAULT_LEASE_STALE_MS, StorageLease, type RuntimeOwner } from "../storage/storage-lease.js";
 
 export interface AgentRuntime {
   detect(options?: DetectOptions): Promise<DetectedAgent[]>;
@@ -43,16 +44,38 @@ export interface AgentRuntime {
 
 export function createAgentRuntime(options: RuntimeOptions = {}): AgentRuntime {
   const registry = new AdapterRegistry(options.adapters);
-  const storage = options.storageDir ? new JsonFileStorage(options.storageDir, { durability: options.storage?.durability }) : undefined;
-  const runStore = new RunStore(2_000, storage);
+  const lease = options.storageDir ? StorageLease.acquire(options.storageDir) : undefined;
+  let currentOwner: RuntimeOwner | undefined = lease?.currentOwner();
+  const ownerProvider = () => currentOwner;
+  const storage = options.storageDir
+    ? new JsonFileStorage(options.storageDir, {
+      durability: options.storage?.durability,
+      canWrite: () => lease?.ownsCurrentLock() ?? true,
+    })
+    : undefined;
+  const runStore = new RunStore(2_000, storage, { owner: ownerProvider, staleMs: DEFAULT_LEASE_STALE_MS });
   const runScheduler = new RunScheduler(registry, runStore, {
     env: options.env,
     searchPath: options.searchPath,
   });
-  const goalStore = new GoalStore(storage);
+  const goalStore = new GoalStore(storage, { owner: ownerProvider, staleMs: DEFAULT_LEASE_STALE_MS });
   const goalScheduler = new GoalScheduler(runScheduler, goalStore, {
     maxConcurrentTasks: options.maxConcurrentTasks,
   });
+  const heartbeat = lease
+    ? setInterval(() => {
+      const heartbeatOwner = lease.heartbeat();
+      if (!heartbeatOwner) {
+        currentOwner = undefined;
+        if (heartbeat) clearInterval(heartbeat);
+        return;
+      }
+      currentOwner = heartbeatOwner;
+      runStore.heartbeatActive(currentOwner);
+      goalStore.heartbeatActive(currentOwner);
+    }, 1_000)
+    : undefined;
+  heartbeat?.unref?.();
   return {
     detect: (detectOptions) => detectAgents({ adapters: registry.list(), env: options.env, searchPath: options.searchPath }, detectOptions),
     detectStream: (detectOptions) => detectAgentsStream({ adapters: registry.list(), env: options.env, searchPath: options.searchPath }, detectOptions),
@@ -63,6 +86,14 @@ export function createAgentRuntime(options: RuntimeOptions = {}): AgentRuntime {
     shutdown: async (reason) => {
       await goalScheduler.shutdown(reason);
       await runScheduler.shutdown(reason);
+      if (heartbeat) clearInterval(heartbeat);
+      if (lease) {
+        currentOwner = lease.close();
+        if (currentOwner) {
+          runStore.heartbeatActive(currentOwner);
+          goalStore.heartbeatActive(currentOwner);
+        }
+      }
     },
     getRun: async (runId) => runStore.get(runId),
     replayRunEvents: async (runId, eventOptions) => runStore.replay(runId, eventOptions?.afterEventId),

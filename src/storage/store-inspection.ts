@@ -7,6 +7,11 @@ import type { AgentEvent, SchedulerEvent } from "../core/events.js";
 import { redactUnknown } from "../core/redaction.js";
 import { readJsonl } from "./jsonl-store.js";
 import { isRecord, validateGoalManifest, validateRunManifest } from "./manifest-validation.js";
+import { inspectOwner, inspectStorageLock, type OwnerStatus, type RuntimeOwner, type StorageLockInspection } from "./storage-lease.js";
+import type { RunRecord } from "../runs/run-types.js";
+import type { GoalRecord } from "../goals/goal-types.js";
+import { isTerminal } from "../runs/run-store.js";
+import { isTerminalGoal } from "../goals/goal-store.js";
 
 export interface InspectStoreOptions {
   storageDir?: string;
@@ -40,19 +45,33 @@ export interface StoreHealthSummary {
   byCode: Record<string, number>;
 }
 
+export interface StoreActiveRecord {
+  kind: "run" | "goal";
+  id: string;
+  status: string;
+  file: string;
+  ownerStatus: OwnerStatus;
+  owner?: RuntimeOwner;
+  ownerAgeMs?: number;
+  reason?: string;
+}
+
 export interface StoreHealth {
   ok: boolean;
   storageDir?: string;
   checkedAt: number;
+  lock: StorageLockInspection;
   totals: {
     runs: number;
     goals: number;
     corruptEventLogLines: number;
     partialEventLogTails: number;
+    activeRecords: number;
   };
   corruptManifests: StoreHealthIssue[];
   corruptEventLogs: StoreHealthIssue[];
   partialTails: StoreHealthIssue[];
+  activeRecords: StoreActiveRecord[];
   activeInterrupted: StoreHealthIssue[];
   warnings: StoreHealthWarning[];
   storageDiagnostics: RuntimeDiagnostic[];
@@ -131,10 +150,12 @@ interface ScannedRecord {
 
 export function inspectStoreDirectory(storageDir: string): StoreHealth {
   const records = scanStore(storageDir);
+  const lock = inspectStorageLock(storageDir);
   const storageDiagnostics = readStoreDiagnostics(storageDir);
   const corruptManifests = records.flatMap((record) => record.manifestIssue ? [record.manifestIssue] : []);
   const corruptEventLogs = records.flatMap((record) => record.eventIssues);
   const partialTails = records.flatMap((record) => record.partialTail ? [record.partialTail] : []);
+  const activeRecords = records.flatMap((record) => activeRecord(record, storageDir));
   const activeInterrupted = records.flatMap((record) => record.activeInterrupted ? [record.activeInterrupted] : []);
   const warnings = records.flatMap((record) => record.warnings);
   const health: StoreHealth = {
@@ -142,24 +163,84 @@ export function inspectStoreDirectory(storageDir: string): StoreHealth {
       && corruptEventLogs.length === 0
       && warnings.length === 0
       && activeInterrupted.length === 0
+      && lock.status !== "invalid"
       && storageDiagnostics.length === 0,
     storageDir,
     checkedAt: Date.now(),
+    lock,
     totals: {
       runs: records.filter((record) => record.kind === "run").length,
       goals: records.filter((record) => record.kind === "goal").length,
       corruptEventLogLines: corruptEventLogs.reduce((sum, issue) => sum + (issue.corruptLineCount ?? 1), 0),
       partialEventLogTails: partialTails.length,
+      activeRecords: activeRecords.length,
     },
     corruptManifests,
     corruptEventLogs,
     partialTails,
+    activeRecords,
     activeInterrupted,
     warnings,
     storageDiagnostics,
     diagnostics: summarizeDiagnostics(records, storageDiagnostics),
   };
   return redactUnknown(health);
+}
+
+export function inspectStoreLock(storageDir: string): StorageLockInspection {
+  return redactUnknown(inspectStorageLock(storageDir));
+}
+
+export function listStoredRuns(storageDir: string, options: { status?: "active" | RunRecord["status"] } = {}): RunRecord[] {
+  return scanStore(storageDir)
+    .filter((record) => record.kind === "run")
+    .flatMap((record) => {
+      const run = recordToRun(record);
+      return run ? [run] : [];
+    })
+    .filter((run) => {
+      if (!options.status) return true;
+      if (options.status === "active") return !isTerminal(run.status);
+      return run.status === options.status;
+    });
+}
+
+export function getStoredRun(storageDir: string, runId: string): RunRecord | null {
+  const record = scanRecord(storageDir, "run", runId);
+  return recordToRun(record);
+}
+
+export function replayStoredRunEvents(storageDir: string, runId: string, afterEventId = 0): Array<ReplayEvent<AgentEvent>> {
+  const record = scanRecord(storageDir, "run", runId);
+  return record.events
+    .filter((event) => event.id > afterEventId)
+    .sort(compareReplayEvents) as Array<ReplayEvent<AgentEvent>>;
+}
+
+export function listStoredGoals(storageDir: string, options: { status?: "active" | GoalRecord["status"] } = {}): GoalRecord[] {
+  return scanStore(storageDir)
+    .filter((record) => record.kind === "goal")
+    .flatMap((record) => {
+      const goal = recordToGoal(record);
+      return goal ? [goal] : [];
+    })
+    .filter((goal) => {
+      if (!options.status) return true;
+      if (options.status === "active") return !isTerminalGoal(goal.status);
+      return goal.status === options.status;
+    });
+}
+
+export function getStoredGoal(storageDir: string, goalId: string): GoalRecord | null {
+  const record = scanRecord(storageDir, "goal", goalId);
+  return recordToGoal(record);
+}
+
+export function replayStoredGoalEvents(storageDir: string, goalId: string, afterEventId = 0): Array<ReplayEvent<SchedulerEvent>> {
+  const record = scanRecord(storageDir, "goal", goalId);
+  return record.events
+    .filter((event) => event.id > afterEventId)
+    .sort(compareReplayEvents) as Array<ReplayEvent<SchedulerEvent>>;
 }
 
 export function inspectStoreRepairDryRun(storageDir: string): StoreRepairReport {
@@ -323,6 +404,52 @@ function readManifest(
   }
 }
 
+function recordToRun(record: ScannedRecord): RunRecord | null {
+  if (record.kind !== "run") return null;
+  if (record.manifest) return record.manifest as unknown as RunRecord;
+  if (!record.manifestIssue) return null;
+  const now = Date.now();
+  return {
+    id: record.id,
+    agentId: "unknown",
+    cwd: "<unknown>",
+    status: "failed",
+    createdAt: now,
+    updatedAt: now,
+    exitCode: null,
+    signal: null,
+    error: record.manifestIssue.reason,
+    errorCode: "AGENT_STORE_RECORD_CORRUPT",
+    diagnostics: [{
+      code: "AGENT_STORE_RECORD_CORRUPT",
+      message: record.manifestIssue.reason,
+      retryable: false,
+    }],
+  };
+}
+
+function recordToGoal(record: ScannedRecord): GoalRecord | null {
+  if (record.kind !== "goal") return null;
+  if (record.manifest) return record.manifest as unknown as GoalRecord;
+  if (!record.manifestIssue) return null;
+  const now = Date.now();
+  return {
+    id: record.id,
+    cwd: "<unknown>",
+    objective: "<unknown>",
+    status: "failed",
+    result: "failed",
+    tasks: [],
+    diagnostics: [{
+      code: "AGENT_STORE_RECORD_CORRUPT",
+      message: record.manifestIssue.reason,
+      retryable: false,
+    }],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 function manifestIssue(storageDir: string, file: string, kind: "run" | "goal", id: string, reason: string): StoreHealthIssue {
   return {
     kind,
@@ -362,7 +489,10 @@ function activeInterruptedIssue(record: ScannedRecord, storageDir: string, manif
   const manifestDiagnostics = Array.isArray(record.manifest.diagnostics) ? record.manifest.diagnostics : [];
   const hasInterruptedDiagnostic = manifestDiagnostics.some((item) => isRecord(item) && item.code === "AGENT_RUNTIME_INTERRUPTED")
     || record.events.some((event) => eventDiagnosticCode(event.event) === "AGENT_RUNTIME_INTERRUPTED");
-  if (hasInterruptedDiagnostic || !isTerminalManifest(record.kind, record.manifest.status)) {
+  const owner = recordOwner(record.manifest);
+  const ownerInspection = inspectOwner(owner);
+  const activeNeedsRecovery = !isTerminalManifest(record.kind, record.manifest.status) && ownerInspection.status !== "live";
+  if (hasInterruptedDiagnostic || activeNeedsRecovery) {
     return {
       kind: record.kind,
       id: record.id,
@@ -373,6 +503,22 @@ function activeInterruptedIssue(record: ScannedRecord, storageDir: string, manif
     };
   }
   return undefined;
+}
+
+function activeRecord(record: ScannedRecord, storageDir: string): StoreActiveRecord[] {
+  if (!record.manifest || isTerminalManifest(record.kind, record.manifest.status)) return [];
+  const manifestPath = path.join(storageDir, record.kind === "run" ? "runs" : "goals", record.id, "manifest.json");
+  const ownerInspection = inspectOwner(recordOwner(record.manifest));
+  return [redactUnknown({
+    kind: record.kind,
+    id: record.id,
+    status: String(record.manifest.status),
+    file: relativeFile(storageDir, manifestPath),
+    ownerStatus: ownerInspection.status,
+    owner: ownerInspection.owner,
+    ownerAgeMs: ownerInspection.ageMs,
+    reason: ownerInspection.reason,
+  })];
 }
 
 function summarizeDiagnostics(records: ScannedRecord[], storageDiagnostics: RuntimeDiagnostic[] = []): StoreHealthSummary {
@@ -505,6 +651,13 @@ function supervisorSummary(record: ScannedRecord): Record<string, unknown> {
       terminalReason: "manifest_unavailable",
     };
   }
+  const ownerInspection = inspectOwner(recordOwner(record.manifest));
+  const ownerSummary = {
+    ownerStatus: ownerInspection.status,
+    owner: ownerInspection.owner,
+    ownerAgeMs: ownerInspection.ageMs,
+    ownerReason: ownerInspection.reason,
+  };
   if (record.kind === "run") {
     return {
       kind: "run",
@@ -516,6 +669,7 @@ function supervisorSummary(record: ScannedRecord): Record<string, unknown> {
       terminalReason: terminalReason(record.manifest),
       terminalEventCount: terminalEvents.length,
       activeReloadRecovered: hasDiagnostic(record, "AGENT_RUNTIME_INTERRUPTED"),
+      lease: ownerSummary,
     };
   }
   const tasks = Array.isArray(record.manifest.tasks) ? record.manifest.tasks.filter(isRecord) : [];
@@ -532,6 +686,7 @@ function supervisorSummary(record: ScannedRecord): Record<string, unknown> {
     terminalEventCount: terminalEvents.length,
     activeReloadRecovered: hasDiagnostic(record, "AGENT_RUNTIME_INTERRUPTED"),
     taskStatusCounts,
+    lease: ownerSummary,
   };
 }
 
@@ -583,6 +738,24 @@ function eventDiagnosticMessage(event: AgentEvent | SchedulerEvent): string {
 
 function increment(counts: Record<string, number>, code: string): void {
   counts[code] = (counts[code] ?? 0) + 1;
+}
+
+function recordOwner(manifest: Record<string, unknown>): RuntimeOwner | undefined {
+  const owner = manifest.owner;
+  if (!isRecord(owner)) return undefined;
+  if (typeof owner.runtimeInstanceId !== "string") return undefined;
+  if (typeof owner.pid !== "number" || typeof owner.startedAt !== "number" || typeof owner.heartbeatAt !== "number") return undefined;
+  return {
+    runtimeInstanceId: owner.runtimeInstanceId,
+    pid: owner.pid,
+    startedAt: owner.startedAt,
+    heartbeatAt: owner.heartbeatAt,
+    closedAt: typeof owner.closedAt === "number" ? owner.closedAt : undefined,
+  };
+}
+
+function compareReplayEvents(left: ReplayEvent<unknown>, right: ReplayEvent<unknown>): number {
+  return (left.sequence - right.sequence) || (left.id - right.id) || (left.timestamp - right.timestamp);
 }
 
 function relativeFile(storageDir: string, file: string): string {

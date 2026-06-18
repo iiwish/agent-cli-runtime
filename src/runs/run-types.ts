@@ -2,6 +2,7 @@ import type { AgentEvent } from "../core/events.js";
 import type { RuntimeDiagnostic } from "../core/diagnostics.js";
 import type { AgentAdapterDef, AgentId, PermissionPolicy } from "../adapters/adapter-types.js";
 import type { RunStatus } from "./run-result.js";
+import type { RuntimeOwner } from "../storage/storage-lease.js";
 
 export interface RuntimeContextBlock {
   title: string;
@@ -60,4 +61,5 @@ export interface RunRecord {
   error?: string | null;
   errorCode?: string | null;
   diagnostics: RuntimeDiagnostic[];
+  owner?: RuntimeOwner;
 }

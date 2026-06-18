@@ -287,11 +287,13 @@ process.exit(2);
     const timedOut = await runtime.run({ agentId: "fake", cwd, prompt: "cancel", timeoutMs: 50 });
     await collect(timedOut.events);
 
+    await runtime.shutdown("test complete");
     const restarted = createAgentRuntime({ storageDir });
     expect(await restarted.getRun(canceled.runId)).toMatchObject({ status: "canceled", errorCode: "AGENT_CANCELLED" });
     expect((await restarted.replayRunEvents(canceled.runId)).at(-1)?.event).toMatchObject({ type: "run_finished", result: "cancelled" });
     expect(await restarted.getRun(timedOut.runId)).toMatchObject({ status: "failed", errorCode: "AGENT_TIMEOUT" });
     expect((await restarted.replayRunEvents(timedOut.runId)).at(-1)?.event).toMatchObject({ type: "run_finished", result: "failed" });
+    await restarted.shutdown("test complete");
   });
 
   it("shutdown cancels active runs and clears active state", async () => {
@@ -309,7 +311,28 @@ process.exit(2);
     expect(await runtime.listRuns({ status: "active" })).toEqual([]);
     const restarted = createAgentRuntime({ storageDir });
     expect(await restarted.getRun(handle.runId)).toMatchObject({ status: "canceled" });
+    await restarted.shutdown("test complete");
   });
+
+  it("updates active run owner heartbeat while the run is active", async () => {
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    const storageDir = await tempDir("agent-runtime-storage-");
+    await writeExecutable(dir, "fake-agent", fakeCliBody);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir], storageDir });
+    const handle = await runtime.run({ agentId: "fake", cwd, prompt: "cancel" });
+    await waitForFile(path.join(storageDir, "runs", handle.runId, "manifest.json"));
+    const first = JSON.parse(await readFile(path.join(storageDir, "runs", handle.runId, "manifest.json"), "utf8"));
+
+    await delay(1_200);
+    const second = JSON.parse(await readFile(path.join(storageDir, "runs", handle.runId, "manifest.json"), "utf8"));
+    await handle.cancel("test complete");
+    await collect(handle.events);
+    await runtime.shutdown("test complete");
+
+    expect(first.owner).toMatchObject({ runtimeInstanceId: expect.any(String), pid: process.pid });
+    expect(second.owner.heartbeatAt).toBeGreaterThan(first.owner.heartbeatAt);
+  }, 10_000);
 
   it("redacts stderr tail diagnostics for failed runs", async () => {
     const dir = await tempDir();
@@ -333,10 +356,12 @@ process.exit(2);
     const handle = await runtime.run({ agentId: "fake", cwd, prompt: "persist-terminal" });
     await collect(handle.events);
 
+    await runtime.shutdown("test complete");
     const restarted = createAgentRuntime({ storageDir });
     expect(await restarted.getRun(handle.runId)).toMatchObject({ id: handle.runId, status: "succeeded" });
     const runs = await restarted.listRuns({ status: "succeeded" });
     expect(runs.map((run) => run.id)).toContain(handle.runId);
+    await restarted.shutdown("test complete");
   });
 
   it("marks active runs as failed with a diagnostic when storage is loaded", async () => {
@@ -380,6 +405,7 @@ process.exit(2);
     expect(health.activeInterrupted).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "run", id: runId, reason: expect.stringContaining("interrupted") }),
     ]));
+    await runtime.shutdown("test complete");
   });
 
   it("replays interrupted + finished events after active run recovery over a partial tail across reloads", async () => {
@@ -418,12 +444,14 @@ process.exit(2);
     const rawAfterFirstReload = await readFile(eventsFile, "utf8");
     expect(rawAfterFirstReload).toMatch(/\}\n\{"id":2/);
 
+    await firstRuntime.shutdown("test complete");
     const secondRuntime = createAgentRuntime({ storageDir });
     const secondEvents = await secondRuntime.replayRunEvents(runId);
 
     expect(secondEvents.some((record) => record.event.type === "run_finished" && record.event.result === "failed")).toBe(true);
     expect(secondEvents.some((record) => record.event.type === "error" && record.event.code === "AGENT_RUNTIME_INTERRUPTED")).toBe(true);
     expect(secondEvents.some((record) => record.event.type === "error" && record.event.code === "AGENT_EVENT_LOG_CORRUPT")).toBe(true);
+    await secondRuntime.shutdown("test complete");
   });
 
   it("fails a run and emits diagnostics when event persistence fails", async () => {

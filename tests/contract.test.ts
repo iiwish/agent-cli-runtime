@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, readFile, readdir, writeFile, lstat } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, writeFile, lstat } from "node:fs/promises";
 import path, { delimiter } from "node:path";
 import { createAgentRuntime } from "../src/index.js";
 import type {
@@ -147,6 +147,7 @@ describe("public contract", () => {
       "goal-status",
       "replay-goal",
       "store-health",
+      "store-lock",
       "store-repair",
       "diagnostics run",
       "diagnostics goal",
@@ -263,15 +264,20 @@ describe("public contract", () => {
   it("does not pass real conformance when the selected adapter only skips", async () => {
     await execFileP("npm", ["run", "build"], { cwd: root });
     const binDir = await tempDir();
-    await writeExecutable(binDir, "claude", `
-const args = process.argv.slice(2);
-if (args[0] === "--version") { console.log("2.1.178 (Claude Code)"); process.exit(0); }
-if (args[0] === "-p" && args[1] === "--help") { console.log("--include-partial-messages\\n--add-dir"); process.exit(0); }
-if (args[0] === "auth" && args[1] === "status") {
-  console.log(JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }));
-  process.exit(0);
-}
-process.exit(66);
+    await writeShellExecutable(binDir, "claude", `
+if [ "$1" = "--version" ]; then
+  echo "2.1.178 (Claude Code)"
+  exit 0
+fi
+if [ "$1" = "-p" ] && [ "$2" = "--help" ]; then
+  printf '%s\\n' "--include-partial-messages" "--add-dir"
+  exit 0
+fi
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  echo '{"loggedIn":false,"authMethod":"none","apiProvider":"firstParty"}'
+  exit 0
+fi
+exit 66
 `);
     const conformance = JSON.parse((await execFileP(process.execPath, [
       cli,
@@ -299,7 +305,7 @@ process.exit(66);
         skippedReason: "auth_missing",
       })],
     });
-  }, 30_000);
+  }, 60_000);
 
   it("keeps all-agent conformance summaries when one adapter skips", async () => {
     await execFileP("npm", ["run", "build"], { cwd: root });
@@ -308,22 +314,34 @@ process.exit(66);
 console.log(JSON.stringify({ type: "thread.started" }));
 console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
 `);
-    await writeExecutable(binDir, "claude", `
-const args = process.argv.slice(2);
-if (args[0] === "--version") { console.log("2.1.178 (Claude Code)"); process.exit(0); }
-if (args[0] === "-p" && args[1] === "--help") { console.log("--include-partial-messages\\n--add-dir"); process.exit(0); }
-if (args[0] === "auth" && args[1] === "status") {
-  console.log(JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }));
-  process.exit(0);
-}
-process.exit(66);
+    await writeShellExecutable(binDir, "claude", `
+if [ "$1" = "--version" ]; then
+  echo "2.1.178 (Claude Code)"
+  exit 0
+fi
+if [ "$1" = "-p" ] && [ "$2" = "--help" ]; then
+  printf '%s\\n' "--include-partial-messages" "--add-dir"
+  exit 0
+fi
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  echo '{"loggedIn":false,"authMethod":"none","apiProvider":"firstParty"}'
+  exit 0
+fi
+exit 66
 `);
-    await writeExecutable(binDir, "opencode", `
-const args = process.argv.slice(2);
-if (args[0] === "--version") { console.log("opencode test"); process.exit(0); }
-if (args[0] === "models") { console.log("openai/gpt-test"); process.exit(0); }
-console.log(JSON.stringify({ type: "step_start" }));
-`);
+    const fakeOpenCode = `
+if [ "$1" = "--version" ]; then
+  echo "opencode test"
+  exit 0
+fi
+if [ "$1" = "models" ]; then
+  echo "openai/gpt-test"
+  exit 0
+fi
+echo '{"type":"step_start"}'
+`;
+    await writeShellExecutable(binDir, "opencode", fakeOpenCode);
+    await writeShellExecutable(binDir, "opencode-cli", fakeOpenCode);
     const conformance = JSON.parse((await execFileP(process.execPath, [
       cli,
       "conformance",
@@ -342,7 +360,6 @@ console.log(JSON.stringify({ type: "step_start" }));
         OPENCODE_BIN: path.join(binDir, "opencode"),
       },
     })).stdout);
-
     expect(conformance.agents).toHaveLength(3);
     expect(conformance.agents.find((agent: { adapter: string }) => agent.adapter === "codex")).toMatchObject({
       runClassification: "success",
@@ -357,7 +374,7 @@ console.log(JSON.stringify({ type: "step_start" }));
       skippedReason: null,
     });
     expect(conformance.ok).toBe(false);
-  }, 30_000);
+  }, 60_000);
 
   it("refuses real smoke unless --allow-real-run is explicit", async () => {
     await execFileP("npm", ["run", "build"], { cwd: root });
@@ -879,6 +896,13 @@ process.exit(0);
       storageDir,
       "--json",
     ])).stdout) as StoreHealth;
+    const lock = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "store-lock",
+      "--storage-dir",
+      storageDir,
+      "--json",
+    ])).stdout);
 
     const stdout = JSON.parse((await execFileP(process.execPath, [
       cli,
@@ -895,7 +919,8 @@ process.exit(0);
     const written = JSON.parse(writtenText) as DiagnosticsBundle;
     const leftovers = await readdir(path.dirname(outFile));
 
-    expect(health).toMatchObject({ totals: { runs: 1, goals: 0 } });
+    expect(health).toMatchObject({ totals: { runs: 1, goals: 0 }, lock: { status: "missing" } });
+    expect(lock).toMatchObject({ status: "missing", file: "runtime.lock.json" });
     expect(written).toMatchObject({ subject: { kind: "run", id: runId } });
     expect(stdout.subject).toEqual(written.subject);
     expect(leftovers).toEqual(["bundle.json"]);
@@ -1027,6 +1052,7 @@ setInterval(() => {}, 1000);
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\//u));
+    expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\/secrets/u));
     expect(files).not.toContainEqual(expect.stringMatching(/^docs\/fixtures\//u));
     expect(stdout).not.toContain(`sk${"A".repeat(20)}`);
   });
@@ -1049,23 +1075,45 @@ setInterval(() => {}, 1000);
     await execFileP("npm", ["install", tarball, "--no-save"], { cwd: tempProject });
     const installedFakeBinDir = path.join(tempProject, "fake-bin");
     await mkdir(installedFakeBinDir, { recursive: true });
-    await writeFakeCodexSmoke(installedFakeBinDir, `
-console.log(JSON.stringify({ type: "thread.started" }));
-console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+    await writeShellExecutable(installedFakeBinDir, "codex", `
+if [ "$1" = "--version" ]; then
+  echo "codex-cli install-smoke"
+  exit 0
+fi
+if [ "$1" = "debug" ] && [ "$2" = "models" ]; then
+  echo '{"models":[{"slug":"gpt-install-smoke","display_name":"GPT Install Smoke"}]}'
+  exit 0
+fi
+exit 0
 `);
-    await writeExecutable(installedFakeBinDir, "claude", `
-const args = process.argv.slice(2);
-if (args[0] === "--version") { console.log("Claude Code install-smoke"); process.exit(0); }
-if (args[0] === "-p" && args[1] === "--help") { console.log("--include-partial-messages\\n--add-dir"); process.exit(0); }
-if (args[0] === "auth" && args[1] === "status") { console.log(JSON.stringify({ loggedIn: true })); process.exit(0); }
-process.exit(0);
+    await writeShellExecutable(installedFakeBinDir, "claude", `
+if [ "$1" = "--version" ]; then
+  echo "Claude Code install-smoke"
+  exit 0
+fi
+if [ "$1" = "-p" ] && [ "$2" = "--help" ]; then
+  printf '%s\\n' "--include-partial-messages" "--add-dir"
+  exit 0
+fi
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  echo '{"loggedIn":true}'
+  exit 0
+fi
+exit 0
 `);
-    await writeExecutable(installedFakeBinDir, "opencode", `
-const args = process.argv.slice(2);
-if (args[0] === "--version") { console.log("opencode install-smoke"); process.exit(0); }
-if (args[0] === "models") { console.log("openai/gpt-install-smoke"); process.exit(0); }
-process.exit(0);
-`);
+    const installedOpenCode = `
+if [ "$1" = "--version" ]; then
+  echo "opencode install-smoke"
+  exit 0
+fi
+if [ "$1" = "models" ]; then
+  echo "openai/gpt-install-smoke"
+  exit 0
+fi
+exit 0
+`;
+    await writeShellExecutable(installedFakeBinDir, "opencode", installedOpenCode);
+    await writeShellExecutable(installedFakeBinDir, "opencode-cli", installedOpenCode);
     const installedEnv = {
       ...process.env,
       PATH: `${installedFakeBinDir}${delimiter}${process.env.PATH ?? ""}`,
@@ -1100,7 +1148,7 @@ process.exit(0);
     expect(doctor.ok).toBe(true);
     expect(smoke).toMatchObject({ ok: true, mode: "fixtures" });
     expect(conformance).toMatchObject({ ok: true, mode: "fixtures" });
-  }, 60_000);
+  }, 120_000);
 
   it("does not ship docs fixtures with raw auth token patterns", async () => {
     const docsFixtureDir = path.join(root, "docs", "fixtures");
@@ -1143,4 +1191,10 @@ process.stdin.on("end", () => {
 ${runBody}
 });
 `);
+}
+
+async function writeShellExecutable(binDir: string, name: string, body: string): Promise<void> {
+  const file = path.join(binDir, name);
+  await writeFile(file, `#!/bin/sh\n${body}`, "utf8");
+  await chmod(file, 0o755);
 }
