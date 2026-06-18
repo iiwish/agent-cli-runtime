@@ -28,7 +28,7 @@ Release boundary:
 - No background daemon, no WAL, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended for local adapter orchestration on the user machine, not a hosted control plane.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, redacted diagnostics, parser fixtures, and thin local smoke/query CLI commands.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance contracts, redacted diagnostics, parser fixtures, and thin local smoke/query CLI commands.
 
 ## Why
 
@@ -203,7 +203,7 @@ The public facade exposes:
 
 For the pre-alpha release, the package root is intentionally small. It exports the `createAgentRuntime()` value plus the public TypeScript types needed to call it and consume its records:
 
-- stable MVP surface: `AgentRuntime`, `RuntimeOptions`, `DetectOptions`, `DetectedAgent`, `RunRequest`, `RunHandle`, `RunRecord`, `RunStatus`, `CreateGoalRequest`, `GoalHandle`, `GoalRecord`, `GoalStatus`, `AgentEvent`, `SchedulerEvent`, `ReplayEvent`, `RuntimeDiagnostic`, and `RuntimeErrorCode`;
+- stable MVP surface: `AgentRuntime`, `RuntimeOptions`, `DetectOptions`, `DetectedAgent`, `RunRequest`, `RunHandle`, `RunRecord`, `RunStatus`, `CreateGoalRequest`, `GoalHandle`, `GoalRecord`, `GoalStatus`, `AgentEvent`, `SchedulerEvent`, `ReplayEvent`, `VersionedEventEnvelope`, `EventScope`, `EventTerminalContract`, `EventTerminalReason`, `RuntimeDiagnostic`, and `RuntimeErrorCode`;
 - experimental extension surface: adapter-authoring types such as `AgentAdapterDef`, `BuildArgsInput`, `PromptTransport`, `StreamParser`, and `AdapterCompatibilityProfile`;
 - not exported from the package root: built-in adapter values, parser helpers, executable-resolution helpers, stores, schedulers, and task-graph helpers.
 
@@ -267,6 +267,7 @@ node ./dist/cli/main.js conformance --mode fake --json
 agent-runtime agents
 agent-runtime conformance --mode fixtures --json
 agent-runtime conformance --mode fake --json
+agent-runtime conformance --mode real --agent all --json
 agent-runtime conformance --mode real --agent codex --allow-real-run --json
 agent-runtime smoke --mode detection --json
 agent-runtime smoke --mode fixtures --json
@@ -293,11 +294,13 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file tas
 
 The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams. For run/goal commands, `--json` prints the final run or goal record. `--stream jsonl --diagnostics` keeps the event stream and appends a redacted `run_summary` or `goal_summary` line after the terminal event.
 
-`agent-runtime conformance` is the production gate wrapper. It emits a stable per-adapter JSON summary with `adapter`, `version`, `auth`, `modelsSource`, `runClassification`, `expectedTextMatched`, `cwdMutated`, `diagnosticsCount`, and `skippedReason`.
+`agent-runtime conformance` is the production gate wrapper. Its JSON output is versioned with `schemaVersion: "agent-runtime.conformance.v1"` and emits a stable per-adapter summary with `adapter`, `version`, `resolvedExecutable`, `auth`, `modelsSource`, `capabilities`, `argvProfile`, `promptTransport`, `parserMode`, `runClassification`, `expectedTextMatched`, `observedTextTail`, `cwdMutated`, `diagnosticsCount`, `diagnostics`, `skippedReason`, and `failureReason`.
 
 - `--mode fixtures` checks parser contracts offline.
 - `--mode fake` creates local fake CLIs and runs the real adapter argv/stdin/parser path offline.
-- `--mode real` launches real local CLIs only when `--allow-real-run` is explicit. `--agent all` keeps one adapter fail/skip isolated in the summary.
+- `--mode real` defaults to real local detection/profile certification without launching agent runs. A real run is launched only when `--allow-real-run` is explicit; otherwise runnable adapters report `runClassification: "real_run_skipped"` and `skippedReason: "real_run_not_allowed"`. `--agent all` keeps one adapter fail/skip isolated in the summary.
+
+Real conformance diagnostics are designed for drift detection: unsupported tracked flags, unfamiliar help/version output, parser/stream failures, and unverified capabilities are reported as actionable diagnostics instead of guessed into the argv path. Unknown flags remain in `argvProfile.needsVerification`. Outputs are redacted for tokens, Bearer values, auth env assignments, prompts, observed text tails, and private absolute paths.
 
 `agent-runtime smoke` has three modes:
 
@@ -316,7 +319,21 @@ Disk storage layout is intentionally simple and tail-friendly:
   goals/<goalId>/events.jsonl
 ```
 
-Each JSONL line is one append record: `{ "id": 1, "sequence": 1, "runId": "run_123", "timestamp": 123, "event": {...} }` plus a trailing newline, or the same shape with `goalId`. Event ids/sequences are monotonic per run or goal and are preserved for stable replay. The default durability is `relaxed`; `createAgentRuntime({ storageDir, storage: { durability: "fsync" } })` asks the store to `fdatasync`/`fsync` manifest temp files and event appends with graceful platform fallback diagnostics.
+Public replay APIs remain source-compatible and return `ReplayEvent<T>` records: `{ "id": 1, "sequence": 1, "runId": "run_123", "timestamp": 123, "event": {...} }`, or the same shape with `goalId`. CLI JSONL output for `run --stream jsonl`, `goal --stream jsonl`, `replay-run --jsonl`, and `replay-goal --jsonl` uses the stable envelope `schemaVersion: "agent-runtime.event.v1"`:
+
+```json
+{
+  "schemaVersion": "agent-runtime.event.v1",
+  "id": 1,
+  "sequence": 1,
+  "timestamp": 1760000000000,
+  "scope": { "kind": "run", "id": "run_123" },
+  "event": { "type": "run_finished", "result": "success", "timestamp": 1760000000000 },
+  "terminal": { "result": "success", "reason": "success" }
+}
+```
+
+`id` and `sequence` are monotonic per run or goal. Terminal reasons use one vocabulary: `success`, `failed`, `timeout`, `canceled`, `interrupted`, `validation_failed`, `execution_failed`, `unavailable`, `auth_missing`, and `task_graph_invalid`. `--stream jsonl --diagnostics` may append a redacted summary line after the event envelopes. The default durability is `relaxed`; `createAgentRuntime({ storageDir, storage: { durability: "fsync" } })` asks the store to `fdatasync`/`fsync` manifest temp files and event appends with graceful platform fallback diagnostics.
 
 When `storageDir` is supplied, the runtime opens it in writer mode with a local single-writer lease stored in `runtime.lock.json`. The lock owner includes a generated `runtimeInstanceId`, `pid`, `startedAt`, and `heartbeatAt`; active run/goal manifests also record the current owner. A second writer runtime for the same `storageDir` is refused while the owner is live. If the existing owner is stale or closed, a new runtime may take over and records a redacted lease diagnostic. `runtime.shutdown(reason?)` cancels active runs/goals, waits briefly for terminal events, and marks the lease closed. This is a best-effort same-machine guard for embedded local runtimes; it is not a daemon coordination protocol, distributed lock, WAL, database transaction layer, or live process resume mechanism.
 
@@ -326,7 +343,7 @@ When a new writer runtime opens a `storageDir`, terminal runs/goals are readable
 
 `store-repair --dry-run --json` reports the non-destructive repair plan for corrupt event logs. Partial tails are reported as `truncate_partial_tail`; middle corrupt lines are reported as `isolate_corrupt_line`/manual-review actions. The dry-run does not modify files and redacts corrupt tail previews. Destructive repair is intentionally not implemented yet; any future apply mode must be explicit and backup the original file first.
 
-Diagnostics bundles are redacted JSON evidence packets for one run or goal. A bundle includes the sanitized manifest, an event summary rather than full event payloads, diagnostics, storage-level diagnostics, goal task attempt evidence when present, a supervisor summary with owner/lease status, and an environment-safe adapter summary. `--out <file>` writes the bundle with a temp-file-and-rename atomic write. Bundles and health output do not include raw corrupt JSONL lines, tokens, Bearer values, auth-token environment assignments, full environment dumps, or absolute private paths.
+Diagnostics bundles are redacted JSON evidence packets for one run or goal. A bundle uses `schemaVersion: "agent-runtime.diagnostics.v1"` and includes the sanitized manifest, an event summary rather than full event payloads, `RuntimeDiagnostic[]` items, storage-level diagnostics, goal task attempt evidence when present, a supervisor summary with terminal reason and owner/lease status, and an environment-safe adapter summary. `--out <file>` writes the bundle with a temp-file-and-rename atomic write. Bundles and health output do not include raw corrupt JSONL lines, tokens, Bearer values, auth-token environment assignments, full environment dumps, prompts, or absolute private paths.
 
 Production readiness scope is tracked in [docs/production-readiness.md](./docs/production-readiness.md). The local-first production target is single-machine, local CLI execution with explicit `storageDir`, a local single-writer lease, auditable redacted diagnostics, and no silent privilege escalation; daemon/API server, WAL, live resume/session attachment, distributed execution, UI/artifacts, telemetry, and database layers remain outside this package.
 

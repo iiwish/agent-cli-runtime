@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P2-2 Local Supervisor Lease And Storage Concurrency Hardening
+状态：P2-4 Real CLI Compatibility Certification
 负责人：local project
 最后更新：2026-06-18
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -334,7 +334,7 @@ P1-4 storage health / diagnostics bundle contract：
 - terminal manifest 缺少 terminal event 时报告 `AGENT_STORE_TERMINAL_EVENT_MISSING` warning。
 - event log 有 terminal event 但 manifest status 非 terminal 时报告 `AGENT_STORE_TERMINAL_EVENT_MANIFEST_MISMATCH` warning；health scan 不自动静默改写 manifest。
 - `runtime.exportDiagnostics(request)` 和 CLI `agent-runtime diagnostics run|goal <id> --storage-dir <dir> --json [--out <file>]` 导出 redacted JSON bundle。
-- diagnostics bundle 包含 schema version、subject、redacted manifest、event summary、diagnostics、storage-level diagnostics、consistency warnings、goal task attempt evidence、带 owner/lease status 的 supervisor summary 和 environment-safe adapter summary；它不导出完整 event payload、不导出完整 env dump。
+- diagnostics bundle 使用 `schemaVersion: "agent-runtime.diagnostics.v1"`，包含 subject、redacted manifest、event summary、`RuntimeDiagnostic[]` items、storage-level diagnostics、consistency warnings、goal task attempt evidence、带 terminal reason 和 owner/lease status 的 supervisor summary，以及 environment-safe adapter summary；它不导出完整 event payload、不导出完整 env dump、不导出 prompt、raw corrupt line 或真实私有路径。
 - `--out <file>` 使用 temp file + rename 原子写入。
 - P1-7 新增 CLI `agent-runtime store-repair --storage-dir <dir> --dry-run --json`。dry-run 只报告会对 partial tail 做 `truncate_partial_tail`、对中间坏行做 `isolate_corrupt_line` / manual review，不实际改文件。P1-7 不实现 destructive repair；未来若加入真实 repair，必须显式 `--apply`，并先备份原文件。
 - health、bundle 和未来 repair diagnostics 均走统一 redaction：token、Bearer value、auth-token env assignment、secret-looking value、绝对私密路径都不得泄露。
@@ -723,6 +723,7 @@ CLI 主要用于 smoke testing 和简单 local scripting。
 agent-runtime agents
 agent-runtime conformance --mode fixtures --json
 agent-runtime conformance --mode fake --json
+agent-runtime conformance --mode real --agent all --json
 agent-runtime conformance --mode real --agent codex --allow-real-run --json
 agent-runtime smoke --mode detection --json
 agent-runtime smoke --mode fixtures --json
@@ -744,14 +745,17 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 
 - 默认 human-readable；
 - `--json` 输出单个 JSON summary；run/goal 输出最终 run/goal record。
-- `--stream jsonl` 输出 event stream；run/goal 可加 `--diagnostics` 在 terminal event 后追加 redacted summary。
-- `conformance --mode fixtures|fake|real` 是 P2-1 production gate。输出 per-adapter 稳定 summary：`adapter`、`version`、`auth`、`modelsSource`、`runClassification`、`expectedTextMatched`、`cwdMutated`、`diagnosticsCount`、`skippedReason`。`fake` 通过临时 fake CLIs 走真实 adapter argv/stdin/parser；`real` 必须显式 `--allow-real-run`；`--agent all` 中单 adapter fail/skip 不得吞掉其他 adapter summary。
+- `--stream jsonl` 输出 `schemaVersion: "agent-runtime.event.v1"` event envelope；run/goal 可加 `--diagnostics` 在 terminal event envelope 后追加 redacted summary。`replay-run --jsonl` 和 `replay-goal --jsonl` 使用同一 envelope；library replay API 保持 source-compatible，仍返回旧 `ReplayEvent<T>`。
+- v1 event envelope 字段：`schemaVersion`、`id`、`sequence`、`timestamp`、`scope: { kind: "run" | "goal", id }`、`event`，terminal events 额外包含 `terminal: { result, reason }`。`result` 使用既有 `success | failed | cancelled`；`reason` 使用统一词表 `success | failed | timeout | canceled | interrupted | validation_failed | execution_failed | unavailable | auth_missing | task_graph_invalid`。
+- `conformance --mode fixtures|fake|real` 是 P2-4 production gate。JSON 顶层输出 `schemaVersion: "agent-runtime.conformance.v1"`，并输出 per-adapter 稳定 summary：`adapter`、`version`、`resolvedExecutable`、`auth`、`modelsSource`、`capabilities`、`argvProfile`、`promptTransport`、`parserMode`、`runClassification`、`expectedTextMatched`、`observedTextTail`、`cwdMutated`、`diagnosticsCount`、`diagnostics`、`skippedReason`、`failureReason`。`fixtures` 只检查 parser fixtures；`fake` 通过临时 fake CLIs 走真实 adapter argv/stdin/parser；`real` 默认只做真实本地 detection/profile certification，不启动真实 agent run。只有显式 `--allow-real-run` 时才会运行真实 CLI；未授权时可运行 adapter 返回 `runClassification: "real_run_skipped"` 和 `skippedReason: "real_run_not_allowed"`。`--agent all` 中单 adapter unavailable/auth-missing/unsupported/fail 不得吞掉其他 adapter summary。
+- P2-4 conformance drift detection：tracked flag 不再出现在 help 中时输出 `unsupported_flag` diagnostic；version/help 输出形状不在当前 profile 中时输出 `needs_verification` diagnostic；stream/parser error 必须写入 run diagnostic 并进入 conformance diagnostics count。不得猜测真实 CLI 新 flag；未知项必须保留在 `argvProfile.needsVerification`，直到有 fixtures 与 real local observed 证据。
+- P2-4 conformance/redaction boundary：JSON 输出不得包含真实 token、Bearer value、auth-token env assignment、完整 prompt、真实私有绝对路径或未脱敏 observed text tail。`--expect-text` 可用于授权 real run 的文本验收；失败时 `observedTextTail` 必须截断并脱敏。
 - `smoke --mode detection` 只做 detection；`smoke --mode fixtures` 离线执行内置 parser conformance fixtures；`smoke --mode real` 必须显式 `--allow-real-run` 和 `--agent <id>`，默认由 runtime 请求 read-only 行为、使用非写入 prompt、未传 `--cwd` 时使用临时目录，并支持 `--prompt`、`--prompt-file`、`--expect-text`、`--timeout-ms`、`--storage-dir`、`--json`、`--stream jsonl`、`--diagnostics`。real smoke 会先做 detection preflight：missing executable / non-executable / auth missing 会分类为 redacted smoke envelope，不强行启动真实 CLI。
 - P1-6 起，默认 real smoke prompt 为 `Reply exactly: agent-runtime <agent> smoke ok. Do not edit files.`，并自动要求聚合后的 `text_delta` 包含 `agent-runtime <agent> smoke ok`。`--expect-text <text>` 覆盖 expected text；若用户传 `--prompt` 或 `--prompt-file` 但未传 `--expect-text`，summary 输出 `expectedTextRequired: false`，不强制文本匹配，但仍要求至少有 `text_delta`，避免 status-only exit `0` 被判成功。required text 缺失分类为 `unexpected_output`。
 - P1-6 real smoke 会在 run 前后轻量扫描 cwd，跳过 `.git`、`node_modules`、`dist`、`.agent-runtime` 并设置条目上限。summary 输出 `cwdMutationChecked`、`cwdMutated`、`cwdMutationCount`、`cwdMutationSample`；默认 read-only/non-mutating smoke 检测到新增/修改/删除时分类为 `cwd_mutated`。observed text tail、expected text、mutation sample、cwd 和 diagnostics 必须 redaction/truncation，不泄露 token、Bearer、`sk-*` 或私有绝对路径。
 - `runs` / `goals` 支持 `--status active|<terminal-status>` 过滤。
 - `run-status` / `goal-status` 输出单个历史 record，适合进程重启后的状态查询。
-- `replay-run` / `replay-goal` 支持 `--after <eventId>` 增量 replay；`--jsonl` 每行输出一个 replay envelope，包含 `id`、`sequence`、`timestamp`、`runId` 或 `goalId`。
+- `replay-run` / `replay-goal` 支持 `--after <eventId>` 增量 replay；`--jsonl` 每行输出一个 v1 replay envelope，包含 `schemaVersion`、`id`、`sequence`、`timestamp`、`scope` 和 `event`。
 
 Library API 是主入口。CLI 必须复用同一套 API，不走第二套逻辑。
 
@@ -825,7 +829,7 @@ Diagnostics 应包含：
 - parser conformance fixtures 覆盖 Codex / Claude / OpenCode 的 normal output、structured error、usage、tool/file event、warning/log/noise、partial line、corrupt line 和 unknown event；非 JSON 噪声不得转成 `text_delta`；
 - adapter `buildArgs` contract 覆盖长 prompt 不进入 argv，以及 cwd/model/permission/session/extra dir 映射；
 - CLI `conformance --mode fixtures` / `conformance --mode fake` 不联网、不启动真实 agent；CLI `smoke --mode detection` / `smoke --mode fixtures` 不联网、不启动真实 agent write run；Claude auth missing 对 doctor 是 expected diagnostic，不导致整体失败；
-- CLI `conformance --mode real` 无 `--allow-real-run` 必须拒绝；real all-agent summary 中单 adapter fail/skip 不影响其他 adapter summary；
+- CLI `conformance --mode real` 无 `--allow-real-run` 必须完成 detection/profile certification 且不启动真实 run；real all-agent summary 中单 adapter fail/skip 不影响其他 adapter summary；
 - CLI `runs` / `goals` / `run-status` / `goal-status` / `replay-run` / `replay-goal` 可读取 storageDir；
 - CLI `store-health` / `diagnostics run` / `diagnostics goal --out` 可读取 storageDir 并输出 redacted evidence；
 - CLI `smoke --mode real` 无 `--allow-real-run` 必须拒绝；有 `--prompt-file` 时长 prompt 仍通过 stdin/file transport，不进入 argv；
@@ -930,7 +934,7 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - 新增 CLI：`store-health --storage-dir <dir> --json`、`diagnostics run <runId> --storage-dir <dir> --json [--out <file>]`、`diagnostics goal <goalId> --storage-dir <dir> --json [--out <file>]`。
 - `store-health` 报告 corrupt manifests、corrupt event logs、partial tails、active/interrupted records、terminal manifest/event consistency warnings 和 diagnostic summary。
 - JSONL recovery 继续保留 valid prefix；partial/corrupt tail diagnostics 不写原始坏行。
-- diagnostics bundle 输出 redacted manifest、event summary、diagnostics、goal attempt evidence 和 environment-safe adapter summary；不输出完整 env dump 或完整 event payload。
+- diagnostics bundle 输出 `schemaVersion: "agent-runtime.diagnostics.v1"`、redacted manifest、event summary、diagnostics、storageDiagnostics、goal attemptEvidence、supervisorSummary 和 environment-safe adapterSummary；不输出完整 env dump、prompt、raw corrupt line 或完整 event payload。
 - corrupt manifest reload 不再静默覆盖原始坏 manifest，避免把 evidence 当作自动 repair 消掉。
 - `--out` 使用原子 temp-file-and-rename 写入。
 - P1-4 不做 destructive mutation；P1-7 只新增 dry-run repair plan。若后续添加真实修复，必须显式 `--apply` 并先备份原文件。
@@ -976,6 +980,27 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - CLI 查询命令改为 read-only store inspection path，不获取 writer lock：`runs`、`goals`、`run-status`、`goal-status`、`replay-run`、`replay-goal`、`store-health`、`store-lock`、`diagnostics`。
 - `store-health` 输出 lock/lease 状态和 active record owner status；diagnostics `supervisorSummary` 输出 redacted owner/lease summary。
 - 仍明确非目标：无 daemon、无 WAL、无 distributed lock、无多机调度、无 live process resume。
+
+### P2-3：Event Contract And Schema Versioning
+
+- 新增稳定 CLI event envelope：`schemaVersion: "agent-runtime.event.v1"`、`id`、`sequence`、`timestamp`、`scope`、`event`，terminal event envelope 带 `terminal.result` 与 `terminal.reason`。
+- `run --stream jsonl`、`goal --stream jsonl`、`replay-run --jsonl`、`replay-goal --jsonl` 使用同一 v1 envelope；`--diagnostics` 追加的 summary line 仍是 summary，不属于 event envelope。
+- `runtime.replayRunEvents()` / `runtime.replayGoalEvents()` 保持旧 `ReplayEvent<T>` source-compatible；新增 envelope 能力只用于 CLI 和 type-only public surface，不新增 package root value export。
+- terminal reason 统一映射：timeout -> `timeout`，cancel/cancelled -> `canceled`，runtime restart -> `interrupted`，task graph invalid -> `task_graph_invalid`，auth missing -> `auth_missing`，unavailable executable/model -> `unavailable`，validation failure -> `validation_failed`，execution/parser/persistence failure -> `execution_failed`。
+- `agent-runtime conformance --json` 顶层输出 `schemaVersion: "agent-runtime.conformance.v1"`，保留 per-adapter fields：`adapter`、`version`、`auth`、`modelsSource`、`runClassification`、`expectedTextMatched`、`cwdMutated`、`diagnosticsCount`、`skippedReason`。
+- `agent-runtime.diagnostics.v1` contract 明确包含 diagnostics item shape、storageDiagnostics、supervisorSummary、adapterSummary 和 attemptEvidence；新增字段继续走 redaction，禁止 token、Bearer、auth env、prompt、raw corrupt line、真实私有路径泄露。
+- Package root value export 仍只暴露 `createAgentRuntime`；新增 `VersionedEventEnvelope`、`EventScope`、`EventTerminalContract`、`EventTerminalReason` 只作为 type export。
+- 仍明确非目标：无 daemon、无 WAL、无 remote runtime、无 UI、无 artifact model。
+
+### P2-4：Real CLI Compatibility Certification
+
+- `agent-runtime conformance --mode real --agent all --json` 默认只做真实本地 detection/profile certification，不启动真实 agent run；这条命令可作为不会消耗真实账号/网络 run 的本机兼容性证据。
+- 显式 `--allow-real-run` 后才启动真实 CLI run；默认使用 isolated temp cwd、read-only permission request、stdin prompt transport 和 expected-text/cwd-mutation 验收。
+- Conformance summary 升级为 adapter certification record：记录 detected version、resolved executable、auth state、models source、capabilities、argv profile、prompt transport、parser mode、run classification、diagnostics count、compact diagnostics、skip/fail reason。
+- 单 adapter `unavailable_executable`、`auth_missing`、`unsupported_flag`、`needs_verification` 或真实 run failure 不会阻止其它 adapter summary 输出；`--agent all` 的整体 `ok` 只表达认证命令是否完成或授权 run 是否存在未跳过失败，不把 skipped adapter 当作进程崩溃。
+- Drift detection 不猜真实 CLI 新 flag：tracked capability flag 缺失输出 `unsupported_flag`；陌生 version/help shape 输出 `needs_verification`；stream/parser error 写入 run diagnostic；未知能力保留在 `argvProfile.needsVerification`。
+- Redaction contract 扩展到 conformance：不得输出真实 token、Bearer、auth env assignment、完整 prompt、真实私有绝对路径、未脱敏 observed text tail 或 cwd mutation secret path。
+- `fixtures`、`fake`、`real local observed` 三类证据必须在 docs/compatibility.md 中分开描述；本机观测结果只可写脱敏摘要，不写真实用户名路径或 secret。
 
 ## 19. 待定问题
 

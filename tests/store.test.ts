@@ -787,7 +787,7 @@ describe("durable local store", () => {
       schemaVersion: "agent-runtime.diagnostics.v1",
       subject: { kind: "run", id: runId },
       events: { total: 1, retained: 1, eventTypes: { error: 1 } },
-      supervisorSummary: { kind: "run", status: "failed", terminalReason: "failed", terminalEventCount: 0, lease: { ownerStatus: "missing" } },
+      supervisorSummary: { kind: "run", status: "failed", terminalReason: "execution_failed", terminalEventCount: 0, lease: { ownerStatus: "missing" } },
       adapterSummary: { kind: "run", agentId: "fake" },
     });
     expect(bundle.diagnostics).toEqual(expect.arrayContaining([

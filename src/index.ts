@@ -14,6 +14,7 @@ export type {
   StreamParser,
 } from "./adapters/adapter-types.js";
 export type { AgentEvent, ReplayEvent, RuntimeUsage, SchedulerEvent } from "./core/events.js";
+export type { EventScope, EventTerminalContract, EventTerminalReason, VersionedEventEnvelope } from "./core/event-contract.js";
 export type { RuntimeDiagnostic, RuntimeErrorCode } from "./core/diagnostics.js";
 export type {
   CreateGoalRequest,

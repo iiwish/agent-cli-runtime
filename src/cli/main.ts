@@ -3,8 +3,15 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, writeFile } from "node
 import os from "node:os";
 import path from "node:path";
 import { createAgentRuntime } from "../index.js";
+import {
+  diagnosticCodeFromEvent,
+  envelopeReplayEvents,
+  envelopeStreamEvent,
+  type EventScope,
+} from "../core/event-contract.js";
 import { redactText } from "../core/redaction.js";
 import { runParserFixtureCases } from "../smoke/parser-fixtures.js";
+import { defaultAdapters } from "../adapters/registry.js";
 import {
   atomicWriteJsonFile,
   exportDiagnosticsBundle,
@@ -18,7 +25,7 @@ import {
   replayStoredGoalEvents,
   replayStoredRunEvents,
 } from "../storage/store-inspection.js";
-import type { DetectedAgent, RunRecord } from "../index.js";
+import type { AgentAdapterDef, DetectedAgent, RuntimeDiagnostic, RunRecord } from "../index.js";
 
 const DEFAULT_OBSERVED_TEXT_TAIL_BYTES = 2_048;
 const MAX_CWD_SCAN_ENTRIES = 1_000;
@@ -58,13 +65,32 @@ interface CwdMutationEvidence {
 interface ConformanceAdapterSummary {
   adapter: string;
   version: string | null;
+  resolvedExecutable: string | null;
   auth: DetectedAgent["authStatus"] | "not_checked";
   modelsSource: DetectedAgent["modelsSource"] | "fixtures" | "fake" | "none";
+  capabilities: DetectedAgent["capabilities"] | null;
+  argvProfile: {
+    defaultArgs: string[];
+    knownFlags: Array<{ flag: string; mapsTo: string; status: "known" | "needs_verification"; notes?: string }>;
+    needsVerification: Array<{ mapsTo: string; flags?: string[]; notes: string }>;
+  } | null;
+  promptTransport: string | null;
+  parserMode: string | null;
   runClassification: string;
   expectedTextMatched: boolean | null;
+  observedTextTail: string | null;
   cwdMutated: boolean | null;
   diagnosticsCount: number;
+  diagnostics: Array<Pick<RuntimeDiagnostic, "code" | "message" | "probe" | "actionableHints">>;
   skippedReason: string | null;
+  failureReason: string | null;
+}
+
+interface ConformanceReport {
+  schemaVersion: "agent-runtime.conformance.v1";
+  ok: boolean;
+  mode: "fixtures" | "fake" | "real";
+  agents: ConformanceAdapterSummary[];
 }
 
 interface ParsedArgs {
@@ -137,7 +163,7 @@ async function main(): Promise<void> {
       permissionPolicy: permissionFlag(parsed),
       timeoutMs: numberFlag(parsed, "timeout-ms"),
     });
-    await streamRun(parsed, handle.events, "run_summary", () => runtime.getRun(handle.runId));
+    await streamRun(parsed, handle.events, { kind: "run", id: handle.runId }, "run_summary", () => runtime.getRun(handle.runId));
     return;
   }
   if (parsed.command === "goal") {
@@ -151,7 +177,7 @@ async function main(): Promise<void> {
       maxConcurrentTasks: numberFlag(parsed, "max-concurrent-tasks"),
       retryPolicy: retryPolicyFromFlags(parsed),
     });
-    await streamRun(parsed, handle.events, "goal_summary", () => runtime.getGoal(handle.goalId));
+    await streamRun(parsed, handle.events, { kind: "goal", id: handle.goalId }, "goal_summary", () => runtime.getGoal(handle.goalId));
     return;
   }
   throw new Error(`Unknown command: ${parsed.command}`);
@@ -275,7 +301,7 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
         permissionPolicy: "read-only",
         timeoutMs: numberFlag(parsed, "timeout-ms") ?? 30_000,
       });
-      await streamRealSmoke(parsed, agent, cwd, cwdFlag === undefined, expectation, beforeCwd, handle.events, () => runtime.getRun(handle.runId));
+      await streamRealSmoke(parsed, agent, cwd, cwdFlag === undefined, expectation, beforeCwd, handle.events, { kind: "run", id: handle.runId }, () => runtime.getRun(handle.runId));
     } finally {
       await runtime.shutdown("CLI command complete");
     }
@@ -285,19 +311,18 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
 }
 
 async function runConformance(parsed: ParsedArgs): Promise<void> {
-  const mode = enumFlag(parsed, "mode", ["fixtures", "fake", "real"]) ?? "fixtures";
+  const mode = (enumFlag(parsed, "mode", ["fixtures", "fake", "real"]) ?? "fixtures") as "fixtures" | "fake" | "real";
   const requestedAgent = stringFlag(parsed, "agent") ?? "all";
   const agents = selectedAgents(requestedAgent);
-  if (mode === "real" && !parsed.flags.has("allow-real-run")) {
-    throw new Error("conformance --mode real requires --allow-real-run");
-  }
+  const allowRealRun = parsed.flags.has("allow-real-run");
   if (mode === "fixtures") {
     const summaries = agents.map((agentId) => fixtureConformanceSummary(agentId));
     output(parsed, {
+      schemaVersion: "agent-runtime.conformance.v1",
       ok: summaries.every((summary) => summary.runClassification === "success"),
       mode,
       agents: summaries,
-    });
+    } satisfies ConformanceReport);
     return;
   }
 
@@ -305,24 +330,26 @@ async function runConformance(parsed: ParsedArgs): Promise<void> {
   const runMode = mode as "fake" | "real";
   const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed, fake ? { env: fake.env, searchPath: [fake.binDir] } : undefined));
   try {
-    const detected = await runtime.detect({ includeUnavailable: true });
+    const detected = await runtime.detect({ includeUnavailable: true, timeoutMs: mode === "fake" ? 10_000 : undefined });
     const summaries: ConformanceAdapterSummary[] = [];
     for (const agentId of agents) {
       const detection = detected.find((item) => item.id === agentId);
-      summaries.push(await runAgentConformance(parsed, runtime, agentId, detection, runMode));
+      summaries.push(await runAgentConformance(parsed, runtime, agentId, detection, runMode, allowRealRun));
     }
     output(parsed, {
-      ok: conformanceOk(mode, requestedAgent, summaries),
+      schemaVersion: "agent-runtime.conformance.v1",
+      ok: conformanceOk(mode, requestedAgent, summaries, allowRealRun),
       mode,
       agents: summaries,
-    });
+    } satisfies ConformanceReport);
   } finally {
     await runtime.shutdown("CLI command complete");
   }
 }
 
-function conformanceOk(mode: string, requestedAgent: string, summaries: ConformanceAdapterSummary[]): boolean {
+function conformanceOk(mode: string, requestedAgent: string, summaries: ConformanceAdapterSummary[], allowRealRun: boolean): boolean {
   if (mode !== "real") return summaries.every((summary) => summary.runClassification === "success");
+  if (!allowRealRun) return summaries.length > 0 && summaries.every((summary) => summary.failureReason === null);
   if (requestedAgent !== "all") return summaries.every((summary) => summary.runClassification === "success");
   const successCount = summaries.filter((summary) => summary.runClassification === "success").length;
   const failedRuns = summaries.filter((summary) => summary.skippedReason === null && summary.runClassification !== "success");
@@ -339,16 +366,31 @@ function selectedAgents(agent: string): Array<"codex" | "claude" | "opencode"> {
 function fixtureConformanceSummary(agent: "codex" | "claude" | "opencode"): ConformanceAdapterSummary {
   const fixtures = runParserFixtureCases(agent);
   const ok = fixtures.length > 0 && fixtures.every((fixture) => fixture.ok);
+  const adapter = defaultAdapters().find((item) => item.id === agent) ?? null;
   return {
     adapter: agent,
     version: null,
+    resolvedExecutable: null,
     auth: "not_checked",
     modelsSource: "fixtures",
+    capabilities: adapterCapabilities(adapter),
+    argvProfile: adapterArgvProfile(adapter),
+    promptTransport: adapterPromptTransport(adapter),
+    parserMode: adapter?.compatibility?.streamFormat ?? null,
     runClassification: ok ? "success" : "parser_fixture_failed",
     expectedTextMatched: null,
+    observedTextTail: null,
     cwdMutated: null,
     diagnosticsCount: fixtures.filter((fixture) => !fixture.ok).length,
+    diagnostics: fixtures
+      .filter((fixture) => !fixture.ok)
+      .map((fixture) => ({
+        code: "AGENT_STREAM_PARSE_FAILED",
+        message: `${agent} parser fixture failed: ${fixture.name}`,
+        actionableHints: ["Inspect parser fixture expectations before updating the adapter stream profile."],
+      })),
     skippedReason: null,
+    failureReason: ok ? null : "parser_fixture_failed",
   };
 }
 
@@ -358,8 +400,10 @@ async function runAgentConformance(
   agent: string,
   detected: DetectedAgent | undefined,
   mode: "fake" | "real",
+  allowRealRun: boolean,
 ): Promise<ConformanceAdapterSummary> {
-  const preflight = conformancePreflight(agent, detected);
+  const adapter = runtime.getAdapter(agent);
+  const preflight = conformancePreflight(agent, detected, adapter, mode, allowRealRun);
   if (preflight) return preflight;
   const cwdFlag = stringFlag(parsed, "cwd");
   const cwd = path.resolve(cwdFlag ?? await mkdtemp(path.join(os.tmpdir(), `agent-runtime-${mode}-conformance-`)));
@@ -388,28 +432,49 @@ async function runAgentConformance(
     expectedTextRequired: evidence.expectedTextRequired,
     cwdMutated: mutation.cwdMutated,
   });
+  const failureReason = classification === "success" ? null : classification;
   return {
     adapter: agent,
     version: detected?.version ?? null,
+    resolvedExecutable: detected?.path ?? null,
     auth: detected?.authStatus ?? "unknown",
     modelsSource: detected?.modelsSource ?? "none",
+    capabilities: detected?.capabilities ?? adapterCapabilities(adapter),
+    argvProfile: adapterArgvProfile(adapter),
+    promptTransport: adapterPromptTransport(adapter),
+    parserMode: adapter?.compatibility?.streamFormat ?? null,
     runClassification: classification,
     expectedTextMatched,
+    observedTextTail: failureReason ? tailText(evidence.observedText, DEFAULT_OBSERVED_TEXT_TAIL_BYTES) : null,
     cwdMutated: mutation.cwdMutated,
     diagnosticsCount: (detected?.diagnostics.length ?? 0) + (run?.diagnostics.length ?? 0),
+    diagnostics: compactDiagnostics([...(detected?.diagnostics ?? []), ...(run?.diagnostics ?? [])]),
     skippedReason: null,
+    failureReason,
   };
 }
 
-function conformancePreflight(agent: string, detected: DetectedAgent | undefined): ConformanceAdapterSummary | null {
+function conformancePreflight(
+  agent: string,
+  detected: DetectedAgent | undefined,
+  adapter: AgentAdapterDef | null,
+  mode: "fake" | "real",
+  allowRealRun: boolean,
+): ConformanceAdapterSummary | null {
   if (!detected) {
-    return skippedConformance(agent, "unavailable_executable", "no_detection_result", 1);
+    return skippedConformance(agent, "unavailable_executable", "no_detection_result", 1, undefined, adapter);
   }
   if (!detected.available) {
-    return skippedConformance(agent, "unavailable_executable", "unavailable_executable", detected.diagnostics.length, detected);
+    return skippedConformance(agent, "unavailable_executable", "unavailable_executable", detected.diagnostics.length, detected, adapter);
   }
   if (detected.authStatus === "missing" || detected.authStatus === "expired") {
-    return skippedConformance(agent, "auth_missing", "auth_missing", detected.diagnostics.length, detected);
+    return skippedConformance(agent, "auth_missing", "auth_missing", detected.diagnostics.length, detected, adapter);
+  }
+  if (detected.diagnostics.some((item) => item.code === "unsupported_flag")) {
+    return skippedConformance(agent, "unsupported_flag", "unsupported_flag", detected.diagnostics.length, detected, adapter);
+  }
+  if (mode === "real" && !allowRealRun) {
+    return skippedConformance(agent, "real_run_skipped", "real_run_not_allowed", detected.diagnostics.length, detected, adapter);
   }
   return null;
 }
@@ -420,18 +485,72 @@ function skippedConformance(
   reason: string,
   diagnosticsCount: number,
   detected?: DetectedAgent,
+  adapter?: AgentAdapterDef | null,
 ): ConformanceAdapterSummary {
   return {
     adapter: agent,
     version: detected?.version ?? null,
+    resolvedExecutable: detected?.path ?? null,
     auth: detected?.authStatus ?? "unknown",
     modelsSource: detected?.modelsSource ?? "none",
+    capabilities: detected?.capabilities ?? adapterCapabilities(adapter ?? null),
+    argvProfile: adapterArgvProfile(adapter ?? null),
+    promptTransport: adapterPromptTransport(adapter ?? null),
+    parserMode: adapter?.compatibility?.streamFormat ?? null,
     runClassification: classification,
     expectedTextMatched: null,
+    observedTextTail: null,
     cwdMutated: null,
     diagnosticsCount,
+    diagnostics: compactDiagnostics(detected?.diagnostics ?? (diagnosticsCount > 0 ? [{
+      code: "not_installed",
+      message: `No adapter detection result for ${agent}`,
+      actionableHints: ["Verify the requested adapter id and executable configuration."],
+    }] : [])),
     skippedReason: reason,
+    failureReason: null,
   };
+}
+
+function adapterCapabilities(adapter: AgentAdapterDef | null): DetectedAgent["capabilities"] | null {
+  if (!adapter) return null;
+  return {
+    streaming: adapter.capabilities?.streaming ?? true,
+    tools: adapter.capabilities?.tools ?? false,
+    models: adapter.capabilities?.models ?? Boolean(adapter.listModels),
+    authProbe: Boolean(adapter.authProbe),
+    prompt: [adapter.promptTransport.kind],
+  };
+}
+
+function adapterArgvProfile(adapter: AgentAdapterDef | null): ConformanceAdapterSummary["argvProfile"] {
+  if (!adapter?.compatibility) return null;
+  return {
+    defaultArgs: adapter.compatibility.defaultArgs,
+    knownFlags: adapter.compatibility.knownFlags.map((flag) => ({
+      flag: flag.flag,
+      mapsTo: flag.mapsTo,
+      status: flag.needsVerification ? "needs_verification" : "known",
+      notes: flag.notes,
+    })),
+    needsVerification: adapter.compatibility.needsVerification ?? [],
+  };
+}
+
+function adapterPromptTransport(adapter: AgentAdapterDef | null): string | null {
+  if (!adapter) return null;
+  if (adapter.compatibility?.promptTransport) return adapter.compatibility.promptTransport;
+  const format = adapter.promptTransport.kind === "stdin" && adapter.promptTransport.inputFormat ? `:${adapter.promptTransport.inputFormat}` : "";
+  return `${adapter.promptTransport.kind}${format}`;
+}
+
+function compactDiagnostics(diagnostics: RuntimeDiagnostic[]): ConformanceAdapterSummary["diagnostics"] {
+  return diagnostics.map((item) => ({
+    code: item.code,
+    message: item.message,
+    probe: item.probe,
+    actionableHints: item.actionableHints,
+  }));
 }
 
 async function setupFakeConformanceEnv(): Promise<{ binDir: string; env: NodeJS.ProcessEnv }> {
@@ -481,7 +600,7 @@ process.stdin.on("end", () => {
 
 async function writeFakeExecutable(binDir: string, name: string, body: string): Promise<void> {
   const file = path.join(binDir, name);
-  await writeFile(file, `#!/usr/bin/env node\n${body}`, "utf8");
+  await writeFile(file, `#!${process.execPath}\n${body}`, "utf8");
   await chmod(file, 0o755);
 }
 
@@ -577,11 +696,18 @@ async function optionalPromptFromFlags(parsed: ParsedArgs): Promise<string | und
 async function streamRun(
   parsed: ParsedArgs,
   events: AsyncIterable<unknown>,
+  scope: EventScope,
   summaryType: "run_summary" | "goal_summary",
   loadSummary: () => Promise<unknown>,
 ): Promise<void> {
   if (parsed.flags.get("stream") === "jsonl") {
-    for await (const event of events) process.stdout.write(`${JSON.stringify(redactForCli(event))}\n`);
+    let sequence = 1;
+    let diagnosticCode: string | undefined;
+    for await (const event of events) {
+      diagnosticCode = diagnosticCodeFromEvent(event) ?? diagnosticCode;
+      process.stdout.write(`${JSON.stringify(redactForCli(envelopeStreamEvent(event, scope, sequence, diagnosticCode)))}\n`);
+      sequence += 1;
+    }
     if (parsed.flags.has("diagnostics")) {
       process.stdout.write(`${JSON.stringify(redactForCli({ type: summaryType, summary: await loadSummary() }))}\n`);
     }
@@ -609,6 +735,7 @@ async function streamRealSmoke(
   expectation: RealSmokeExpectation,
   beforeCwd: CwdSnapshot,
   events: AsyncIterable<unknown>,
+  scope: EventScope,
   loadRun: () => Promise<RunRecord | null>,
 ): Promise<void> {
   const evidence: RealSmokeEvidence = {
@@ -618,9 +745,13 @@ async function streamRealSmoke(
     expectedTextRequired: expectation.expectedTextRequired,
   };
   if (parsed.flags.get("stream") === "jsonl") {
+    let sequence = 1;
+    let diagnosticCode: string | undefined;
     for await (const event of events) {
       collectRealSmokeEvidence(evidence, event);
-      process.stdout.write(`${JSON.stringify(redactForCli(event))}\n`);
+      diagnosticCode = diagnosticCodeFromEvent(event) ?? diagnosticCode;
+      process.stdout.write(`${JSON.stringify(redactForCli(envelopeStreamEvent(event, scope, sequence, diagnosticCode)))}\n`);
+      sequence += 1;
     }
     if (parsed.flags.has("diagnostics")) {
       const run = await loadRun();
@@ -805,7 +936,7 @@ function output(parsed: ParsedArgs, value: unknown): void {
 
 function outputReplay(parsed: ParsedArgs, events: unknown[]): void {
   if (parsed.flags.has("jsonl")) {
-    for (const event of events) process.stdout.write(`${JSON.stringify(redactForCli(event))}\n`);
+    for (const event of envelopeReplayEvents(events as never[])) process.stdout.write(`${JSON.stringify(redactForCli(event))}\n`);
     return;
   }
   output(parsed, events);

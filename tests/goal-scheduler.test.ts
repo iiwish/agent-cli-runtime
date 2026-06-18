@@ -243,7 +243,7 @@ describe("GoalScheduler", () => {
       kind: "goal",
       status: "failed",
       result: "failed",
-      terminalReason: "failed",
+      terminalReason: "timeout",
     });
     expect(bundleText).toContain("[REDACTED]");
     expect(bundleText).not.toContain(secret);
@@ -640,7 +640,7 @@ describe("GoalScheduler", () => {
       "--stream",
       "jsonl",
       "--diagnostics",
-    ])).stdout.trim().split(/\r?\n/u).map((line) => JSON.parse(line) as { type: string; summary?: { status?: string } });
+    ])).stdout.trim().split(/\r?\n/u).map((line) => JSON.parse(line) as { type?: string; event?: { type?: string }; summary?: { status?: string } });
     const missingJson = JSON.parse((await execFileP(process.execPath, [
       cli,
       "run",
@@ -655,12 +655,12 @@ describe("GoalScheduler", () => {
     expect(runs.map((run: { id: string }) => run.id)).toContain(runHandle.runId);
     expect(runStatus).toMatchObject({ id: runHandle.runId, status: "succeeded" });
     expect(runEvents.every((event: { id: number }) => event.id > 1)).toBe(true);
-    expect(runEvents.every((event: { sequence: number; runId: string }) => event.sequence === event.id && event.runId === runHandle.runId)).toBe(true);
+    expect(runEvents.every((event: { sequence: number; scope: { kind: string; id: string } }) => event.sequence === event.id && event.scope.kind === "run" && event.scope.id === runHandle.runId)).toBe(true);
     expect(goals.map((goal: { id: string }) => goal.id)).toContain(goalHandle.goalId);
     expect(goalStatus).toMatchObject({ id: goalHandle.goalId, status: "succeeded" });
     expect(goalEvents.every((event: { id: number }) => event.id > 1)).toBe(true);
-    expect(goalEvents.every((event: { sequence: number; goalId: string }) => event.sequence === event.id && event.goalId === goalHandle.goalId)).toBe(true);
-    expect(missingJsonl.some((event) => event.type === "run_finished")).toBe(true);
+    expect(goalEvents.every((event: { sequence: number; scope: { kind: string; id: string } }) => event.sequence === event.id && event.scope.kind === "goal" && event.scope.id === goalHandle.goalId)).toBe(true);
+    expect(missingJsonl.some((event) => event.event?.type === "run_finished")).toBe(true);
     expect(missingJsonl.at(-1)).toMatchObject({ type: "run_summary", summary: { status: "failed" } });
     expect(missingJson).toMatchObject({ agentId: "missing-adapter", status: "failed", errorCode: "AGENT_UNAVAILABLE" });
   }, 30_000);

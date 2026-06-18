@@ -79,6 +79,7 @@ export const codexAdapter: AgentAdapterDef = {
       { name: "codex", source: "primary" },
     ],
     versionProbe: { args: ["--version"], timeoutMs: 3_000 },
+    versionOutputPattern: "codex|^\\d+\\.\\d+\\.\\d+",
     modelProbe: { args: ["debug", "models"], timeoutMs: 5_000 },
     authProbe: null,
     defaultArgs: ["exec", "--json", "--skip-git-repo-check", "-C", "<cwd>"],

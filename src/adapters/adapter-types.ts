@@ -81,6 +81,7 @@ export interface AdapterCompatibilityProfile {
   executableNames: string[];
   executableCandidates?: Array<{ name: string; source: "primary" | "fallback" | "env"; envVar?: string }>;
   versionProbe: ProbeCommand;
+  versionOutputPattern?: string;
   modelProbe?: (ProbeCommand & { needsVerification?: boolean; notes?: string }) | null;
   authProbe?: (ProbeCommand & { needsVerification?: boolean; notes?: string }) | null;
   defaultArgs: string[];

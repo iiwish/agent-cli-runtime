@@ -34,7 +34,7 @@
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "npm run build && vitest run --no-file-parallelism --testTimeout 30000"
   },
   "keywords": [
     "agent",

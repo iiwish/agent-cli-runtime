@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P2-2 local supervisor lease and storage concurrency hardening
+Status: P2-4 real CLI compatibility certification
 Last updated: 2026-06-18
 
-This project is still **pre-alpha / developer preview**. P2-2 defines a local-first production target for embedding the runtime on one machine with a best-effort single-writer storage lease; it does not claim OpenDesign daemon-level production parity.
+This project is still **pre-alpha / developer preview**. P2-4 defines a local-first production target for embedding the runtime on one machine with a best-effort single-writer storage lease, versioned event/diagnostics/conformance schemas, and a repeatable real CLI compatibility certification layer; it does not claim OpenDesign daemon-level production parity.
 
 ## Local-First Production Definition
 
@@ -17,7 +17,8 @@ For this repository, "production-ready local runtime" means:
 - one writer runtime per `storageDir` by default, with read-only inspection paths that do not acquire the writer lease;
 - active run/goal reload is conservative: only records owned by a missing/stale/closed owner are marked interrupted, not resumed;
 - diagnostics are auditable and redacted before storage/export;
-- real CLI conformance is opt-in and requires `--allow-real-run`;
+- CLI event JSONL is versioned as `agent-runtime.event.v1` for both live stream and replay output;
+- real CLI conformance defaults to detection/profile certification only; authenticated real agent runs require explicit `--allow-real-run`;
 - validation evidence is replayable through goal manifests and diagnostics export.
 
 ## Production Readiness Gates
@@ -40,24 +41,35 @@ node ./dist/cli/main.js doctor --json
 Real CLI gate, only on a machine where the selected CLI is installed and authorized:
 
 ```bash
+node ./dist/cli/main.js conformance --mode real --agent all --json
 node ./dist/cli/main.js conformance --mode real --agent codex --allow-real-run --json
 node ./dist/cli/main.js conformance --mode real --agent claude --allow-real-run --json
 node ./dist/cli/main.js conformance --mode real --agent opencode --allow-real-run --json
 ```
 
-`--agent all` keeps one adapter's fail/skip isolated in the summary. Real mode without `--allow-real-run` must refuse before launching a CLI.
+`--agent all` keeps one adapter's fail/skip isolated in the summary. Real mode without `--allow-real-run` never launches a real agent run; it performs executable/version/auth/model/profile certification and returns `runClassification: "real_run_skipped"` when a run would require explicit authorization.
 
-Stable conformance summary fields per adapter:
+Conformance JSON uses `schemaVersion: "agent-runtime.conformance.v1"`. Stable summary fields per adapter:
 
 - `adapter`
 - `version`
+- `resolvedExecutable`
 - `auth`
 - `modelsSource`
+- `capabilities`
+- `argvProfile`
+- `promptTransport`
+- `parserMode`
 - `runClassification`
 - `expectedTextMatched`
+- `observedTextTail`
 - `cwdMutated`
 - `diagnosticsCount`
+- `diagnostics`
 - `skippedReason`
+- `failureReason`
+
+The conformance layer reports `unsupported_flag`, unfamiliar version/help shapes, and parser/stream failures as actionable diagnostics instead of guessing replacements. Unknown or unproven flags stay in `argvProfile.needsVerification`. JSON output is recursively redacted and must not contain tokens, Bearer values, auth-token environment assignments, full prompts, raw private absolute paths, or unredacted observed text tails.
 
 ## Durable Supervisor Contract
 
@@ -73,7 +85,25 @@ The runtime does not resume live processes after a process restart. When `storag
 - `shutdown()`, `cancelRun()`, and `cancelGoal()` are idempotent around terminal events;
 - `shutdown()` releases or marks the storage lease closed.
 
-Diagnostics export includes a `supervisorSummary` with terminal reason, terminal event count, active reload recovery, owner/lease status, and task status counts for goals. It intentionally omits env values, prompts, raw private paths, and tokens.
+Diagnostics export uses `schemaVersion: "agent-runtime.diagnostics.v1"` and includes `diagnostics`, `storageDiagnostics`, `supervisorSummary`, `adapterSummary`, and goal `attemptEvidence` when present. `supervisorSummary` includes terminal reason, terminal event count, active reload recovery, owner/lease status, and task status counts for goals. It intentionally omits env values, prompts, raw corrupt lines, raw private paths, and tokens.
+
+## Event Schema Contract
+
+CLI `run --stream jsonl`, `goal --stream jsonl`, `replay-run --jsonl`, and `replay-goal --jsonl` emit the same event envelope:
+
+```json
+{
+  "schemaVersion": "agent-runtime.event.v1",
+  "id": 1,
+  "sequence": 1,
+  "timestamp": 1760000000000,
+  "scope": { "kind": "run", "id": "run_123" },
+  "event": { "type": "run_finished", "result": "success", "timestamp": 1760000000000 },
+  "terminal": { "result": "success", "reason": "success" }
+}
+```
+
+Library replay APIs remain source-compatible and return `ReplayEvent<T>`. Terminal reasons use the stable vocabulary `success`, `failed`, `timeout`, `canceled`, `interrupted`, `validation_failed`, `execution_failed`, `unavailable`, `auth_missing`, and `task_graph_invalid`.
 
 This lease is a same-machine best-effort guard for local embedded runtimes. It is not a daemon coordination protocol, distributed lock, WAL, group commit, database transaction layer, multi-host scheduler, or live process resume/session attachment.
 

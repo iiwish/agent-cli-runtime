@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { RuntimeDiagnostic } from "../core/diagnostics.js";
 import type { ReplayEvent } from "../core/events.js";
 import type { AgentEvent, SchedulerEvent } from "../core/events.js";
+import { terminalReasonFromDiagnosticCode, terminalReasonFromResult } from "../core/event-contract.js";
 import { redactUnknown } from "../core/redaction.js";
 import { readJsonl } from "./jsonl-store.js";
 import { isRecord, validateGoalManifest, validateRunManifest } from "./manifest-validation.js";
@@ -666,7 +667,7 @@ function supervisorSummary(record: ScannedRecord): Record<string, unknown> {
       result: runResultFromStatus(record.manifest.status),
       errorCode: record.manifest.errorCode,
       signal: record.manifest.signal,
-      terminalReason: terminalReason(record.manifest),
+      terminalReason: terminalEventReason(terminalEvents) ?? terminalReason(record.manifest),
       terminalEventCount: terminalEvents.length,
       activeReloadRecovered: hasDiagnostic(record, "AGENT_RUNTIME_INTERRUPTED"),
       lease: ownerSummary,
@@ -682,7 +683,7 @@ function supervisorSummary(record: ScannedRecord): Record<string, unknown> {
     id: record.id,
     status: record.manifest.status,
     result: record.manifest.result,
-    terminalReason: terminalReason(record.manifest),
+    terminalReason: terminalEventReason(terminalEvents) ?? terminalReason(record.manifest),
     terminalEventCount: terminalEvents.length,
     activeReloadRecovered: hasDiagnostic(record, "AGENT_RUNTIME_INTERRUPTED"),
     taskStatusCounts,
@@ -700,12 +701,16 @@ function runResultFromStatus(status: unknown): string | undefined {
 function terminalReason(manifest: Record<string, unknown>): string {
   const errorCode = typeof manifest.errorCode === "string" ? manifest.errorCode : undefined;
   const signal = typeof manifest.signal === "string" ? manifest.signal : undefined;
-  if (errorCode === "AGENT_RUNTIME_INTERRUPTED" || signal === "RUNTIME_RESTART") return "interrupted";
-  if (errorCode === "AGENT_CANCELLED" || manifest.status === "canceled") return "canceled";
-  if (errorCode === "AGENT_TIMEOUT") return "timeout";
-  if (manifest.status === "succeeded") return "success";
-  if (manifest.status === "failed") return "failed";
+  if (manifest.status === "succeeded") return terminalReasonFromResult("success", errorCode, signal);
+  if (manifest.status === "canceled") return terminalReasonFromResult("cancelled", errorCode, signal);
+  if (manifest.status === "failed") return terminalReasonFromResult("failed", errorCode, signal);
   return "active";
+}
+
+function terminalEventReason(events: Array<ReplayEvent<AgentEvent | SchedulerEvent>>): string | undefined {
+  const event = events.at(-1)?.event;
+  if (event && "reason" in event && typeof event.reason === "string") return event.reason;
+  return undefined;
 }
 
 function hasDiagnostic(record: ScannedRecord, code: string): boolean {

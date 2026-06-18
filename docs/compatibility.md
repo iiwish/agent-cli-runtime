@@ -1,15 +1,19 @@
 # Agent CLI Compatibility Matrix
 
-Status: P2-2 Local Supervisor Lease And Storage Concurrency Hardening
+Status: P2-4 Real CLI Compatibility Certification
 Last updated: 2026-06-18
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P2-2 local supervisor lease hardening adds same-machine single-writer `storageDir` protection, runtime instance owner metadata, stale-owner recovery, read-only inspection paths, and owner/lease diagnostics. The opt-in durable store includes explicit `fsync` durability, JSONL corrupt-line health diagnostics, active-record interruption handling, and a dry-run-only repair model. Raw CLI output, tokens, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P2-4 upgrades conformance into a repeatable real CLI compatibility certification layer on top of versioned event/diagnostics/conformance schemas and the P2-2 same-machine single-writer `storageDir` lease. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P2-1 pre-alpha production-hardening evidence, which is intended to be the default interpretation for this matrix.
+Current status is P2-4 pre-alpha real CLI compatibility certification evidence, which is intended to be the default interpretation for this matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack` and install-smoke checks.
+- Evidence modes are intentionally separate:
+  - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
+  - `fake`: temporary local fake CLIs through the real adapter argv/stdin/parser path; no network or real account is used.
+  - `real local observed`: local executable/version/auth/model/profile certification by default; real runs only when `--allow-real-run` is explicit.
 - P1-6 and earlier notes in this file are historical references for parser fixtures, timeout/reconnect evidence, and compatibility context; they are not equivalent to current "latest expected" contract assumptions.
 - When using this file as runtime contract input, prioritize the `Status` section, explicit "Runtime notes" in each adapter, and the most recent command evidence.
 - For changed behavior, add a new evidence row at the top of the section rather than keeping the old row as authoritative.
@@ -18,9 +22,9 @@ Current status is P2-1 pre-alpha production-hardening evidence, which is intende
 
 | Adapter | CLI path | CLI version tested | Detection | Run smoke | Goal smoke | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Codex CLI | redacted local app path | `codex-cli 0.140.0-alpha.19` | Pass | Pass: P1-6 real smoke matched expected text and reported no cwd mutation. | Not run in P1-6 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. Timeout diagnostics still show sanitized argv/profile, parsed event count, stdout/stderr tails, and startup diagnostic hints when needed. |
-| Claude Code | `/opt/homebrew/bin/claude` | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P0-4 | `claude auth status` returned `loggedIn:false`, `authMethod:none`, `apiProvider:firstParty`. |
-| OpenCode | `/opt/homebrew/bin/opencode` | `1.15.6` | Pass | Pass: P1-6 real smoke matched expected text and reported no cwd mutation. | Not run in P1-6 | `opencode-cli` was not installed; fallback `opencode` was used. Live model probe passed. Stdin prompt support is verified for local `opencode run --format json --dir <cwd>` on 1.15.6; explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
+| Codex CLI | redacted local app path | `codex-cli 0.140.0-alpha.19` | Pass | Pass: P2-4 opt-in real conformance matched expected text, reported no cwd mutation, and diagnostics count was 0. | Not run in P2-4 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. P2-4 reports `real_run_skipped` without `--allow-real-run`; timeout diagnostics still show sanitized argv/profile, parsed event count, stdout/stderr tails, and startup diagnostic hints when needed. |
+| Claude Code | redacted local app path | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P2-4 | `claude auth status` returned auth missing in the local P2-4 certification. Conformance skips the run without launching Claude. |
+| OpenCode | redacted local app path | `1.15.6` | Pass | Not run by default in P2-4 real conformance; P1-6 opt-in run passed with expected text and no cwd mutation. | Not run in P2-4 | P2-4 reports `real_run_skipped` without `--allow-real-run` and live model source is available. Explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
 
 ## Verified Invocation Shapes
 
@@ -88,6 +92,7 @@ Runtime notes:
 - model probe: `opencode models`
 - read-only and workspace-write are left to OpenCode defaults until stable permission flags are verified
 - extra dirs and session/resume are not mapped; profile marks them as `needsVerification`
+- P2-4 current local certification: executable/version/model preflight passed for `opencode` 1.15.6, and no real run was launched because `--allow-real-run` was not supplied.
 - P1-5 real smoke evidence: stdin prompt support is verified for local `opencode` 1.15.6 through the opt-in non-mutating isolated smoke. Keep prompt out of argv; do not switch to positional argv prompt. The runtime requested read-only behavior, but OpenCode explicit read-only/workspace-write flags remain unverified.
 
 ## Smoke Commands
@@ -112,6 +117,7 @@ Production conformance gates without launching real agent CLIs:
 ```bash
 node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js conformance --mode real --agent all --json
 ```
 
 Durable store query/replay smoke with fake or test-generated records:
@@ -130,7 +136,7 @@ node ./dist/cli/main.js diagnostics run run_123 --storage-dir .agent-runtime --j
 node ./dist/cli/main.js diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
 ```
 
-Optional real non-mutating run smoke, only when the relevant local CLI auth is available. This is disabled unless `--allow-real-run` is present; without `--cwd`, it uses an isolated temp directory and runtime-requested `read-only` behavior:
+Optional real non-mutating run certification, only when the relevant local CLI auth is available. Real run execution is disabled unless `--allow-real-run` is present; without `--cwd`, it uses an isolated temp directory and runtime-requested `read-only` behavior:
 
 ```bash
 node ./dist/cli/main.js conformance \
@@ -141,7 +147,15 @@ node ./dist/cli/main.js conformance \
   --timeout-ms 30000
 ```
 
-`conformance --mode real` requires `--allow-real-run` and returns stable per-adapter fields: `adapter`, `version`, `auth`, `modelsSource`, `runClassification`, `expectedTextMatched`, `cwdMutated`, `diagnosticsCount`, and `skippedReason`. `--agent all` keeps one adapter fail/skip isolated in the summary. The legacy `smoke --mode real` command remains available for detailed run-summary evidence with `--stream jsonl --diagnostics`.
+`conformance --mode real` without `--allow-real-run` performs real local detection/profile certification and reports `runClassification: "real_run_skipped"` for runnable adapters. With `--allow-real-run`, it also executes the selected real CLI run and validates expected text plus cwd mutation evidence. It returns `schemaVersion: "agent-runtime.conformance.v1"` plus stable per-adapter fields: `adapter`, `version`, `resolvedExecutable`, `auth`, `modelsSource`, `capabilities`, `argvProfile`, `promptTransport`, `parserMode`, `runClassification`, `expectedTextMatched`, `observedTextTail`, `cwdMutated`, `diagnosticsCount`, `diagnostics`, `skippedReason`, and `failureReason`. `--agent all` keeps one adapter fail/skip isolated in the summary. The legacy `smoke --mode real` command remains available for detailed run-summary evidence with `--stream jsonl --diagnostics`.
+
+P2-4 drift diagnostics:
+
+- `unsupported_flag`: a tracked capability flag is missing from help output or a real run reports an unsupported flag/argument.
+- `needs_verification`: version/help shape is outside the current profile; do not infer new flags from it.
+- parser/stream failures: structured stream errors become run diagnostics and are counted in conformance.
+
+All conformance output is redacted recursively. Do not commit real username paths, tokens, Bearer values, auth-token env assignments, full prompts, raw CLI output, or unredacted observed tails.
 
 Equivalent lower-level run command:
 
@@ -216,6 +230,7 @@ node ./dist/cli/main.js goal \
 - JSONL append is still a simple append-only file and not segmented. Default durability is `relaxed`; callers can request `storage.durability: "fsync"` for best-effort fdatasync/fsync after manifest writes and event appends, but there is no WAL or group commit.
 - There is still no long-lived daemon, database, WAL, segment compaction, or automatic destructive repair. `store-repair` is dry-run only in P1-8.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
+- CLI event JSONL is versioned as `agent-runtime.event.v1` for both live stream and replay commands; library replay APIs continue to return legacy `ReplayEvent<T>` records.
 - CLI remains a thin local smoke/scripting wrapper over the library API, not a daemon or long-lived service.
 - Real CLI auth and model availability depend on the user's local installation.
 - Runtime-side validation executes shell commands supplied by task graphs; callers should only use it with trusted objectives or trusted planners.
@@ -223,6 +238,34 @@ node ./dist/cli/main.js goal \
 - Historical P0-4 Codex smoke showed reconnect/timeout behavior; parser fixtures and timeout diagnostics preserve that coverage.
 - Historical P0-4 OpenCode smoke timed out with zero parsed events, but P1-5 local `opencode` 1.15.6 real smoke passed and verifies stdin prompt support for this version.
 - Claude Code run/goal smoke is blocked by local auth until `claude auth status` reports a logged-in account or a supported Anthropic-compatible provider env is supplied.
+
+## P2-4 Real CLI Compatibility Certification Evidence
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run ci
+node ./dist/cli/main.js conformance --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js conformance --mode real --agent all --json
+```
+
+Covered behavior:
+
+- `fixtures`, `fake`, and `real local observed` conformance evidence are distinct and labeled by `mode`;
+- current local `real --agent all --json` observed: Codex detected with live models and `real_run_skipped`; Claude detected with `auth_missing`; OpenCode detected with live models and `real_run_skipped`;
+- current local opt-in `real --agent codex --allow-real-run --expect-text "agent-runtime codex smoke ok" --json` observed: `success`, expected text matched, cwd not mutated, diagnostics count 0;
+- `real --agent all --json` performs detection/profile certification without launching real runs unless `--allow-real-run` is explicit;
+- per-adapter summaries include resolved executable, auth state, models source, capabilities, argv profile, prompt transport, parser mode, run classification, diagnostics count, compact diagnostics, and skip/fail reason;
+- one adapter being unavailable, auth-missing, unsupported, or failed does not prevent other adapter summaries from being reported;
+- tracked flag drift reports `unsupported_flag`; unfamiliar version shape reports `needs_verification`; stream/parser errors become actionable diagnostics;
+- `--expect-text` failures include only a redacted/truncated `observedTextTail`;
+- conformance JSON redacts token-like values, Bearer values, auth env assignments, prompts, private absolute paths, and cwd mutation secret-looking filenames;
+- `.reference/`, tests, fixtures, and secret-looking values remain excluded from npm pack.
 
 ## P2-2 Local Supervisor Lease Evidence
 
@@ -251,6 +294,32 @@ Covered behavior:
 - `store-health` reports lock/lease and active owner status;
 - diagnostics `supervisorSummary` includes redacted owner/lease status;
 - lock diagnostics and package dry-run remain secret/path safe.
+
+## P2-3 Event Contract Evidence
+
+Commands verified in this stage:
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run ci
+node ./dist/cli/main.js conformance --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js smoke --mode fixtures --json
+```
+
+Covered behavior:
+
+- `run --stream jsonl` and `replay-run --jsonl` emit `schemaVersion: "agent-runtime.event.v1"` envelopes with `scope.kind: "run"`;
+- `goal --stream jsonl` and `replay-goal --jsonl` emit the same envelope shape with `scope.kind: "goal"`;
+- terminal envelopes use stable `terminal.result` and `terminal.reason` values for success, timeout, canceled, interrupted, validation failure, execution failure, unavailable, auth missing, and task graph invalid cases;
+- `runtime.replayRunEvents()` and `runtime.replayGoalEvents()` keep the old `ReplayEvent<T>` return shape;
+- diagnostics bundles remain `agent-runtime.diagnostics.v1` and redact storage diagnostics, supervisor summaries, adapter summaries, and attempt evidence;
+- conformance JSON includes `schemaVersion: "agent-runtime.conformance.v1"` and stable per-adapter summary fields;
+- package root value exports remain limited to `createAgentRuntime`;
+- package dry-run excludes `.reference/`, tests, fixtures, and secret-looking values.
 
 ## P1-1 Durable Store Evidence
 
@@ -472,7 +541,7 @@ Covered behavior:
 
 - `conformance --mode fixtures` returns stable per-adapter summaries without launching CLIs;
 - `conformance --mode fake` runs temporary fake CLIs through the real adapter argv/stdin/parser path;
-- `conformance --mode real` refuses without `--allow-real-run`;
+- historical P2-3 `conformance --mode real` refused without `--allow-real-run`; P2-4 supersedes this with safe detection/profile certification and no real run launch unless `--allow-real-run` is explicit;
 - `--agent all` preserves one adapter fail/skip alongside other adapter summaries;
 - validation timeout evidence records classification, timeout, redacted env override, and replayable diagnostics export;
 - diagnostics bundle includes `supervisorSummary` without raw env, prompt, token, or private path data;

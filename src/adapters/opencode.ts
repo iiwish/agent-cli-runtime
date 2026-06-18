@@ -72,6 +72,7 @@ export const opencodeAdapter: AgentAdapterDef = {
       { name: "opencode", source: "fallback" },
     ],
     versionProbe: { args: ["--version"], timeoutMs: 3_000 },
+    versionOutputPattern: "opencode|^\\d+\\.\\d+\\.\\d+",
     modelProbe: { args: ["models"], timeoutMs: 15_000 },
     authProbe: null,
     defaultArgs: ["run", "--format", "json", "--dir", "<cwd>"],

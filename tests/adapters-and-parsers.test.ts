@@ -10,6 +10,7 @@ describe("MVP adapters", () => {
   it("declares compatibility profiles for Codex, Claude, and OpenCode", () => {
     expect(codexAdapter.compatibility).toMatchObject({
       executableNames: ["codex"],
+      versionOutputPattern: expect.any(String),
       promptTransport: "stdin:text",
       promptTransportMode: { kind: "stdin", inputFormat: "text" },
       streamFormat: "codex-json",
@@ -21,6 +22,7 @@ describe("MVP adapters", () => {
     ]));
     expect(claudeAdapter.compatibility).toMatchObject({
       executableNames: ["claude"],
+      versionOutputPattern: expect.any(String),
       promptTransport: "stdin:jsonl",
       promptTransportMode: { kind: "stdin", inputFormat: "jsonl" },
       streamFormat: "claude-stream-json",
@@ -32,6 +34,7 @@ describe("MVP adapters", () => {
     ]));
     expect(opencodeAdapter.compatibility).toMatchObject({
       executableNames: ["opencode-cli", "opencode"],
+      versionOutputPattern: expect.any(String),
       promptTransport: "stdin:text",
       promptTransportMode: { kind: "stdin", inputFormat: "text" },
       streamFormat: "opencode-json",

@@ -55,6 +55,7 @@ export const claudeAdapter: AgentAdapterDef = {
       { name: "claude", source: "primary" },
     ],
     versionProbe: { args: ["--version"], timeoutMs: 3_000 },
+    versionOutputPattern: "claude|^\\d+\\.\\d+\\.\\d+",
     modelProbe: null,
     authProbe: { args: ["auth", "status"], timeoutMs: 3_000 },
     defaultArgs: ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"],

@@ -74,12 +74,26 @@ async function detectAdapter(adapter: AgentAdapterDef, context: DetectionContext
   }
 
   let version: string | null = null;
+  const versionDiagnostics: RuntimeDiagnostic[] = [];
   try {
     const probe = await execProbe(resolution.selectedPath, adapter.versionArgs, {
       env,
       timeoutMs: options.timeoutMs ?? 3_000,
     });
     version = probe.stdout.trim().split(/\r?\n/u)[0] || null;
+    if (version && adapter.compatibility?.versionOutputPattern && !new RegExp(adapter.compatibility.versionOutputPattern, "iu").test(version)) {
+      versionDiagnostics.push(diagnostic("needs_verification", `${adapter.displayName} version output shape is not in the tracked compatibility profile`, {
+        agentId: adapter.id,
+        path: resolution.selectedPath,
+        probe: "version",
+        stdoutTail: redactText(tail(version)),
+        actionableHints: [
+          "Verify this CLI version output manually before adding or trusting new flags.",
+          "Keep unknown flags in needsVerification until a real local observation proves the profile.",
+        ],
+        retryable: false,
+      }));
+    }
   } catch (error) {
     return unavailable(adapter, [
       probeDiagnostic("version", error, `${adapter.displayName} could not be invoked`, {
@@ -108,7 +122,7 @@ async function detectAdapter(adapter: AgentAdapterDef, context: DetectionContext
       authProbe: Boolean(adapter.authProbe),
       prompt: [adapter.promptTransport.kind],
     },
-    diagnostics: [...capabilityDiagnostics, ...models.diagnostics, ...authStatus.diagnostics],
+    diagnostics: [...versionDiagnostics, ...capabilityDiagnostics, ...models.diagnostics, ...authStatus.diagnostics],
   };
 }
 
@@ -136,6 +150,10 @@ async function probeCapabilities(adapter: AgentAdapterDef, command: string, env:
           probe: "capabilities",
           stdoutTail: probe.stdout ? redactText(tail(probe.stdout)) : undefined,
           stderrTail: probe.stderr ? redactText(tail(probe.stderr)) : undefined,
+          actionableHints: [
+            "The installed CLI help output does not contain a flag tracked by this adapter profile.",
+            "Do not guess a replacement flag; mark the capability as needs_verification until verified locally.",
+          ],
           retryable: false,
         }),
       );

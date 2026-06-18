@@ -7,6 +7,13 @@ import type { RunScheduler } from "../runs/run-scheduler.js";
 import type { RunResult } from "../runs/run-result.js";
 import type { RunRecord } from "../runs/run-types.js";
 import { diagnostic, type RuntimeDiagnostic, type RuntimeErrorCode } from "../core/diagnostics.js";
+import type { EventTerminalReason } from "../core/events.js";
+
+interface TaskOutcome {
+  result: RunResult;
+  reason: EventTerminalReason;
+  errorCode?: string;
+}
 
 export class GoalScheduler {
   private readonly currentRuns = new Map<string, Map<string, string>>();
@@ -30,7 +37,7 @@ export class GoalScheduler {
       if (this.store.isTerminal(goal.id)) return;
       if (this.cancelRequested.has(goal.id)) {
         this.cancelPendingFromStore(goal.id);
-        this.finish(goal.id, "cancelled");
+        this.finish(goal.id, { result: "cancelled", reason: "canceled", errorCode: "AGENT_CANCELLED" });
         return;
       }
       const code = error instanceof TaskGraphError ? error.code : "AGENT_EXECUTION_FAILED";
@@ -40,7 +47,7 @@ export class GoalScheduler {
         message: error instanceof Error ? error.message : String(error),
         retryable: false,
       });
-      this.finish(goal.id, "failed");
+      this.finish(goal.id, { result: "failed", reason: terminalReasonFromErrorCode(code), errorCode: code });
     });
     return handle;
   }
@@ -67,7 +74,7 @@ export class GoalScheduler {
         retryable: false,
       });
       this.cancelPendingFromStore(goalId);
-      this.finish(goalId, "cancelled");
+      this.finish(goalId, { result: "cancelled", reason: "canceled", errorCode: "AGENT_CANCELLED" });
     }
   }
 
@@ -85,7 +92,7 @@ export class GoalScheduler {
       env: request.env,
       timeoutMs: request.timeoutMs,
     });
-    if (this.cancelRequested.has(goalId)) return this.finish(goalId, "cancelled");
+    if (this.cancelRequested.has(goalId)) return this.finish(goalId, { result: "cancelled", reason: "canceled", errorCode: "AGENT_CANCELLED" });
     const tasks = validateTaskGraph(parsePlannerOutput(plannerText), request);
     this.store.setTasks(goalId, tasks);
     for (const task of tasks) this.store.emit(goalId, { type: "task_created", goalId, task });
@@ -93,14 +100,14 @@ export class GoalScheduler {
     this.store.setStatus(goalId, "running");
     if (this.store.isTerminal(goalId)) return;
 
-    const result = await this.runReadyQueue(goalId, request, tasks);
-    this.finish(goalId, result);
+    const outcome = await this.runReadyQueue(goalId, request, tasks);
+    this.finish(goalId, outcome);
   }
 
-  private async runReadyQueue(goalId: string, request: CreateGoalRequest, tasks: ScheduledTask[]): Promise<RunResult> {
+  private async runReadyQueue(goalId: string, request: CreateGoalRequest, tasks: ScheduledTask[]): Promise<TaskOutcome> {
     const maxConcurrentTasks = normalizeMaxConcurrentTasks(request.maxConcurrentTasks ?? this.options.maxConcurrentTasks);
-    const running = new Map<string, Promise<{ task: ScheduledTask; result: RunResult }>>();
-    let terminalResult: RunResult = "success";
+    const running = new Map<string, Promise<{ task: ScheduledTask; outcome: TaskOutcome }>>();
+    let terminalOutcome: TaskOutcome = { result: "success", reason: "success" };
     let stopScheduling = false;
 
     const launchReady = (): void => {
@@ -110,14 +117,14 @@ export class GoalScheduler {
         task.status = "running";
         this.store.updateTask(goalId, task);
         const promise = this.runTask(goalId, request, task)
-          .then((result) => ({ task, result }));
+          .then((outcome) => ({ task, outcome }));
         running.set(task.id, promise);
       }
     };
 
     while (true) {
       if (this.cancelRequested.has(goalId)) {
-        terminalResult = "cancelled";
+        terminalOutcome = { result: "cancelled", reason: "canceled", errorCode: "AGENT_CANCELLED" };
         stopScheduling = true;
         this.cancelPending(goalId, tasks);
         await this.cancelCurrentRuns(goalId);
@@ -136,7 +143,7 @@ export class GoalScheduler {
               this.store.updateTask(goalId, task);
             }
           }
-          terminalResult = terminalResult === "success" ? "failed" : terminalResult;
+          if (terminalOutcome.result === "success") terminalOutcome = { result: "failed", reason: "failed" };
           break;
         }
       }
@@ -144,12 +151,12 @@ export class GoalScheduler {
       if (running.size === 0) continue;
       const settled = await Promise.race(running.values());
       running.delete(settled.task.id);
-      if (settled.result === "failed") terminalResult = "failed";
-      if (settled.result === "cancelled" && terminalResult !== "failed") terminalResult = "cancelled";
+      if (settled.outcome.result === "failed") terminalOutcome = settled.outcome;
+      if (settled.outcome.result === "cancelled" && terminalOutcome.result !== "failed") terminalOutcome = settled.outcome;
 
-      if (settled.result !== "success" && !request.continueOnFailure) {
+      if (settled.outcome.result !== "success" && !request.continueOnFailure) {
         stopScheduling = true;
-        if (settled.result === "failed") {
+        if (settled.outcome.result === "failed") {
           this.blockDependents(goalId, tasks, settled.task.id);
           this.cancelPendingExceptBlocked(goalId, tasks);
           await this.cancelCurrentRuns(goalId);
@@ -157,20 +164,25 @@ export class GoalScheduler {
           this.cancelPending(goalId, tasks);
           await this.cancelCurrentRuns(goalId);
         }
-      } else if (settled.result !== "success") {
+      } else if (settled.outcome.result !== "success") {
         this.blockDependents(goalId, tasks, settled.task.id);
       }
     }
 
-    if (terminalResult === "success" && tasks.some((task) => task.status === "failed" || task.status === "blocked")) return "failed";
-    if (terminalResult === "success" && tasks.some((task) => task.status === "canceled")) return "cancelled";
-    return terminalResult;
+    if (terminalOutcome.result === "success" && tasks.some((task) => task.status === "failed" || task.status === "blocked")) {
+      return { result: "failed", reason: "failed" };
+    }
+    if (terminalOutcome.result === "success" && tasks.some((task) => task.status === "canceled")) {
+      return { result: "cancelled", reason: "canceled", errorCode: "AGENT_CANCELLED" };
+    }
+    return terminalOutcome;
   }
 
-  private async runTask(goalId: string, request: CreateGoalRequest, task: ScheduledTask): Promise<RunResult> {
+  private async runTask(goalId: string, request: CreateGoalRequest, task: ScheduledTask): Promise<TaskOutcome> {
     const retryPolicy = normalizeRetryPolicy(task.retryPolicy ?? request.retryPolicy);
     const attempts = task.evidence?.attempts ? [...task.evidence.attempts] : [];
     let finalResult: RunResult = "failed";
+    let finalReason: EventTerminalReason = "failed";
     let validationResults: ValidationCommandResult[] = [];
     let lastErrorCode: string | undefined;
 
@@ -181,6 +193,7 @@ export class GoalScheduler {
       }
       const attempt = await this.runTaskAttempt(goalId, request, task, attemptNumber, attempts);
       finalResult = attempt.result;
+      finalReason = attempt.reason;
       lastErrorCode = attempt.errorCode;
       if (attempt.result === "success" && task.validationCommands?.length) {
         validationResults = await runValidationCommands({
@@ -192,6 +205,7 @@ export class GoalScheduler {
         const failedValidation = validationResults.find((validation) => !validation.passed);
         if (failedValidation) {
           finalResult = "failed";
+          finalReason = failedValidation.classification === "timeout" ? "timeout" : "validation_failed";
           lastErrorCode = failedValidation.classification === "timeout" ? "AGENT_TIMEOUT" : "AGENT_EXECUTION_FAILED";
           attempt.evidence.result = "failed";
           attempt.evidence.diagnostics = [
@@ -219,12 +233,18 @@ export class GoalScheduler {
         runId: attempt.evidence.runId,
         result: finalResult,
         retryable,
+        reason: finalReason,
+        errorCode: lastErrorCode,
       });
       if (!retryable) break;
       if (retryPolicy.backoffMs > 0) await delay(retryPolicy.backoffMs);
     }
 
-    if (this.cancelRequested.has(goalId)) finalResult = "cancelled";
+    if (this.cancelRequested.has(goalId)) {
+      finalResult = "cancelled";
+      finalReason = "canceled";
+      lastErrorCode = "AGENT_CANCELLED";
+    }
     task.status = finalResult === "success" ? "succeeded" : finalResult === "cancelled" ? "canceled" : "failed";
     task.evidence = {
       runId: task.evidence?.runId,
@@ -235,8 +255,10 @@ export class GoalScheduler {
       summary: evidenceSummary(task.id, finalResult, attempts, validationResults),
     };
     this.store.updateTask(goalId, task);
-    if (!this.store.isTerminal(goalId)) this.store.emit(goalId, { type: "task_finished", goalId, taskId: task.id, result: finalResult });
-    return finalResult;
+    if (!this.store.isTerminal(goalId)) {
+      this.store.emit(goalId, { type: "task_finished", goalId, taskId: task.id, result: finalResult, reason: finalReason, errorCode: lastErrorCode });
+    }
+    return { result: finalResult, reason: finalReason, errorCode: lastErrorCode };
   }
 
   private async runTaskAttempt(
@@ -245,7 +267,7 @@ export class GoalScheduler {
     task: ScheduledTask,
     attemptNumber: number,
     attempts: TaskAttemptEvidence[],
-  ): Promise<{ result: RunResult; errorCode?: string; evidence: TaskAttemptEvidence }> {
+  ): Promise<TaskOutcome & { evidence: TaskAttemptEvidence }> {
     let result: RunResult = "failed";
     let runRecord: RunRecord | null = null;
     const prompt = createTaskPrompt(request.objective, task);
@@ -278,7 +300,7 @@ export class GoalScheduler {
     this.store.emit(goalId, { type: "task_started", goalId, taskId: task.id, runId: handle.runId });
     if (this.store.isTerminal(goalId)) {
       await handle.cancel();
-      return { result: "failed", evidence: attemptEvidence };
+      return { result: "failed", reason: "failed", evidence: attemptEvidence };
     }
     try {
       for await (const event of handle.events) {
@@ -299,6 +321,7 @@ export class GoalScheduler {
     this.updateAttemptEvidence(goalId, task, attempts, attemptEvidence, attemptEvidence.result, []);
     return {
       result: attemptEvidence.result,
+      reason: terminalReasonFromRunRecord(runRecord, attemptEvidence.result),
       errorCode: runRecord?.errorCode ?? firstDiagnosticCode(attemptEvidence.diagnostics),
       evidence: attemptEvidence,
     };
@@ -423,10 +446,11 @@ export class GoalScheduler {
     this.store.updateTask(goalId, task);
   }
 
-  private finish(goalId: string, result: RunResult): void {
+  private finish(goalId: string, outcome: TaskOutcome): void {
     if (this.store.isTerminal(goalId)) return;
+    const result = outcome.result;
     this.store.setStatus(goalId, result === "success" ? "succeeded" : result === "cancelled" ? "canceled" : "failed", result);
-    this.store.emit(goalId, { type: "goal_finished", goalId, result });
+    this.store.emit(goalId, { type: "goal_finished", goalId, result, reason: outcome.reason, errorCode: outcome.errorCode });
     this.currentRuns.delete(goalId);
     this.cancelRequested.delete(goalId);
   }
@@ -462,6 +486,24 @@ function dependenciesSucceeded(task: ScheduledTask, tasks: ScheduledTask[]): boo
 
 function isRetryable(errorCode: string | undefined, policy: Required<TaskRetryPolicy>): boolean {
   return Boolean(errorCode && policy.retryableErrorCodes.includes(errorCode));
+}
+
+function terminalReasonFromRunRecord(run: RunRecord | null, result: RunResult): EventTerminalReason {
+  if (result === "success") return "success";
+  if (result === "cancelled") return "canceled";
+  return terminalReasonFromErrorCode(run?.errorCode ?? firstDiagnosticCode(summarizeAttemptDiagnostics(run)));
+}
+
+function terminalReasonFromErrorCode(errorCode: string | undefined): EventTerminalReason {
+  if (errorCode === "AGENT_TIMEOUT") return "timeout";
+  if (errorCode === "AGENT_CANCELLED") return "canceled";
+  if (errorCode === "AGENT_RUNTIME_INTERRUPTED") return "interrupted";
+  if (errorCode === "AGENT_TASK_GRAPH_INVALID") return "task_graph_invalid";
+  if (errorCode === "AGENT_AUTH_REQUIRED" || errorCode === "auth_missing") return "auth_missing";
+  if (errorCode === "AGENT_UNAVAILABLE" || errorCode === "AGENT_NOT_EXECUTABLE" || errorCode === "AGENT_MODEL_UNAVAILABLE") return "unavailable";
+  if (errorCode === "AGENT_PROMPT_TOO_LARGE" || errorCode === "PERMISSION_POLICY_UNSUPPORTED") return "validation_failed";
+  if (errorCode === "AGENT_EXECUTION_FAILED" || errorCode === "AGENT_STREAM_PARSE_FAILED" || errorCode === "AGENT_EVENT_PERSIST_FAILED") return "execution_failed";
+  return "failed";
 }
 
 function summarizeAttemptDiagnostics(run: RunRecord | null): RuntimeDiagnostic[] {

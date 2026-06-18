@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { chmod, mkdir, readFile, readdir, writeFile, lstat } from "node:fs/promises";
@@ -26,6 +26,10 @@ import type {
   StoreHealth,
   StoreRepairAction,
   StoreRepairReport,
+  EventScope,
+  EventTerminalContract,
+  EventTerminalReason,
+  VersionedEventEnvelope,
 } from "../src/index.js";
 import { tempDir, writeExecutable } from "./helpers.js";
 
@@ -104,10 +108,6 @@ function isLikelyBinary(buffer: Buffer): boolean {
 }
 
 describe("public contract", () => {
-  beforeAll(async () => {
-    await execFileP("npm", ["run", "build"], { cwd: root });
-  }, 60_000);
-
   it("keeps the package root focused on the runtime facade and public types", async () => {
     type PublicApiSmoke = {
       adapter: AgentAdapterDef;
@@ -131,6 +131,10 @@ describe("public contract", () => {
       storeRepairReport: StoreRepairReport;
       diagnosticsRequest: ExportDiagnosticsRequest;
       diagnosticsBundle: DiagnosticsBundle;
+      eventScope: EventScope;
+      eventTerminalContract: EventTerminalContract;
+      eventTerminalReason: EventTerminalReason;
+      eventEnvelope: VersionedEventEnvelope<AgentEvent>;
     };
     const smoke = undefined as unknown as PublicApiSmoke;
     expect(typeof createAgentRuntime).toBe("function");
@@ -200,6 +204,7 @@ describe("public contract", () => {
     ])).stdout);
 
     expect(conformance).toMatchObject({
+      schemaVersion: "agent-runtime.conformance.v1",
       ok: true,
       mode: "fixtures",
       agents: [
@@ -230,6 +235,7 @@ describe("public contract", () => {
     ])).stdout);
 
     expect(conformance).toMatchObject({
+      schemaVersion: "agent-runtime.conformance.v1",
       ok: true,
       mode: "fake",
       agents: [
@@ -262,9 +268,53 @@ describe("public contract", () => {
     });
   }, 30_000);
 
-  it("refuses real conformance unless --allow-real-run is explicit", async () => {
-    await expect(execFileP(process.execPath, [cli, "conformance", "--mode", "real", "--agent", "codex", "--json"])).rejects.toMatchObject({
-      stderr: expect.stringContaining("conformance --mode real requires --allow-real-run"),
+  it("certifies real conformance preflight without launching runs unless --allow-real-run is explicit", async () => {
+    const binDir = await tempDir();
+    await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("codex-cli preflight"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-preflight", display_name: "GPT Preflight" }] })); process.exit(0); }
+console.error("real run should not launch without --allow-real-run");
+process.exit(66);
+`);
+    const conformance = await execCliJson([
+      "conformance",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--json",
+    ], {
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
+    });
+
+    expect(conformance).toMatchObject({
+      schemaVersion: "agent-runtime.conformance.v1",
+      ok: true,
+      mode: "real",
+      agents: [expect.objectContaining({
+        adapter: "codex",
+        version: "codex-cli preflight",
+        resolvedExecutable: expect.any(String),
+        auth: "unknown",
+        modelsSource: "live",
+        capabilities: expect.objectContaining({ streaming: true, prompt: ["stdin"] }),
+        argvProfile: expect.objectContaining({
+          defaultArgs: expect.arrayContaining(["exec", "--json", "-C", "<cwd>"]),
+          knownFlags: expect.arrayContaining([expect.objectContaining({ flag: "--json", status: "known" })]),
+          needsVerification: expect.arrayContaining([expect.objectContaining({ mapsTo: "session" })]),
+        }),
+        promptTransport: "stdin:text",
+        parserMode: "codex-json",
+        runClassification: "real_run_skipped",
+        expectedTextMatched: null,
+        observedTextTail: null,
+        cwdMutated: null,
+        diagnosticsCount: 0,
+        diagnostics: [],
+        skippedReason: "real_run_not_allowed",
+        failureReason: null,
+      })],
     });
   }, 30_000);
 
@@ -303,6 +353,7 @@ exit 66
     })).stdout);
 
     expect(conformance).toMatchObject({
+      schemaVersion: "agent-runtime.conformance.v1",
       ok: false,
       mode: "real",
       agents: [expect.objectContaining({
@@ -366,6 +417,7 @@ echo '{"type":"step_start"}'
       },
     })).stdout);
     expect(conformance.agents).toHaveLength(3);
+    expect(conformance.schemaVersion).toBe("agent-runtime.conformance.v1");
     expect(conformance.agents.find((agent: { adapter: string }) => agent.adapter === "codex")).toMatchObject({
       runClassification: "success",
       skippedReason: null,
@@ -380,6 +432,104 @@ echo '{"type":"step_start"}'
     });
     expect(conformance.ok).toBe(false);
   }, 60_000);
+
+  it("reports unsupported flag drift without crashing all-agent conformance", async () => {
+    const binDir = await tempDir();
+    await writeFakeCodexSmoke(binDir, `
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+`);
+    await writeShellExecutable(binDir, "claude", `
+if [ "$1" = "--version" ]; then
+  echo "Claude Code drift-test"
+  exit 0
+fi
+if [ "$1" = "-p" ] && [ "$2" = "--help" ]; then
+  printf '%s\\n' "--include-partial-messages"
+  exit 0
+fi
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  echo '{"loggedIn":true}'
+  exit 0
+fi
+echo "real run should not launch when an unsupported tracked flag is detected" >&2
+exit 66
+`);
+    const conformance = await execCliJson<{
+      ok: boolean;
+      agents: Array<{ adapter: string; runClassification: string; skippedReason: string | null; diagnostics: Array<{ code: string; actionableHints?: string[] }> }>;
+    }>([
+      "conformance",
+      "--mode",
+      "real",
+      "--agent",
+      "all",
+      "--json",
+    ], {
+      env: {
+        ...process.env,
+        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        CODEX_BIN: path.join(binDir, "codex"),
+        CLAUDE_BIN: path.join(binDir, "claude"),
+        OPENCODE_BIN: path.join(binDir, "missing-opencode"),
+      },
+    });
+
+    const codex = conformance.agents.find((item) => item.adapter === "codex");
+    const claude = conformance.agents.find((item) => item.adapter === "claude");
+    expect(conformance.ok).toBe(true);
+    expect(codex).toMatchObject({ runClassification: "real_run_skipped", skippedReason: "real_run_not_allowed" });
+    expect(claude).toMatchObject({ runClassification: "unsupported_flag", skippedReason: "unsupported_flag" });
+    expect(claude?.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "unsupported_flag",
+        actionableHints: expect.arrayContaining([expect.stringContaining("Do not guess")]),
+      }),
+    ]));
+  }, 60_000);
+
+  it("marks unfamiliar version output as needs_verification without inventing new flags", async () => {
+    const binDir = await tempDir();
+    await writeFakeCodexSmoke(binDir, `
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+`);
+    await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("mystery-runtime build local"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-drift", display_name: "GPT Drift" }] })); process.exit(0); }
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => input += chunk);
+process.stdin.on("end", () => {
+  console.log(JSON.stringify({ type: "thread.started" }));
+  console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
+});
+`);
+    const conformance = await execCliJson<{
+      agents: Array<{ diagnostics: Array<{ code: string; actionableHints?: string[] }>; argvProfile: { needsVerification: Array<{ mapsTo: string }> } }>;
+    }>([
+      "conformance",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--json",
+    ], {
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
+    });
+
+    expect(conformance.agents[0].diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "needs_verification",
+        actionableHints: expect.arrayContaining([expect.stringContaining("Verify this CLI version output manually")]),
+      }),
+    ]));
+    expect(conformance.agents[0].argvProfile.needsVerification).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mapsTo: "session" }),
+      expect.objectContaining({ mapsTo: "authProbe" }),
+    ]));
+  }, 30_000);
 
   it("refuses real smoke unless --allow-real-run is explicit", async () => {
     await expect(execFileP(process.execPath, [cli, "smoke", "--mode", "real", "--agent", "codex", "--json"])).rejects.toMatchObject({
@@ -668,6 +818,59 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
     expect(text).not.toContain(privateCwd);
   }, 30_000);
 
+  it("redacts observed text, prompt, auth env, and cwd in real conformance failures", async () => {
+    const binDir = await tempDir();
+    const privateCwd = await tempDir("private-conformance-");
+    const secret = `sk${"A".repeat(20)}`;
+    await writeFakeCodexSmoke(binDir, `
+const fs = require("node:fs");
+const path = require("node:path");
+fs.writeFileSync(path.join(process.cwd(), "token-sk" + "A".repeat(20) + ".txt"), "secret");
+console.log(JSON.stringify({ type: "thread.started" }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "wrong tail token sk" + "A".repeat(20) + " cwd=" + process.cwd() } }));
+`);
+    const conformance = await execCliJson<{
+      ok: boolean;
+      agents: Array<{ runClassification: string; expectedTextMatched: boolean; observedTextTail: string; cwdMutated: boolean; failureReason: string }>;
+    }>([
+      "conformance",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--cwd",
+      privateCwd,
+      "--prompt",
+      `prompt contains ${secret} and cwd ${privateCwd}`,
+      "--expect-text",
+      `expected ${secret}`,
+      "--json",
+    ], {
+      env: fakeCliEnv(binDir, {
+        CODEX_BIN: path.join(binDir, "codex"),
+        ANTHROPIC_AUTH_TOKEN: secret,
+      }),
+    });
+    const text = JSON.stringify(conformance);
+
+    expect(conformance).toMatchObject({
+      ok: false,
+      agents: [expect.objectContaining({
+        runClassification: "cwd_mutated",
+        expectedTextMatched: false,
+        observedTextTail: expect.stringContaining("[REDACTED]"),
+        cwdMutated: true,
+        failureReason: "cwd_mutated",
+      })],
+    });
+    expect(text).toContain("[REDACTED]");
+    expect(text).not.toContain(secret);
+    expect(text).not.toContain(privateCwd);
+    expect(text).not.toContain("ANTHROPIC_AUTH_TOKEN");
+    expect(text).not.toContain("prompt contains");
+  }, 30_000);
+
   it("classifies real smoke auth-missing preflight without launching Claude", async () => {
     const binDir = await tempDir();
     await writeExecutable(binDir, "claude", `
@@ -741,21 +944,20 @@ process.exit(66);
 
   it("keeps Claude auth missing as a doctor diagnostic without failing doctor", async () => {
     const binDir = await tempDir();
-    await writeExecutable(binDir, "claude", `
-const args = process.argv.slice(2);
-if (args[0] === "--version") {
-  console.log("2.1.178 (Claude Code)");
-  process.exit(0);
-}
-if (args[0] === "-p" && args[1] === "--help") {
-  console.log("--include-partial-messages\\n--add-dir");
-  process.exit(0);
-}
-if (args[0] === "auth" && args[1] === "status") {
-  console.log(JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }));
-  process.exit(0);
-}
-process.exit(0);
+    await writeShellExecutable(binDir, "claude", `
+if [ "$1" = "--version" ]; then
+  echo "2.1.178 (Claude Code)"
+  exit 0
+fi
+if [ "$1" = "-p" ] && [ "$2" = "--help" ]; then
+  printf '%s\\n' "--include-partial-messages" "--add-dir"
+  exit 0
+fi
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  echo '{"loggedIn":false,"authMethod":"none","apiProvider":"firstParty"}'
+  exit 0
+fi
+exit 0
 `);
     const doctor = JSON.parse((await execFileP(process.execPath, [cli, "doctor", "--json"], {
       env: {
@@ -797,10 +999,15 @@ process.exit(0);
       "--stream",
       "jsonl",
       "--diagnostics",
-    ])).stdout.trim().split(/\r?\n/u).map((line) => JSON.parse(line) as { type: string; summary?: RunRecord });
+    ])).stdout.trim().split(/\r?\n/u).map((line) => JSON.parse(line) as { type?: string; event?: { type?: string }; summary?: RunRecord });
 
     expect(jsonRun).toMatchObject({ agentId: "missing-adapter", status: "failed", errorCode: "AGENT_UNAVAILABLE" });
-    expect(jsonl.some((event) => event.type === "run_finished")).toBe(true);
+    expect(jsonl.some((event) => event.event?.type === "run_finished")).toBe(true);
+    expect(jsonl.find((event) => event.event?.type === "run_finished")).toMatchObject({
+      schemaVersion: "agent-runtime.event.v1",
+      scope: { kind: "run" },
+      terminal: { result: "failed", reason: "unavailable" },
+    });
     expect(jsonl.at(-1)).toMatchObject({ type: "run_summary", summary: { status: "failed", errorCode: "AGENT_UNAVAILABLE" } });
   }, 30_000);
 
@@ -1095,7 +1302,7 @@ setInterval(() => {}, 1000);
     expect(tarEntries).not.toContainEqual(expect.stringMatching(/^package\/docs\/fixtures\//u));
 
     await execFileP("npm", ["init", "-y"], { cwd: tempProject });
-    await execFileP("npm", ["install", tarball, "--no-save"], { cwd: tempProject });
+    await execFileP("npm", ["install", tarball, "--no-save", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: tempProject });
     const installedFakeBinDir = path.join(tempProject, "fake-bin");
     await mkdir(installedFakeBinDir, { recursive: true });
     await writeShellExecutable(installedFakeBinDir, "codex", `

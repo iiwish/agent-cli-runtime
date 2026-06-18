@@ -123,6 +123,7 @@ export class RunScheduler {
     const prepared = await preparePromptTransport(adapter.promptTransport, prompt);
     let sawSubstantiveEvent = false;
     let errorEventCode: RuntimeErrorCode | undefined;
+    let errorEventMessage: string | undefined;
     let stderrTail = "";
     const active = this.active.get(runId);
     try {
@@ -181,7 +182,10 @@ export class RunScheduler {
         const parsedEvents = parser.parse(text);
         parsedEventCount += parsedEvents.length;
         for (const event of parsedEvents) {
-          if (event.type === "error") errorEventCode ??= event.code;
+          if (event.type === "error") {
+            errorEventCode ??= event.code;
+            errorEventMessage ??= event.message;
+          }
           if (isSubstantive(event)) sawSubstantiveEvent = true;
           if (!this.emit(runId, event)) {
             void this.active.get(runId)?.process?.cancel();
@@ -197,7 +201,10 @@ export class RunScheduler {
       const flushedEvents = parser.flush();
       parsedEventCount += flushedEvents.length;
       for (const event of flushedEvents) {
-        if (event.type === "error") errorEventCode ??= event.code;
+        if (event.type === "error") {
+          errorEventCode ??= event.code;
+          errorEventMessage ??= event.message;
+        }
         if (isSubstantive(event)) sawSubstantiveEvent = true;
         if (!this.emit(runId, event)) return;
       }
@@ -272,6 +279,21 @@ export class RunScheduler {
           errorCode: "AGENT_EXECUTION_FAILED",
         });
       } else if (errorEventCode) {
+        this.store.addDiagnostic(runId, diagnostic(errorEventCode, redactText(errorEventMessage ?? `${adapter.displayName} structured stream emitted an error`), {
+          agentId: adapter.id,
+          argv: safeArgv(args, request.cwd),
+          promptTransport: promptTransportLabel(adapter),
+          streamFormat: adapter.compatibility?.streamFormat,
+          parsedEventCount,
+          exitCode: close.exitCode,
+          signal: close.signal,
+          stdoutTail: sanitizeDiagnosticText(stdoutTail, request.cwd),
+          stderrTail: sanitizeDiagnosticText(stderrTail, request.cwd),
+          actionableHints: [
+            "The CLI emitted a structured error frame on the configured stream profile.",
+            "If this came from a new stream shape, keep the parser/profile marked needs_verification until fixture and real observations are updated.",
+          ],
+        }));
         this.finish(runId, "failed", close.exitCode, close.signal, { errorCode: errorEventCode });
       } else if (close.exitCode !== 0) {
         const diagnosticCode = classifyProcessOutputDiagnosticCode(`${stdoutTail}\n${stderrTail}`);
