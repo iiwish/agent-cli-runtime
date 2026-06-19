@@ -23,18 +23,23 @@
     "README.md",
     "README.zh-CN.md",
     "LICENSE",
+    "examples",
     "docs/release-checklist.md",
     "docs/ssot.md",
     "docs/compatibility.md",
-    "docs/production-readiness.md"
+    "docs/production-readiness.md",
+    "scripts/dogfood.mjs"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "ci": "npm run typecheck && npm run lint && npm test && npm run build && npm audit --omit=dev && npm pack --dry-run",
+    "ci": "npm run typecheck && npm run lint && npm test && npm run build && npm audit --omit=dev && npm run package:check && npm pack --dry-run",
+    "dogfood": "node ./scripts/dogfood.mjs",
+    "package:check": "node ./scripts/check-package-boundary.mjs",
+    "prepublish:check": "npm run typecheck && npm run lint && npm test && npm run build && npm run dogfood && npm audit --omit=dev && npm run package:check && npm pack --dry-run",
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && vitest run --no-file-parallelism --testTimeout 30000"
+    "test": "npm run build && vitest run --reporter=verbose --no-file-parallelism --testTimeout 30000"
   },
   "keywords": [
     "agent",

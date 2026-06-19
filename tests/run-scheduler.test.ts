@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { access, chmod, readFile, writeFile, mkdir } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import path, { delimiter } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 import { createAgentRuntime } from "../src/index.js";
 import { RunStore } from "../src/runs/run-store.js";
 import type { FileStorage } from "../src/storage/storage-types.js";
 import { fakeAdapter, fakeCliBody, tempDir, writeExecutable } from "./helpers.js";
+
+const execFileP = promisify(execFile);
 
 async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
   const out: T[] = [];
@@ -301,6 +305,36 @@ process.exit(2);
     expect(isProcessAlive(childPid)).toBe(false);
   });
 
+  it("cancels only the detached child process group, not the test process group", async () => {
+    if (process.platform === "win32") return;
+    const dir = await tempDir();
+    const cwd = await tempDir();
+    const marker = path.join(await tempDir(), "agent.pid");
+    await writeExecutable(dir, "fake-agent", `
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("fake 1.0.0"); process.exit(0); }
+fs.writeFileSync(${JSON.stringify(marker)}, String(process.pid));
+setInterval(() => {}, 1000);
+`);
+    const runtime = createAgentRuntime({ adapters: [fakeAdapter()], env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` }, searchPath: [dir] });
+    const handle = await runtime.run({ agentId: "fake", cwd, prompt: "cancel" });
+    await waitForFile(marker);
+    const agentPid = Number((await readFile(marker, "utf8")).trim());
+    const testPgid = await processGroupId(process.pid);
+    const agentPgid = await processGroupId(agentPid);
+
+    expect(agentPgid).toBe(agentPid);
+    expect(agentPgid).not.toBe(testPgid);
+
+    await handle.cancel();
+    await collect(handle.events);
+    await delay(100);
+
+    expect(isProcessAlive(agentPid)).toBe(false);
+    expect(isProcessAlive(process.pid)).toBe(true);
+  });
+
   it("emits only one run_finished when process close and error race", async () => {
     const dir = await tempDir();
     const cwd = await tempDir();
@@ -576,6 +610,11 @@ function isProcessAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+async function processGroupId(pid: number): Promise<number> {
+  const { stdout } = await execFileP("ps", ["-o", "pgid=", "-p", String(pid)]);
+  return Number(stdout.trim());
 }
 
 function throwingRunEventStorage(): FileStorage {

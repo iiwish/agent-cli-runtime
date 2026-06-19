@@ -1,22 +1,52 @@
 # Agent CLI Compatibility Matrix
 
-Status: P2-4 Real CLI Compatibility Certification
+Status: P2-6 CI Release Automation & Prepublish Guard
 Last updated: 2026-06-18
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P2-4 upgrades conformance into a repeatable real CLI compatibility certification layer on top of versioned event/diagnostics/conformance schemas and the P2-2 same-machine single-writer `storageDir` lease. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P2-6 adds repeatable CI, release-candidate artifact generation, a prepublish guard, and package-boundary checking on top of the P2-5 dogfood and install-smoke path. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P2-4 pre-alpha real CLI compatibility certification evidence, which is intended to be the default interpretation for this matrix.
+Current status is P2-6 pre-alpha release-candidate CI evidence, which is intended to be the default interpretation for this matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack` and install-smoke checks.
+- CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
+- `npm test` uses Vitest's verbose reporter to keep long contract/install-smoke files chatty enough for CI and local watchdogs.
+- `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, dogfood, production audit, package boundary checks, and pack dry-run.
 - Evidence modes are intentionally separate:
   - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
   - `fake`: temporary local fake CLIs through the real adapter argv/stdin/parser path; no network or real account is used.
   - `real local observed`: local executable/version/auth/model/profile certification by default; real runs only when `--allow-real-run` is explicit.
+  - `package install smoke`: npm tarball installation into a temporary project, with fake/local CLI checks and no real provider secrets.
 - P1-6 and earlier notes in this file are historical references for parser fixtures, timeout/reconnect evidence, and compatibility context; they are not equivalent to current "latest expected" contract assumptions.
 - When using this file as runtime contract input, prioritize the `Status` section, explicit "Runtime notes" in each adapter, and the most recent command evidence.
 - For changed behavior, add a new evidence row at the top of the section rather than keeping the old row as authoritative.
+
+## P2-6 CI Release Automation Evidence
+
+Release-candidate gates:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run ci
+npm run dogfood
+npm run prepublish:check
+npm run package:check
+npm pack --dry-run
+```
+
+CI/release semantics:
+
+- `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
+- The official test script is `vitest run --reporter=verbose --no-file-parallelism --testTimeout 30000`, keeping full-suite progress visible without dropping P2-5/P2-6 contract coverage.
+- The CI dogfood gate runs `npm run dogfood` once on Node.js 22. It does not pass `--allow-real-run`, so real mode is limited to executable/version/auth/model/profile certification and runnable adapters report `real_run_skipped`.
+- The package install smoke uses `npm install <tarball> --no-save --ignore-scripts --no-audit --no-fund`.
+- `.github/workflows/release-candidate.yml` is `workflow_dispatch` only. It runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates `npm pack --json` output and uploads the tarball, pack metadata, and package file list as artifacts.
+- No workflow step runs `npm publish`, requests an npm token, or requires real Codex/Claude/OpenCode installation.
+- `scripts/check-package-boundary.mjs` checks the pack dry-run file list and scans docs/examples/scripts for real token-like values, Bearer values, auth environment assignment values, and private user paths.
 
 ## Summary
 
@@ -266,6 +296,42 @@ Covered behavior:
 - `--expect-text` failures include only a redacted/truncated `observedTextTail`;
 - conformance JSON redacts token-like values, Bearer values, auth env assignments, prompts, private absolute paths, and cwd mutation secret-looking filenames;
 - `.reference/`, tests, fixtures, and secret-looking values remain excluded from npm pack.
+
+## P2-5 Release Candidate Dogfood Evidence
+
+Release-candidate gate:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run ci
+npm run dogfood
+node ./dist/cli/main.js conformance --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js conformance --mode real --agent all --json
+npm pack --dry-run
+```
+
+Dogfood coverage:
+
+- `npm run dogfood` rebuilds before running CLI gates;
+- fixtures conformance remains fully offline;
+- fake conformance runs temporary fake CLIs through real adapter argv/stdin/parser paths;
+- real conformance with `--agent all` performs detection/profile certification only because `--allow-real-run` is not supplied;
+- `smoke --mode fixtures`, `agents --json`, and `doctor --json` remain runnable local checks;
+- `examples/library-run.js` demonstrates `detect -> run -> replay/diagnostics/store health` using a fake Codex CLI;
+- `examples/library-goal.js` demonstrates `createGoal -> task graph -> final result/replay/diagnostics` using a fake Codex CLI;
+- package install smoke verifies `import('agent-cli-runtime')`, installed CLI fixtures conformance, installed fake conformance, and installed fixtures smoke from a packed tarball;
+- package dry-run includes docs, examples, and `scripts/dogfood.mjs`, and excludes `.reference/`, `tests/`, test fixtures, raw real CLI output, private paths, and secrets.
+
+Known compatibility/readiness risks:
+
+- status-only real smoke exit `0` is intentionally classified as `unexpected_output` when no `text_delta` is observed;
+- real conformance preflight can report unavailable/auth-missing on a specific machine because executable, auth, network, or proxy state is local;
+- optional authenticated real runs must be performed manually with `--allow-real-run`;
+- OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume remain unverified.
 
 ## P2-2 Local Supervisor Lease Evidence
 
@@ -572,7 +638,7 @@ pushd "$tmp_dir"
 pack_info="$(cd "$repo_root" && npm pack --json --ignore-scripts --pack-destination "$tmp_dir")"
 package_file="$(printf '%s' "$pack_info" | node -e "const data = JSON.parse(require('node:fs').readFileSync(0, 'utf8')); process.stdout.write(data[0].filename);")"
 npm init -y >/dev/null
-npm install "$tmp_dir/$package_file" --no-save >/tmp/agent-runtime-release-smoke-install.log
+npm install "$tmp_dir/$package_file" --no-save --ignore-scripts --no-audit --no-fund >/tmp/agent-runtime-release-smoke-install.log
 node -e "(async()=>{ const m = await import('agent-cli-runtime'); if (typeof m.createAgentRuntime !== 'function') process.exit(1); console.log(typeof m.createAgentRuntime); })()"
 node ./node_modules/.bin/agent-runtime agents --json > /tmp/agent-runtime-release-smoke-agents.json
 node ./node_modules/.bin/agent-runtime doctor --json > /tmp/agent-runtime-release-smoke-doctor.json

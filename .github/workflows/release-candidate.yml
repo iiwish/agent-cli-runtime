@@ -1,0 +1,58 @@
+name: Release Candidate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release-candidate:
+    name: Build release candidate artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run CI gate
+        run: npm run ci
+
+      - name: Run dogfood gate without authenticated real runs
+        run: npm run dogfood
+
+      - name: Create npm pack artifact without publishing
+        id: pack
+        run: |
+          set -euo pipefail
+          mkdir -p release-candidate
+          npm pack --json --pack-destination release-candidate > release-candidate/npm-pack.json
+          node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync('release-candidate/npm-pack.json', 'utf8')); for (const entry of data) { for (const file of entry.files) console.log(file.path); }" > release-candidate/package-files.txt
+          node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync('release-candidate/npm-pack.json', 'utf8')); process.stdout.write('tarball=' + data[0].filename + '\n');" >> "$GITHUB_OUTPUT"
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-cli-runtime-tarball
+          path: release-candidate/${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+
+      - name: Upload pack metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-cli-runtime-pack-metadata
+          path: release-candidate/npm-pack.json
+          if-no-files-found: error
+
+      - name: Upload package file list
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-cli-runtime-package-files
+          path: release-candidate/package-files.txt
+          if-no-files-found: error

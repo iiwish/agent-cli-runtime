@@ -1279,6 +1279,9 @@ setInterval(() => {}, 1000);
     const files = packed.flatMap((entry) => entry.files.map((file) => file.path));
     expect(files).toContain("LICENSE");
     expect(files).toContain("README.md");
+    expect(files).toContain("examples/library-run.js");
+    expect(files).toContain("examples/library-goal.js");
+    expect(files).toContain("examples/cli-dogfood.md");
     expect(files).toContain("docs/production-readiness.md");
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
@@ -1287,6 +1290,27 @@ setInterval(() => {}, 1000);
     expect(files).not.toContainEqual(expect.stringMatching(/^docs\/fixtures\//u));
     expect(stdout).not.toContain(`sk${"A".repeat(20)}`);
   });
+
+  it("runs the shipped library examples without real agent credentials", async () => {
+    const run = JSON.parse((await execFileP(process.execPath, [path.join(root, "examples", "library-run.js")], { cwd: root })).stdout);
+    const goal = JSON.parse((await execFileP(process.execPath, [path.join(root, "examples", "library-goal.js")], { cwd: root })).stdout);
+
+    expect(run).toMatchObject({
+      run: { status: "succeeded" },
+      diagnosticsSchema: "agent-runtime.diagnostics.v1",
+      storeOk: true,
+    });
+    expect(run.detected).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "codex", available: true }),
+      expect.objectContaining({ id: "claude", available: false }),
+      expect.objectContaining({ id: "opencode", available: false }),
+    ]));
+    expect(goal).toMatchObject({
+      goal: { status: "succeeded", result: "success" },
+      diagnosticsSchema: "agent-runtime.diagnostics.v1",
+    });
+    expect(goal.tasks).toEqual([expect.objectContaining({ id: "T001", status: "succeeded", attempts: 1 })]);
+  }, 60_000);
 
   it("supports package install smoke from npm pack tarball", async () => {
     const tempProject = await tempDir("agent-runtime-install-smoke-");
@@ -1372,36 +1396,46 @@ exit 0
       cwd: tempProject,
       env: installedEnv,
     });
+    const fakeConformance = await execInstalledCliJson<{ ok: true; mode: string }>(installedCli, ["conformance", "--mode", "fake", "--json"], {
+      cwd: tempProject,
+      env: installedEnv,
+    });
 
     expect(imported.stdout.trim()).toBe("function");
     expect(agents.length).toBeGreaterThan(0);
     expect(doctor.ok).toBe(true);
     expect(smoke).toMatchObject({ ok: true, mode: "fixtures" });
     expect(conformance).toMatchObject({ ok: true, mode: "fixtures" });
+    expect(fakeConformance).toMatchObject({ ok: true, mode: "fake" });
   }, 120_000);
 
-  it("does not ship docs fixtures with raw auth token patterns", async () => {
-    const docsFixtureDir = path.join(root, "docs", "fixtures");
-    try {
-      await lstat(docsFixtureDir);
-    } catch (error) {
-      if ((error as { code?: string }).code === "ENOENT") return;
-      throw error;
-    }
+  it("does not ship docs examples or fixtures with raw auth token patterns", async () => {
+    const scanDirs = [
+      path.join(root, "examples"),
+      path.join(root, "docs", "fixtures"),
+    ];
+    for (const docsFixtureDir of scanDirs) {
+      try {
+        await lstat(docsFixtureDir);
+      } catch (error) {
+        if ((error as { code?: string }).code === "ENOENT") continue;
+        throw error;
+      }
 
-    const entries = await readdir(docsFixtureDir, { recursive: true });
-    const fixtureFiles = entries.filter((entry) => typeof entry === "string");
-    for (const entry of fixtureFiles) {
-      const full = path.join(docsFixtureDir, entry);
-      const stat = await lstat(full);
-      if (!stat.isFile()) continue;
-      const bytes = await readFile(full);
-      if (isLikelyBinary(bytes)) continue;
-      const text = bytes.toString("utf8");
-      expect(text).not.toMatch(/sk-[A-Za-z0-9_-]{20,}/u);
-      expect(text).not.toMatch(/\bBearer\s+[A-Za-z0-9+/_-]{10,}\b/gu);
-      expect(text).not.toMatch(/\bANTHROPIC_AUTH_TOKEN\b/gu);
-      expect(text).not.toMatch(/\bOPENAI_API_KEY\b/gu);
+      const entries = await readdir(docsFixtureDir, { recursive: true });
+      const fixtureFiles = entries.filter((entry) => typeof entry === "string");
+      for (const entry of fixtureFiles) {
+        const full = path.join(docsFixtureDir, entry);
+        const stat = await lstat(full);
+        if (!stat.isFile()) continue;
+        const bytes = await readFile(full);
+        if (isLikelyBinary(bytes)) continue;
+        const text = bytes.toString("utf8");
+        expect(text).not.toMatch(/sk-[A-Za-z0-9_-]{20,}/u);
+        expect(text).not.toMatch(/\bBearer\s+[A-Za-z0-9+/_-]{10,}\b/gu);
+        expect(text).not.toMatch(/\bANTHROPIC_AUTH_TOKEN\b/gu);
+        expect(text).not.toMatch(/\bOPENAI_API_KEY\b/gu);
+      }
     }
   });
 });

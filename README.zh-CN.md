@@ -23,7 +23,7 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 本仓库目前处于 **pre-alpha / developer preview**。
 
 发布边界说明：
-- 这是 pre-alpha release-candidate 阶段，不承诺稳定 API。
+- 这是 P2-6 CI release automation 与 prepublish guard 阶段，不承诺稳定 API。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、WAL 或 remote runtime 模式承诺。
 - 运行时仍以本机本地编排为目标，不替代托管平台服务。
@@ -217,40 +217,65 @@ Pre-alpha release 的 package root 会刻意保持小。它只导出 `createAgen
 
 ## 安装
 
+从 npm 安装：
+
 ```bash
 npm install agent-cli-runtime
 ```
 
-本地安装验证：
+不安装到项目、直接用 `npx` 调 CLI：
+
+```bash
+npx --package agent-cli-runtime agent-runtime agents --json
+npx --package agent-cli-runtime agent-runtime conformance --mode fixtures --json
+```
+
+从本仓库本地 checkout 使用：
 
 ```bash
 npm ci
 npm run build
 node ./dist/cli/main.js --help
+npm run dogfood
 ```
 
-从本仓库本地开发：
+安装后的最小 library smoke：
 
 ```bash
-npm ci
-npm run build
-node ./dist/cli/main.js agents --json
+node -e "import('agent-cli-runtime').then((m) => console.log(typeof m.createAgentRuntime))"
 ```
 
-建议同步安装（按需）：
+本机 agent CLI 按场景安装即可：
 
 - `codex`（Codex CLI）
 - `claude`（Claude Code）
 - `opencode` / `opencode-cli`（OpenCode）
 
-发布前本地验证命令：
+Executable override：
 
 ```bash
-node ./dist/cli/main.js agents --json
-node ./dist/cli/main.js doctor --json
-node ./dist/cli/main.js conformance --mode fixtures --json
-node ./dist/cli/main.js conformance --mode fake --json
+export CODEX_BIN=/absolute/path/to/codex
+export CLAUDE_BIN=/absolute/path/to/claude
+export OPENCODE_BIN=/absolute/path/to/opencode
 ```
+
+Codex 配置继承已安装 Codex CLI 和当前进程环境。runtime 不替用户登录、不编辑 Codex config，也不会偷偷提升权限。
+
+Claude Code 可以使用它的默认 first-party 配置，也可以接 Anthropic-compatible provider。provider 配置只通过环境变量名说明，不在文档、示例、fixture、manifest 中写真实 token：
+
+```bash
+export ANTHROPIC_BASE_URL=<anthropic-compatible-base-url>
+export ANTHROPIC_MODEL=<model-name>
+export ANTHROPIC_DEFAULT_OPUS_MODEL=<model-name>
+export ANTHROPIC_DEFAULT_SONNET_MODEL=<model-name>
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=<model-name>
+export CLAUDE_CODE_SUBAGENT_MODEL=<model-name>
+export CLAUDE_CODE_EFFORT_LEVEL=<effort>
+# 按 provider 或 Claude Code 配置要求设置 token 变量，
+# 常见名称包括 ANTHROPIC_AUTH_TOKEN 或 ANTHROPIC_API_KEY；不要提交变量值。
+```
+
+OpenCode 配置继承已安装 OpenCode CLI。当前 runtime 使用 `opencode run --format json --dir <cwd>`；显式 read-only/workspace-write flag、extra dirs 和 session 仍留在 `needsVerification`，直到有真实 CLI 证据。
 
 代理和网络相关环境变量按需设置：
 
@@ -258,6 +283,25 @@ node ./dist/cli/main.js conformance --mode fake --json
 export HTTPS_PROXY=http://127.0.0.1:7897
 export HTTP_PROXY=http://127.0.0.1:7897
 ```
+
+发布前本地验证命令：
+
+```bash
+npm run ci
+npm run dogfood
+npm run prepublish:check
+node ./dist/cli/main.js conformance --mode fixtures --json
+node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js conformance --mode real --agent all --json
+```
+
+`conformance --mode real` 不带 `--allow-real-run` 时只做真实本地 detection/profile certification，不启动真实 agent run。只有显式传入 `--allow-real-run` 才会执行真实 run；未传 `--cwd` 时 runtime 使用隔离临时目录，并请求 read-only 行为。请把 `--allow-real-run` 当成本机账号/网络 run 的明确安全边界。
+
+CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、production dependency audit、package boundary check 和 `npm pack --dry-run`。`npm run dogfood` 放在单 Node 版本 job 中执行，避免 matrix 重复跑完整安装 smoke。dogfood、CI 和 prepublish 的默认边界一致：允许 fixtures、fake CLIs、真实本地 detection/profile certification；不带 `--allow-real-run` 时不启动 authenticated real agent run。
+
+本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood`，随后生成并上传 npm tarball、pack metadata 和 package file list。它不执行 publish，也不需要 npm token。
+
+可运行示例见 [examples/library-run.js](./examples/library-run.js)、[examples/library-goal.js](./examples/library-goal.js) 和 [examples/cli-dogfood.md](./examples/cli-dogfood.md)。两个 JavaScript 示例会创建本地 fake CLI，不需要真实 provider secret。
 
 ## CLI
 
@@ -347,34 +391,7 @@ Production readiness 范围见 [docs/production-readiness.md](./docs/production-
 
 ## 配置
 
-Executable override：
-
-```bash
-export CODEX_BIN=/absolute/path/to/codex
-export CLAUDE_BIN=/absolute/path/to/claude
-export OPENCODE_BIN=/absolute/path/to/opencode
-```
-
-代理配置会从当前进程环境继承：
-
-```bash
-export HTTPS_PROXY=http://127.0.0.1:7897
-export HTTP_PROXY=http://127.0.0.1:7897
-```
-
-Claude Code 也可以接入 DeepSeek 这类 Anthropic-compatible provider：
-
-```bash
-export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-export ANTHROPIC_MODEL='deepseek-v4-pro[1m]'
-export ANTHROPIC_DEFAULT_OPUS_MODEL='deepseek-v4-pro[1m]'
-export ANTHROPIC_DEFAULT_SONNET_MODEL='deepseek-v4-pro[1m]'
-export ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash
-export CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash
-export CLAUDE_CODE_EFFORT_LEVEL=max
-```
-
-请在 shell 或进程管理器中设置 provider 文档要求的 Anthropic-compatible auth token 环境变量；不要把真实 token 写入 prompt、fixture、manifest 或已提交文档。
+Pre-alpha 包优先使用环境变量配置。用 `CODEX_BIN`、`CLAUDE_BIN`、`OPENCODE_BIN` 指定 executable；proxy 和 provider 变量从父进程继承；token 不进入 prompt 和已提交文件。
 
 当前真实 CLI smoke matrix 见 [docs/compatibility.md](./docs/compatibility.md)。
 

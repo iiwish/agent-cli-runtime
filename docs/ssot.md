@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P2-4 Real CLI Compatibility Certification
+状态：P2-6 CI Release Automation & Prepublish Guard
 负责人：local project
 最后更新：2026-06-18
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -1001,6 +1001,38 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - Drift detection 不猜真实 CLI 新 flag：tracked capability flag 缺失输出 `unsupported_flag`；陌生 version/help shape 输出 `needs_verification`；stream/parser error 写入 run diagnostic；未知能力保留在 `argvProfile.needsVerification`。
 - Redaction contract 扩展到 conformance：不得输出真实 token、Bearer、auth env assignment、完整 prompt、真实私有绝对路径、未脱敏 observed text tail 或 cwd mutation secret path。
 - `fixtures`、`fake`、`real local observed` 三类证据必须在 docs/compatibility.md 中分开描述；本机观测结果只可写脱敏摘要，不写真实用户名路径或 secret。
+
+### P2-5：Release Candidate Dogfood And Publish Readiness
+
+- 新增 `npm run dogfood` 作为 pre-alpha release candidate 的本地综合 gate。
+- `dogfood` 默认不启动真实 agent run；真实本地 run 仍必须显式传入 `--allow-real-run`，并且不传 `--cwd` 时使用 isolated temp cwd 与 runtime-requested read-only 行为。
+- `dogfood` 覆盖：
+  - `npm run build`；
+  - `conformance --mode fixtures --json`；
+  - `conformance --mode fake --json`；
+  - `conformance --mode real --agent all --json`，只做 detection/profile certification；
+  - `smoke --mode fixtures --json`；
+  - `agents --json` 和 `doctor --json`；
+  - `examples/library-run.js` 与 `examples/library-goal.js` 的 fake CLI path；
+  - `npm pack --dry-run`；
+  - 从 `npm pack --json --ignore-scripts` 生成的 tarball 安装到临时项目，并验证 package root import、installed CLI fixtures/fake conformance。
+- 新增 examples：
+  - `examples/library-run.js`：使用本地 fake Codex CLI 演示 `detect -> run -> replay/diagnostics/store health`；
+  - `examples/library-goal.js`：使用本地 fake Codex CLI 演示 `createGoal -> task graph -> final result/replay/diagnostics`；
+  - `examples/cli-dogfood.md`：记录 fixtures/fake/real profile conformance、run、goal、diagnostics、store-health 与 package boundary 的本地试用步骤。
+- 发布包边界：`examples/` 和 docs 可进入 npm package；`.reference/`、`tests/`、fixtures、真实私有路径、raw real CLI output 和 secret 不进入 package。
+- package root value export 仍只暴露 `createAgentRuntime`；replay、diagnostics、storage inspection 只通过 facade methods 和 type exports 暴露。
+- `status-only real smoke exit 0` 的契约保持：只要没有 `text_delta`，即便进程退出码为 `0`，也必须分类为 `unexpected_output`。若真实 CLI detection preflight 偶发 unavailable，应优先检查本地 executable/auth/network/proxy 状态；不能把 preflight skip 记成 real run success。
+
+### P2-6：CI Release Automation And Prepublish Guard
+
+- GitHub Actions CI 保留 Node.js 20/22/24 matrix，覆盖 `typecheck`、`lint`、`test`、`build`、`npm audit --omit=dev`、package boundary check 与 `npm pack --dry-run`。
+- `npm test` 使用 Vitest verbose reporter，避免 contract/install-smoke 长用例在 CI 或外层 runner 中长时间无输出而被误判为挂死。
+- `npm run dogfood` 只在单 Node 版本 CI job 中执行，避免 matrix 重复运行完整 dogfood/install smoke。
+- 新增 manual `workflow_dispatch` release candidate workflow：执行 `npm ci`、`npm run ci`、`npm run dogfood`，生成 `npm pack --json` tarball、pack metadata 与 package file list artifact；不执行 `npm publish`，不需要 npm token。
+- 新增 `npm run prepublish:check` 本地 guard：组合 typecheck、lint、test、build、dogfood、production audit、package boundary check 与 pack dry-run。
+- 新增 package boundary script，校验 npm pack file list 不包含 `.reference/`、`tests/`、fixtures、raw real CLI output、真实私有路径或 token-looking values，并扫描 docs/examples/scripts 中的真实 token、Bearer value、auth env assignment value 和私有用户路径。
+- P2-6 仍是 pre-alpha / developer preview；不引入 OpenDesign daemon/web/db/telemetry/artifact，也不把 CI/dogfood/prepublish 默认边界扩大到 authenticated real agent run。
 
 ## 19. 待定问题
 

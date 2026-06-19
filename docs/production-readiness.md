@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P2-4 real CLI compatibility certification
+Status: P2-6 CI release automation and prepublish guard
 Last updated: 2026-06-18
 
-This project is still **pre-alpha / developer preview**. P2-4 defines a local-first production target for embedding the runtime on one machine with a best-effort single-writer storage lease, versioned event/diagnostics/conformance schemas, and a repeatable real CLI compatibility certification layer; it does not claim OpenDesign daemon-level production parity.
+This project is still **pre-alpha / developer preview**. P2-6 turns the P2-5 local dogfood gate into repeatable GitHub Actions CI and release-candidate checks: examples are runnable without real credentials, the package tarball can be installed into a temporary project, and real agent execution remains explicit opt-in. P2-6 is still not OpenDesign daemon-level production: it does not add daemon/web/db/telemetry/artifact layers.
 
 ## Local-First Production Definition
 
@@ -19,6 +19,10 @@ For this repository, "production-ready local runtime" means:
 - diagnostics are auditable and redacted before storage/export;
 - CLI event JSONL is versioned as `agent-runtime.event.v1` for both live stream and replay output;
 - real CLI conformance defaults to detection/profile certification only; authenticated real agent runs require explicit `--allow-real-run`;
+- `npm run dogfood` is the default release-candidate gate and does not launch authenticated real agent runs;
+- `npm run prepublish:check` is the local prepublish guard and also avoids authenticated real agent runs;
+- `npm test` uses Vitest verbose output so long contract/install-smoke coverage does not look idle to CI or local watchdogs;
+- GitHub Actions CI runs Node.js 20/22/24 matrix checks plus one single-Node dogfood job;
 - validation evidence is replayable through goal manifests and diagnostics export.
 
 ## Production Readiness Gates
@@ -31,14 +35,41 @@ npm run typecheck
 npm run lint
 npm run build
 npm run ci
+npm run dogfood
+npm run prepublish:check
+npm run package:check
 node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js conformance --mode real --agent all --json
 node ./dist/cli/main.js store-health --storage-dir <temp-dir> --json
 node ./dist/cli/main.js agents --json
 node ./dist/cli/main.js doctor --json
+npm pack --dry-run
 ```
 
-Real CLI gate, only on a machine where the selected CLI is installed and authorized:
+Remote CI gates:
+
+- `.github/workflows/ci.yml`: Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run; single Node.js 22 dogfood job for `npm run dogfood`.
+- `.github/workflows/release-candidate.yml`: manual `workflow_dispatch` gate that runs `npm ci`, `npm run ci`, `npm run dogfood`, creates `npm pack --json` output, and uploads the tarball, pack metadata, and package file list. It does not publish and does not require an npm token.
+
+Package install smoke:
+
+```bash
+tmp_dir="$(mktemp -d /tmp/agent-runtime-release-XXXXXX)"
+pack_info="$(npm pack --json --ignore-scripts --pack-destination "$tmp_dir")"
+package_file="$(printf '%s' "$pack_info" | node -e "const data = JSON.parse(require('node:fs').readFileSync(0, 'utf8')); process.stdout.write(data[0].filename);")"
+(
+  cd "$tmp_dir"
+  npm init -y
+  npm install "$tmp_dir/$package_file" --no-save --ignore-scripts --no-audit --no-fund
+  node -e "import('agent-cli-runtime').then((m) => { if (typeof m.createAgentRuntime !== 'function') process.exit(1); })"
+  node ./node_modules/.bin/agent-runtime conformance --mode fixtures --json
+  node ./node_modules/.bin/agent-runtime conformance --mode fake --json
+  node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json
+)
+```
+
+Manual real CLI run gate, only on a machine where the selected CLI is installed, authorized, and safe to run:
 
 ```bash
 node ./dist/cli/main.js conformance --mode real --agent all --json
@@ -48,6 +79,8 @@ node ./dist/cli/main.js conformance --mode real --agent opencode --allow-real-ru
 ```
 
 `--agent all` keeps one adapter's fail/skip isolated in the summary. Real mode without `--allow-real-run` never launches a real agent run; it performs executable/version/auth/model/profile certification and returns `runClassification: "real_run_skipped"` when a run would require explicit authorization.
+
+`--allow-real-run` is the safety boundary. When it is present, the runtime may consume the selected local CLI account/network path. Without `--cwd`, conformance/smoke real runs use an isolated temporary cwd, request read-only behavior, require expected text by default, and check cwd mutation evidence.
 
 Conformance JSON uses `schemaVersion: "agent-runtime.conformance.v1"`. Stable summary fields per adapter:
 
@@ -70,6 +103,48 @@ Conformance JSON uses `schemaVersion: "agent-runtime.conformance.v1"`. Stable su
 - `failureReason`
 
 The conformance layer reports `unsupported_flag`, unfamiliar version/help shapes, and parser/stream failures as actionable diagnostics instead of guessing replacements. Unknown or unproven flags stay in `argvProfile.needsVerification`. JSON output is recursively redacted and must not contain tokens, Bearer values, auth-token environment assignments, full prompts, raw private absolute paths, or unredacted observed text tails.
+
+## Examples And Package Boundary
+
+The npm package may include docs and examples, but not local reference material or test fixtures.
+
+Included release-candidate artifacts:
+
+- `dist/`
+- `README.md`
+- `README.zh-CN.md`
+- `LICENSE`
+- `docs/ssot.md`
+- `docs/compatibility.md`
+- `docs/production-readiness.md`
+- `docs/release-checklist.md`
+- `examples/library-run.js`
+- `examples/library-goal.js`
+- `examples/cli-dogfood.md`
+- `scripts/dogfood.mjs`
+
+Repository-only prepublish artifacts:
+
+- `scripts/check-package-boundary.mjs`
+
+Excluded artifacts:
+
+- `.reference/`
+- `tests/`
+- `tests/fixtures/`
+- raw real CLI output
+- real private paths
+- real provider secrets or token-looking values
+
+`examples/library-run.js` and `examples/library-goal.js` create local fake CLIs and are intended to run after `npm run build`. They must not require real Codex, Claude, OpenCode, provider credentials, or user project paths.
+
+## Known Risks
+
+- Real CLI behavior can drift after this release candidate. Treat `docs/compatibility.md` as dated evidence, not a permanent guarantee.
+- `status-only real smoke exit 0` remains intentionally non-passing: a real smoke run must emit `text_delta`; if required text is missing, classification is `unexpected_output`.
+- Real conformance preflight can classify a local CLI as unavailable/auth-missing because of machine-specific executable, auth, network, or proxy state. That skip is useful compatibility evidence but is not a successful real run.
+- OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume mappings remain in `needsVerification`.
+- Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment.
 
 ## Durable Supervisor Contract
 

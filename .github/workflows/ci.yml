@@ -44,6 +44,9 @@ jobs:
       - name: Production dependency audit
         run: npm audit --omit=dev
 
+      - name: Package boundary check
+        run: npm run package:check
+
       - name: Package dry run
         run: npm pack --dry-run
 
@@ -56,10 +59,31 @@ jobs:
           pack_info="$(cd "$repo_root" && npm pack --json --ignore-scripts --pack-destination "$tmp_dir")"
           package_file="$(printf '%s' "$pack_info" | node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync(0, 'utf8')); process.stdout.write(data[0].filename);")"
           npm init -y >/dev/null
-          npm install "$tmp_dir/$package_file" --no-save
+          npm install "$tmp_dir/$package_file" --no-save --ignore-scripts --no-audit --no-fund
           node -e "(async()=>{ const m = await import('agent-cli-runtime'); if (typeof m.createAgentRuntime !== 'function') process.exit(1); })()"
           node ./node_modules/.bin/agent-runtime agents --json > /tmp/agent-runtime-release-smoke-agents.json
           node ./node_modules/.bin/agent-runtime doctor --json > /tmp/agent-runtime-release-smoke-doctor.json
           node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json > /tmp/agent-runtime-release-smoke-fixtures.json
           node -e "const fs = require('node:fs'); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-agents.json','utf8')); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-doctor.json','utf8')); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-fixtures.json','utf8'));"
           popd
+
+  dogfood:
+    name: Dogfood gate on Node.js 22.x
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Dogfood without authenticated real runs
+        run: npm run dogfood

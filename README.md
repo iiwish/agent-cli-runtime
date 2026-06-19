@@ -23,7 +23,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a release-candidate hardening track, not a stable API release.
+- This is a P2-6 CI release automation and prepublish-guard track, not a stable API release.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no WAL, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended for local adapter orchestration on the user machine, not a hosted control plane.
@@ -219,33 +219,67 @@ This release candidate is explicitly scoped:
 
 ## Installation
 
+Install from npm:
+
 ```bash
 npm install agent-cli-runtime
 ```
 
-For local installation verification:
+Use the CLI through `npx` without adding it to a project:
+
+```bash
+npx --package agent-cli-runtime agent-runtime agents --json
+npx --package agent-cli-runtime agent-runtime conformance --mode fixtures --json
+```
+
+Use a local checkout:
 
 ```bash
 npm ci
 npm run build
 node ./dist/cli/main.js --help
+npm run dogfood
 ```
 
-For local development from this repository:
+Quick library smoke after installation:
 
 ```bash
-npm ci
-npm run build
-node ./dist/cli/main.js agents --json
+node -e "import('agent-cli-runtime').then((m) => console.log(typeof m.createAgentRuntime))"
 ```
 
-Required local agent CLIs (optional by scenario):
+Required local agent CLIs are optional by scenario:
 
 - `codex` for Codex CLI coverage.
 - `claude` for Claude Code coverage.
 - `opencode` / `opencode-cli` for OpenCode coverage.
 
-Example env config:
+Executable overrides:
+
+```bash
+export CODEX_BIN=/absolute/path/to/codex
+export CLAUDE_BIN=/absolute/path/to/claude
+export OPENCODE_BIN=/absolute/path/to/opencode
+```
+
+Codex configuration is inherited from the installed Codex CLI and process environment. The runtime does not log in, edit Codex config files, or add hidden permissions.
+
+Claude Code can use its normal first-party setup or an Anthropic-compatible provider. Configure the provider through environment variables only; never write real token values into prompts, examples, fixtures, manifests, or committed docs:
+
+```bash
+export ANTHROPIC_BASE_URL=<anthropic-compatible-base-url>
+export ANTHROPIC_MODEL=<model-name>
+export ANTHROPIC_DEFAULT_OPUS_MODEL=<model-name>
+export ANTHROPIC_DEFAULT_SONNET_MODEL=<model-name>
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=<model-name>
+export CLAUDE_CODE_SUBAGENT_MODEL=<model-name>
+export CLAUDE_CODE_EFFORT_LEVEL=<effort>
+# Set the auth token in the variable required by your provider or Claude Code setup,
+# commonly ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY. Do not commit its value.
+```
+
+OpenCode configuration is inherited from the installed OpenCode CLI. The runtime currently uses `opencode run --format json --dir <cwd>` and leaves explicit read-only/workspace-write flags in `needsVerification` until they are verified against real CLI evidence.
+
+Proxy settings are inherited from the process environment:
 
 ```bash
 export HTTPS_PROXY=http://127.0.0.1:7897
@@ -255,11 +289,21 @@ export HTTP_PROXY=http://127.0.0.1:7897
 Use one of the quick verification command sets before release:
 
 ```bash
-node ./dist/cli/main.js agents --json
-node ./dist/cli/main.js doctor --json
+npm run ci
+npm run dogfood
+npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
+node ./dist/cli/main.js conformance --mode real --agent all --json
 ```
+
+`conformance --mode real` without `--allow-real-run` performs real local detection/profile certification only. It does not launch an authenticated agent run. A real run requires `--allow-real-run`; without `--cwd`, the runtime uses an isolated temporary cwd and requests read-only behavior. Treat `--allow-real-run` as an explicit local-account/network boundary.
+
+CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node dogfood job runs `npm run dogfood` so the full matrix does not launch redundant install smokes. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
+
+For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates and uploads the npm tarball plus pack metadata and package file list. It does not publish and does not require an npm token.
+
+Runnable examples are in [examples/library-run.js](./examples/library-run.js), [examples/library-goal.js](./examples/library-goal.js), and [examples/cli-dogfood.md](./examples/cli-dogfood.md). The JavaScript examples create local fake CLIs and do not require real provider secrets.
 
 ## CLI
 
@@ -349,34 +393,7 @@ Production readiness scope is tracked in [docs/production-readiness.md](./docs/p
 
 ## Configuration
 
-Executable overrides:
-
-```bash
-export CODEX_BIN=/absolute/path/to/codex
-export CLAUDE_BIN=/absolute/path/to/claude
-export OPENCODE_BIN=/absolute/path/to/opencode
-```
-
-Proxy settings are inherited from the process environment:
-
-```bash
-export HTTPS_PROXY=http://127.0.0.1:7897
-export HTTP_PROXY=http://127.0.0.1:7897
-```
-
-Claude Code can also target Anthropic-compatible providers such as DeepSeek:
-
-```bash
-export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-export ANTHROPIC_MODEL='deepseek-v4-pro[1m]'
-export ANTHROPIC_DEFAULT_OPUS_MODEL='deepseek-v4-pro[1m]'
-export ANTHROPIC_DEFAULT_SONNET_MODEL='deepseek-v4-pro[1m]'
-export ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash
-export CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash
-export CLAUDE_CODE_EFFORT_LEVEL=max
-```
-
-Set the provider's documented Anthropic-compatible auth token environment variable in your shell or process manager; do not place real tokens in prompts, fixtures, manifests, or committed docs.
+Configuration is intentionally environment-first for the pre-alpha package. Use `CODEX_BIN`, `CLAUDE_BIN`, and `OPENCODE_BIN` to point at specific executables; pass proxy and provider variables through the parent process; keep tokens out of prompts and committed files.
 
 See [docs/compatibility.md](./docs/compatibility.md) for the current real CLI smoke matrix.
 
