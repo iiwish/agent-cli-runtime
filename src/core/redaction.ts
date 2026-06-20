@@ -5,6 +5,7 @@ const SECRET_ASSIGNMENT_RE =
   /((?:"|')?[A-Za-z0-9_.-]*(?:token|secret|password|passwd|apikey|api_key|api-key|authorization|credential|session|cookie)[A-Za-z0-9_.-]*(?:"|')?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi;
 const AUTH_TOKEN_ASSIGNMENT_RE =
   /(?:"|')?[A-Za-z0-9_.-]*AUTH_TOKEN[A-Za-z0-9_.-]*(?:"|')?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;}]+)/g;
+const PROMPT_ASSIGNMENT_RE = /(\b(?:prompt|systemPrompt|system_prompt)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\n\r,;}]+)/gi;
 const ABSOLUTE_POSIX_PATH_RE = /(^|[\s=:("'[,])\/(?:[^\s"',;:{}[\]]+\/)+[^\s"',;:{}[\]]+/g;
 const ABSOLUTE_WINDOWS_PATH_RE = /\b[A-Za-z]:\\(?:[^\s"',;:{}[\]]+\\)+[^\s"',;:{}[\]]+/g;
 const PATH_KEY_RE = /^(cwd|path|file|home|workspace|storageDir|storage_dir)$/i;
@@ -20,6 +21,7 @@ export function redactValue(key: string, value: unknown): string {
 export function redactText(text: string): string {
   return text
     .replace(AUTH_TOKEN_ASSIGNMENT_RE, "[REDACTED]")
+    .replace(PROMPT_ASSIGNMENT_RE, "$1[REDACTED]")
     .replace(SECRET_ASSIGNMENT_RE, "$1[REDACTED]")
     .replace(SECRET_VALUE_RE, "[REDACTED]")
     .replace(ABSOLUTE_WINDOWS_PATH_RE, "<path>")

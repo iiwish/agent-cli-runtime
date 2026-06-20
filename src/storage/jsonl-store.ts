@@ -13,14 +13,15 @@ import {
 import path from "node:path";
 import type { ReplayEvent } from "../core/events.js";
 import { redactText } from "../core/redaction.js";
-import type { JsonlReadIssue, JsonlReadResult, StorageDurability, StorageSyncHooks } from "./storage-types.js";
+import type { JsonlReadIssue, JsonlReadResult, StorageDurability, StorageFaultHooks, StorageSyncHooks } from "./storage-types.js";
 
 export function appendJsonl<T>(
   file: string,
   record: ReplayEvent<T>,
-  options: { durability?: StorageDurability; sync?: StorageSyncHooks; onSyncDiagnostic?: (message: string) => void } = {},
+  options: { durability?: StorageDurability; sync?: StorageSyncHooks; faults?: StorageFaultHooks; onSyncDiagnostic?: (message: string) => void } = {},
 ): void {
   mkdirSync(path.dirname(file), { recursive: true });
+  options.faults?.beforeJsonlAppend?.(file);
   const fd = openSync(file, "a");
   try {
     if (needsJsonlBoundary(file)) {

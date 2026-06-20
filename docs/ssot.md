@@ -1,8 +1,8 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P2-6 CI Release Automation & Prepublish Guard
+状态：P2-8 Crash Consistency & Fault Injection Gate
 负责人：local project
-最后更新：2026-06-18
+最后更新：2026-06-19
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
 
 本页同时记录了当前边界与历史里程碑；凡未以“当前”或“P2-1”明确标注者，均作为历史证据归档，不代表当前承诺 API。
@@ -336,8 +336,11 @@ P1-4 storage health / diagnostics bundle contract：
 - `runtime.exportDiagnostics(request)` 和 CLI `agent-runtime diagnostics run|goal <id> --storage-dir <dir> --json [--out <file>]` 导出 redacted JSON bundle。
 - diagnostics bundle 使用 `schemaVersion: "agent-runtime.diagnostics.v1"`，包含 subject、redacted manifest、event summary、`RuntimeDiagnostic[]` items、storage-level diagnostics、consistency warnings、goal task attempt evidence、带 terminal reason 和 owner/lease status 的 supervisor summary，以及 environment-safe adapter summary；它不导出完整 event payload、不导出完整 env dump、不导出 prompt、raw corrupt line 或真实私有路径。
 - `--out <file>` 使用 temp file + rename 原子写入。
-- P1-7 新增 CLI `agent-runtime store-repair --storage-dir <dir> --dry-run --json`。dry-run 只报告会对 partial tail 做 `truncate_partial_tail`、对中间坏行做 `isolate_corrupt_line` / manual review，不实际改文件。P1-7 不实现 destructive repair；未来若加入真实 repair，必须显式 `--apply`，并先备份原文件。
-- health、bundle 和未来 repair diagnostics 均走统一 redaction：token、Bearer value、auth-token env assignment、secret-looking value、绝对私密路径都不得泄露。
+- P2-7 起 CLI `agent-runtime store-repair --storage-dir <dir> [--dry-run|--apply] --json` 输出 `schemaVersion: "agent-runtime.storeRepair.v1"` 的 versioned plan。默认和 `--dry-run` 都不改文件；只有显式 `--apply` 才会执行修复，且 `--apply` 必须带 `--storage-dir`。
+- repair plan item 至少包含 subject kind/id、file、action、reason、dryRun、applied、backupPath、retainedEventCount、removedLineCount、truncatedBytes 和 diagnostics。partial tail 使用 `truncate_partial_tail`；中间 corrupt line 使用 `isolate_corrupt_line`；terminal manifest/event mismatch 或 terminal event missing 只报告 `manual_review`，不自动改 manifest。
+- apply 对 live writer owner 默认拒绝，不中断或改写 live owner 的 active run/goal；写入期间必须持有本地 store lease，避免检查后新 writer 进入。允许 apply 时，原始 `events.jsonl` 先通过 temp file + rename 备份到 `<storageDir>/repair-backups/<timestamp>/...`；partial tail 写回最后完整 record boundary；中间坏行通过 temp file + rename 重写为仅包含可解析 replay records 的 JSONL。backup 写失败不得改原文件；rewrite 失败必须保留已创建 backup，原文件不得变成不可解析残片，并以 `AGENT_STORE_REPAIR_FAILED` 持久化 redacted diagnostic。修复尽量 fsync，失败时 graceful fallback 并记录 redacted diagnostic；成功 apply 也要持久化 redacted repair summary，供后续 health / diagnostics bundle 审计。
+- apply 必须幂等；连续第二次执行应输出 no-op plan 或 `applied: false`，不得制造新的备份或改写已修复文件。P2-7 repair 不是 WAL、不是数据库事务、不是 compaction daemon、不是 daemon resume，只是本地 JSONL 安全修复工具。
+- health、bundle 和 repair diagnostics 均走统一 redaction：token、Bearer value、auth-token env assignment、secret-looking value、绝对私密路径和 raw corrupt line 都不得泄露。
 
 P2-2 local supervisor lease / recovery contract：
 
@@ -777,6 +780,11 @@ Library API 是主入口。CLI 必须复用同一套 API，不走第二套逻辑
 - `AGENT_RUNTIME_INTERRUPTED`
 - `AGENT_EVENT_LOG_CORRUPT`
 - `AGENT_EVENT_PERSIST_FAILED`
+- `AGENT_STORAGE_SYNC_FALLBACK`
+- `AGENT_STORAGE_LEASE_TAKEOVER`
+- `AGENT_STORE_REPAIR_APPLIED`
+- `AGENT_STORE_REPAIR_FAILED`
+- `AGENT_STORE_REPAIR_REFUSED_LIVE_OWNER`
 - `AGENT_STORE_RECORD_CORRUPT`
 
 Diagnostics 应包含：
@@ -969,6 +977,30 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - 新增 `store-repair --storage-dir <dir> --dry-run --json`，仅输出非破坏性 repair plan；P1-7 不实现 `--apply`。
 - interrupted run reload 和 interrupted planning/running goal reload 均验证 manifest 更新、replay diagnostic event、terminal event、active list 清空和 health interrupted evidence。
 - health、repair dry-run、diagnostics bundle 继续走 redaction，不输出 token、Bearer、`sk-*`、真实私有 cwd 或完整 corrupt raw line。
+
+### P2-7：Durable Store Repair & Recovery Hardening
+
+- `store-repair` 从 dry-run-only 升级为默认 dry-run、显式 `--apply` 的本地 JSONL 修复工具，输出 `schemaVersion: "agent-runtime.storeRepair.v1"`。
+- apply 在 live writer owner 存在时拒绝；不会中断 live owner，也不会改写 live owner active records。
+- partial tail 会先通过 temp file + rename 备份原文件，再通过 temp file + rename 写回最后完整 record boundary；中间 corrupt line 会先备份，再重写为仅包含可解析 replay records 的 JSONL，保留后续合法事件。
+- terminal manifest/event mismatch 和 terminal event missing 只进入 `manual_review` plan，不自动修 manifest。
+- apply 幂等；第二次执行应无可修 JSONL action，或 `applied: false`。
+- repair output、health、diagnostics bundle 均禁止 raw corrupt line、token、Bearer、`ANTHROPIC_AUTH_TOKEN`、真实私有路径泄露。
+- 成功 apply 的 repair summary 会作为 redacted storage diagnostic 持久化；它不应让已修复 store-health 重新变成 unhealthy。
+- package boundary 排除 `repair-backups/`、测试 fixtures、真实私有路径和 token-looking values。
+- P2-7 仍不引入数据库、WAL、compaction daemon、remote worker、web UI、telemetry 或 live process resume。
+
+### P2-8：Crash Consistency & Fault Injection Gate
+
+- 新增 test-only storage fault injection hooks，覆盖 manifest temp write、manifest rename、JSONL append、fsync/fdatasync fallback、repair backup write、repair rewrite、lock acquire 和 lock close；这些 hooks 只走内部构造参数或直接测试入口，不扩大 package root public API，生产默认路径不受影响。
+- manifest temp write 或 rename 失败时，旧 manifest 必须保持可读，失败 temp file 清理尽力执行，不得用半写入内容覆盖旧 record。
+- JSONL append 失败会把 run/goal 标记为 failed，并产生 `AGENT_EVENT_PERSIST_FAILED` diagnostic；如果 manifest 仍可写，failed manifest 会尽力落盘，避免重启后把未持久化事件假装成功。
+- `store-repair --apply` 在 backup 写失败时不改原 `events.jsonl`，不产生 `applied: true`；rewrite 失败时保留已创建 backup path，原 event log 不变成不可解析残片，并记录 redacted `AGENT_STORE_REPAIR_FAILED` storage diagnostic。
+- fsync/fdatasync 不可用继续 graceful fallback，`AGENT_STORAGE_SYNC_FALLBACK` 在 store-health 和 diagnostics bundle 可见；相关 message 仍走 redaction。
+- stale/closed lock takeover 后 active recovery 只处理中断的 active records，不误伤 terminal records；corrupted lock file 不阻塞 read-only `store-health`、`store-lock` 或 `diagnostics`。
+- diagnostics、health、repair report、CLI JSON 输出继续禁止泄露 token、Bearer、`ANTHROPIC_AUTH_TOKEN`、prompt、raw corrupt line、真实私有路径。
+- package boundary 继续排除 `.reference/`、`tests/`、fixtures、fault fixtures、repair backups、raw corrupt samples、真实私有路径和 token-looking values，并由 `npm run package:check` 覆盖。
+- P2-8 仍不引入数据库、WAL、daemon、remote worker、web UI、telemetry、live process resume 或 package root API 扩张。
 
 ### P2-2：Local Supervisor Lease And Storage Concurrency Hardening
 

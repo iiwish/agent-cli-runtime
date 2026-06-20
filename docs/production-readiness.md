@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P2-6 CI release automation and prepublish guard
-Last updated: 2026-06-18
+Status: P2-8 crash consistency and fault injection gate
+Last updated: 2026-06-20
 
-This project is still **pre-alpha / developer preview**. P2-6 turns the P2-5 local dogfood gate into repeatable GitHub Actions CI and release-candidate checks: examples are runnable without real credentials, the package tarball can be installed into a temporary project, and real agent execution remains explicit opt-in. P2-6 is still not OpenDesign daemon-level production: it does not add daemon/web/db/telemetry/artifact layers.
+This project is still **pre-alpha / developer preview**. P2-8 adds fault-injected crash consistency coverage for the existing local JSON manifest, JSONL event log, and lock-file store: failed manifest writes preserve the old manifest, failed event appends become terminal diagnostics, repair backup/rewrite failures are diagnosable and non-destructive, corrupt locks do not block read-only inspection, and repair/health/diagnostics output stays redacted. P2-8 is still not OpenDesign daemon-level production: it does not add daemon/web/db/WAL/telemetry/artifact layers.
 
 ## Local-First Production Definition
 
@@ -15,6 +15,8 @@ For this repository, "production-ready local runtime" means:
 - no silent permission escalation and no silent adapter fallback;
 - durable local manifests/events when `storageDir` is supplied;
 - one writer runtime per `storageDir` by default, with read-only inspection paths that do not acquire the writer lease;
+- explicit `store-repair --apply` for partial/corrupt JSONL event-log repair, with backup, temp-file-and-rename writes, best-effort fsync, and idempotent no-op behavior after repair;
+- crash-consistency behavior verified by test-only storage fault injection for temp writes, rename, JSONL append, fsync/fdatasync fallback, repair backup/rewrite, and lock acquire/close;
 - active run/goal reload is conservative: only records owned by a missing/stale/closed owner are marked interrupted, not resumed;
 - diagnostics are auditable and redacted before storage/export;
 - CLI event JSONL is versioned as `agent-runtime.event.v1` for both live stream and replay output;
@@ -42,6 +44,9 @@ node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
 node ./dist/cli/main.js conformance --mode real --agent all --json
 node ./dist/cli/main.js store-health --storage-dir <temp-dir> --json
+node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --dry-run --json
+node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --apply --json
+node ./dist/cli/main.js store-health --storage-dir <corrupt-fixture-temp-dir> --json
 node ./dist/cli/main.js agents --json
 node ./dist/cli/main.js doctor --json
 npm pack --dry-run
@@ -132,6 +137,9 @@ Excluded artifacts:
 - `.reference/`
 - `tests/`
 - `tests/fixtures/`
+- fault fixtures
+- raw corrupt samples
+- `repair-backups/`
 - raw real CLI output
 - real private paths
 - real provider secrets or token-looking values
@@ -145,6 +153,7 @@ Excluded artifacts:
 - Real conformance preflight can classify a local CLI as unavailable/auth-missing because of machine-specific executable, auth, network, or proxy state. That skip is useful compatibility evidence but is not a successful real run.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume mappings remain in `needsVerification`.
 - Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment.
+- P2-8 repair and fault-injection hardening does not implement WAL, database transactions, compaction, manifest semantic reconciliation, daemon resume, remote workers, or multi-host coordination. It repairs only local JSONL event-log partial/corrupt records within the existing store layout.
 
 ## Durable Supervisor Contract
 
@@ -153,6 +162,9 @@ The runtime does not resume live processes after a process restart. When `storag
 - a second writer runtime for the same `storageDir` is refused while the owner is live;
 - stale or closed lock owners may be taken over, with a redacted `AGENT_STORAGE_LEASE_TAKEOVER` diagnostic;
 - read-only inspection commands (`runs`, `goals`, `run-status`, `goal-status`, `replay-run`, `replay-goal`, `store-health`, `store-lock`, `diagnostics`) do not acquire the writer lease and must not mutate active work;
+- repair apply (`store-repair --apply`) requires an explicit storage directory, refuses live writer owners, holds the local store lease while writing, creates an internal `repair-backups/<timestamp>/...` backup through temp-file-and-rename, rewrites event logs through temp-file-and-rename, records redacted success or failure repair storage diagnostics, and is idempotent after successful repair;
+- repair backup failure leaves the original `events.jsonl` unchanged and does not set `applied: true`; rewrite failure preserves the backup path and leaves the original event log readable;
+- repair apply truncates partial tails and removes corrupt JSONL lines while preserving later legal replay events; terminal manifest/event mismatches remain manual-review warnings and are not auto-reconciled;
 - active runs owned by a stale/missing/closed owner become `failed` with `AGENT_RUNTIME_INTERRUPTED` and signal `RUNTIME_RESTART`;
 - active goals owned by a stale/missing/closed owner become `failed`, pending/running tasks become `canceled`, and a scheduler error is replayed;
 - active records owned by another live runtime are left untouched and reported through health/diagnostics owner status;

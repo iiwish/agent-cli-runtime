@@ -1157,16 +1157,74 @@ exit 0
     const text = JSON.stringify(repair);
 
     expect(repair).toMatchObject({
-      schemaVersion: "agent-runtime.store-repair.v1",
+      schemaVersion: "agent-runtime.storeRepair.v1",
       dryRun: true,
       applied: false,
       ok: false,
-      actions: [expect.objectContaining({ action: "truncate_partial_tail", id: runId, applied: false })],
+      actions: expect.arrayContaining([expect.objectContaining({ action: "truncate_partial_tail", id: runId, applied: false })]),
     });
     expect(after).toBe(original);
     expect(text).toContain("[REDACTED]");
     expect(text).not.toContain("Bearer");
     expect(text).not.toContain("private-cli-repair");
+  }, 30_000);
+
+  it("applies store-repair from the CLI only when --apply is explicit", async () => {
+    const storageDir = await tempDir("agent-runtime-storage-");
+    const runId = "run_cli_repair_apply";
+    const runDir = path.join(storageDir, "runs", runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(path.join(runDir, "manifest.json"), JSON.stringify({
+      id: runId,
+      agentId: "fake",
+      cwd: await tempDir(),
+      status: "succeeded",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exitCode: 0,
+      signal: null,
+      error: null,
+      errorCode: null,
+      diagnostics: [],
+    }), "utf8");
+    const eventsFile = path.join(runDir, "events.jsonl");
+    const first = JSON.stringify({ id: 1, sequence: 1, timestamp: Date.now(), event: { type: "run_started", runId, agentId: "fake", cwd: "/tmp/private-cli-apply", timestamp: Date.now() } });
+    const second = JSON.stringify({ id: 2, sequence: 2, timestamp: Date.now(), event: { type: "run_finished", result: "success", exitCode: 0, signal: null, timestamp: Date.now() } });
+    const original = `${first}\n${second}\n{"id":3,"token":"Bearer ${"B".repeat(20)}","cwd":"/tmp/private-cli-apply"`;
+    await writeFile(eventsFile, original, "utf8");
+
+    const dryRun = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "store-repair",
+      "--storage-dir",
+      storageDir,
+      "--json",
+    ])).stdout) as StoreRepairReport;
+    const afterDryRun = await readFile(eventsFile, "utf8");
+    const apply = JSON.parse((await execFileP(process.execPath, [
+      cli,
+      "store-repair",
+      "--storage-dir",
+      storageDir,
+      "--apply",
+      "--json",
+    ])).stdout) as StoreRepairReport;
+    const afterApply = await readFile(eventsFile, "utf8");
+
+    expect(dryRun).toMatchObject({
+      schemaVersion: "agent-runtime.storeRepair.v1",
+      dryRun: true,
+      applied: false,
+      actions: expect.arrayContaining([expect.objectContaining({ action: "truncate_partial_tail", applied: false })]),
+    });
+    expect(afterDryRun).toBe(original);
+    expect(apply).toMatchObject({
+      dryRun: false,
+      applied: true,
+      ok: true,
+      actions: [expect.objectContaining({ applied: true, backupPath: expect.stringContaining("repair-backups/") })],
+    });
+    expect(afterApply).toBe(`${first}\n${second}\n`);
   }, 30_000);
 
   it("redacts diagnostics bundle secret tails deterministically", async () => {

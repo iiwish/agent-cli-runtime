@@ -29,6 +29,11 @@ export interface StorageLockInspection extends OwnerInspection {
   diagnostics: string[];
 }
 
+export interface StorageLeaseFaultHooks {
+  beforeAcquire?: (file: string) => void;
+  beforeClose?: (file: string) => void;
+}
+
 export class StorageLease {
   private closed = false;
   private lost = false;
@@ -37,9 +42,10 @@ export class StorageLease {
     private readonly storageDir: string,
     private readonly owner: RuntimeOwner,
     private readonly staleMs: number,
+    private readonly faults: StorageLeaseFaultHooks = {},
   ) {}
 
-  static acquire(storageDir: string, init: { staleMs?: number } = {}): StorageLease {
+  static acquire(storageDir: string, init: { staleMs?: number; faults?: StorageLeaseFaultHooks } = {}): StorageLease {
     const staleMs = init.staleMs ?? DEFAULT_LEASE_STALE_MS;
     mkdirSync(storageDir, { recursive: true });
     const owner = createRuntimeOwner();
@@ -47,6 +53,7 @@ export class StorageLease {
     const diagnostics: string[] = [];
     while (true) {
       try {
+        init.faults?.beforeAcquire?.(lockPath);
         const fd = openSync(lockPath, "wx");
         try {
           writeFileSync(fd, `${JSON.stringify(owner, null, 2)}\n`, "utf8");
@@ -54,7 +61,7 @@ export class StorageLease {
           closeSync(fd);
         }
         if (diagnostics.length > 0) appendLeaseDiagnostics(storageDir, diagnostics);
-        return new StorageLease(storageDir, owner, staleMs);
+        return new StorageLease(storageDir, owner, staleMs, init.faults);
       } catch (error) {
         if (!isFileExistsError(error)) throw error;
         const inspection = inspectStorageLock(storageDir, { staleMs });
@@ -107,6 +114,7 @@ export class StorageLease {
     this.closed = true;
     this.owner.heartbeatAt = Date.now();
     this.owner.closedAt = this.owner.heartbeatAt;
+    this.faults.beforeClose?.(path.join(this.storageDir, STORAGE_LOCK_FILE));
     if (!this.writeIfCurrentOwner(this.owner)) return undefined;
     return this.currentOwner();
   }

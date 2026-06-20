@@ -215,9 +215,8 @@ export class RunStore {
     });
   }
 
-  private markPersistenceFailed(run: StoredRun, error?: unknown): void {
+  private markPersistenceFailed(run: StoredRun, error?: unknown, options: { persistManifest?: boolean } = {}): void {
     if (run.persistenceFailed) return;
-    run.persistenceFailed = true;
     const message = `Run event persistence failed: ${errorMessage(error)}`;
     run.status = "failed";
     run.updatedAt = Date.now();
@@ -247,6 +246,14 @@ export class RunStore {
       subscriber.end();
     }
     run.subscribers.clear();
+    if (options.persistManifest && this.storage) {
+      try {
+        this.storage.writeRunManifest(this.publicRecord(run));
+      } catch {
+        // The diagnostic remains visible to current callers even if the failed manifest cannot be persisted.
+      }
+    }
+    run.persistenceFailed = true;
   }
 
   private tryPersistManifest(run: StoredRun): boolean {
@@ -267,7 +274,7 @@ export class RunStore {
       this.storage.appendRunEvent(run.id, record);
       return true;
     } catch (error) {
-      this.markPersistenceFailed(run, error);
+      this.markPersistenceFailed(run, error, { persistManifest: true });
       return false;
     }
   }

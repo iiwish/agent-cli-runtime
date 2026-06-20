@@ -1,6 +1,6 @@
 # Release Checklist (pre-alpha / developer preview)
 
-## P2-6 release candidate gate
+## P2-8 release candidate gate
 
 - [ ] `npm ci`
 - [ ] `npm run typecheck`
@@ -16,6 +16,9 @@
 - [ ] `node ./dist/cli/main.js smoke --mode fixtures --json`
 - [ ] `node ./dist/cli/main.js agents --json`
 - [ ] `node ./dist/cli/main.js doctor --json`
+- [ ] `node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --dry-run --json`
+- [ ] `node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --apply --json`
+- [ ] `node ./dist/cli/main.js store-health --storage-dir <corrupt-fixture-temp-dir> --json`
 - [ ] `npm audit --omit=dev`
 - [ ] `npm run package:check`
 - [ ] `npm pack --dry-run`
@@ -46,6 +49,9 @@
   - `tests/`
   - `tests/fixtures/`
   - raw fixtures
+  - fault fixtures
+  - `repair-backups/`
+  - raw corrupt samples
   - fixture secrets / private paths
   - raw real CLI output
   - real provider tokens or token-looking values.
@@ -82,7 +88,7 @@
 - [ ] `README.md` and `README.zh-CN.md` explain npm install, `npx`, and local checkout paths.
 - [ ] `README.md` and `README.zh-CN.md` explain Codex / Claude / OpenCode configuration without token values.
 - [ ] Claude Anthropic-compatible provider docs list environment variable names/placeholders only; no real token values.
-- [ ] `README.md`, `README.zh-CN.md`, `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-6 status.
+- [ ] `README.md`, `README.zh-CN.md`, `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-8 status.
 - [ ] `docs/production-readiness.md` names remaining known risks rather than treating skipped/preflight evidence as real run success.
 
 ## Final review notes
@@ -95,3 +101,5 @@
 - [ ] Confirm optional real run docs use isolated cwd by default and make `--allow-real-run` the explicit account/network boundary.
 - [ ] Confirm status-only exit `0` real smoke remains `unexpected_output`, not success.
 - [ ] Confirm package install smoke is added/updated in `tests/contract.test.ts`.
+- [ ] Confirm `store-repair --apply` remains opt-in, holds the local store lease while writing, creates atomic backups, refuses live owners, records redacted repair success/failure diagnostics, leaves original logs untouched on backup/rewrite failure, is idempotent, and does not claim WAL/database/daemon resume semantics.
+- [ ] Confirm crash consistency tests cover manifest rename failure, JSONL append failure, repair backup/rewrite failure, fsync/fdatasync fallback, lock takeover/close behavior, corrupt lock read-only CLI inspection, and diagnostics redaction.

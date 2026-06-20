@@ -23,12 +23,12 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 本仓库目前处于 **pre-alpha / developer preview**。
 
 发布边界说明：
-- 这是 P2-6 CI release automation 与 prepublish guard 阶段，不承诺稳定 API。
+- 这是 P2-8 crash-consistency 与 fault-injection gate 阶段，不承诺稳定 API。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、WAL 或 remote runtime 模式承诺。
 - 运行时仍以本机本地编排为目标，不替代托管平台服务。
 
-SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 release-candidate-hardening 的 library-first Node.js/TypeScript 版本，默认 memory-only run / goal 调度，可选 durable local replay storage 及 crash/recovery health reporting，包含内置 CLI compatibility profiles、强化后的 planner/task-graph validation、版本化 event/diagnostics/conformance 契约、parser fixtures，以及本地 smoke/query 薄 CLI。
+SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 release-candidate-hardening 的 library-first Node.js/TypeScript 版本，默认 memory-only run / goal 调度，可选 durable local replay storage 及 crash/recovery health reporting，并补充 fault-injected consistency coverage；包含内置 CLI compatibility profiles、强化后的 planner/task-graph validation、版本化 event/diagnostics/conformance 契约、parser fixtures，以及本地 smoke/query 薄 CLI。
 
 ## 为什么需要它
 
@@ -329,6 +329,7 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 agent-runtime store-health --storage-dir .agent-runtime --json
 agent-runtime store-lock --storage-dir .agent-runtime --json
 agent-runtime store-repair --storage-dir .agent-runtime --dry-run --json
+agent-runtime store-repair --storage-dir .agent-runtime --apply --json
 agent-runtime diagnostics run run_123 --storage-dir .agent-runtime --json
 agent-runtime diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
 agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file task.md --expect-text "expected reply" --timeout-ms 30000 --json --diagnostics
@@ -383,7 +384,7 @@ Public replay API 保持 source-compatible，仍返回 `ReplayEvent<T>`：`{ "id
 
 `runs`、`goals`、`run-status`、`goal-status`、`replay-run`、`replay-goal`、`store-health`、`store-lock` 和 `diagnostics` 都是针对指定 `storageDir` 的只读 inspection path；它们不会获取 writer lease，也不会中断 active work。`store-lock` 输出当前 lock owner/status。`store-health` 会扫描磁盘 store，不启动 agent。输出包含 lock status、带 owner live/stale/closed 状态的 active records、run/goal 总数、corrupt manifests、corrupt event logs、corrupt line count、partial JSONL tail detection、retained event count、last good event id/sequence、repair recommendation、历史 active/interrupted records、storage-level sync/lease diagnostics，以及一致性 warnings。中间坏 JSONL 行会被跳过，后续合法 records 仍可 replay；partial tail 会停在最后一个确认完整的 record boundary。terminal manifest 缺 terminal event、event log 有 terminal event 但 manifest 非 terminal，都会报告 warning；runtime 不会静默替用户改写。
 
-`store-repair --dry-run --json` 会输出非破坏性的 repair plan。partial tail 报告为 `truncate_partial_tail`；中间坏行报告为 `isolate_corrupt_line` / manual-review action。dry-run 不会修改文件，并且 corrupt tail preview 会截断和脱敏。破坏性 repair 目前刻意不实现；未来如增加 apply 模式，必须显式开启并先备份原文件。
+`store-repair --json` 默认等同于非破坏性的 `--dry-run`，输出 `schemaVersion: "agent-runtime.storeRepair.v1"`。partial tail 报告为 `truncate_partial_tail`；中间坏行报告为 `isolate_corrupt_line`；terminal manifest/event mismatch 只进入 `manual_review`，不会自动修 manifest。`--apply` 必须显式传入且要求 `--storage-dir`，遇到 live writer owner 会拒绝执行；写入期间会持有本地 store lease，把原始 event log 备份到 `repair-backups/<timestamp>/...`，再用 temp file + rename 和 best-effort fsync 写回。如果 backup 创建失败，不会改写原 event log；如果 backup 已创建但 rewrite 失败，report 会保留 backup path，原 event log 仍保持可读，不会变成半截 rewrite。成功 apply 会把 `AGENT_STORE_REPAIR_APPLIED` 记录为 redacted storage diagnostic；失败 apply 会记录 `AGENT_STORE_REPAIR_FAILED`，方便后续 health 和 diagnostics bundle 展示修复证据。apply 保守且幂等；它不是 WAL、数据库事务层、daemon resume 或 compaction 服务。
 
 Diagnostics bundle 是单个 run 或 goal 的 redacted JSON 证据包。bundle 使用 `schemaVersion: "agent-runtime.diagnostics.v1"`，包含脱敏 manifest、event summary（不是完整 event payload）、`RuntimeDiagnostic[]` items、storage-level diagnostics、goal task attempt evidence（如存在）、带 terminal reason 和 owner/lease 状态的 supervisor summary，以及 environment-safe adapter summary。`--out <file>` 使用 temp file + rename 原子写入。bundle 和 health output 不包含原始损坏 JSONL 行、token、Bearer value、auth-token 环境变量赋值、完整 env dump、prompt 或绝对私密路径。
 

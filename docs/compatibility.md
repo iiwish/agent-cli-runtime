@@ -162,6 +162,7 @@ node ./dist/cli/main.js replay-goal goal_123 --storage-dir .agent-runtime --json
 node ./dist/cli/main.js store-health --storage-dir .agent-runtime --json
 node ./dist/cli/main.js store-lock --storage-dir .agent-runtime --json
 node ./dist/cli/main.js store-repair --storage-dir .agent-runtime --dry-run --json
+node ./dist/cli/main.js store-repair --storage-dir .agent-runtime --apply --json
 node ./dist/cli/main.js diagnostics run run_123 --storage-dir .agent-runtime --json
 node ./dist/cli/main.js diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
 ```
@@ -258,7 +259,7 @@ node ./dist/cli/main.js goal \
 - Read-only CLI inspection paths do not acquire the writer lease and are intended to work while another live owner is active.
 - P1-6 verifies the real smoke harness against stronger fake CLI contract tests and local real Codex/OpenCode smoke runs with expected text matched and no cwd mutation. It does not prove that a specific real CLI can complete authenticated write tasks in the local environment, nor that OpenCode exposes a verified explicit read-only flag.
 - JSONL append is still a simple append-only file and not segmented. Default durability is `relaxed`; callers can request `storage.durability: "fsync"` for best-effort fdatasync/fsync after manifest writes and event appends, but there is no WAL or group commit.
-- There is still no long-lived daemon, database, WAL, segment compaction, or automatic destructive repair. `store-repair` is dry-run only in P1-8.
+- There is still no long-lived daemon, database, WAL, segment compaction, automatic manifest reconciliation, or live process resume. `store-repair --apply` is explicit, local JSONL-only repair with backups and live-owner refusal.
 - Package root is intentionally small for pre-alpha: runtime facade and public types are exported; built-in adapter values and parser/detection helpers remain internal implementation details.
 - CLI event JSONL is versioned as `agent-runtime.event.v1` for both live stream and replay commands; library replay APIs continue to return legacy `ReplayEvent<T>` records.
 - CLI remains a thin local smoke/scripting wrapper over the library API, not a daemon or long-lived service.
@@ -575,6 +576,7 @@ node ./dist/cli/main.js goal-status goal_123 --storage-dir .agent-runtime --json
 node ./dist/cli/main.js replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jsonl
 node ./dist/cli/main.js store-health --storage-dir .agent-runtime --json
 node ./dist/cli/main.js store-repair --storage-dir .agent-runtime --dry-run --json
+node ./dist/cli/main.js store-repair --storage-dir .agent-runtime --apply --json
 ```
 Covered behavior:
 - `RuntimeOptions.storage.durability` keeps `storageDir` compatible and defaults to `relaxed`;
@@ -583,6 +585,7 @@ Covered behavior:
 - partial JSONL tails keep the valid prefix and report corrupt line count, partial tail detection, last good event id/sequence, redacted tail preview, and `truncate_partial_tail`;
 - corrupt middle JSONL lines report health diagnostics while preserving later valid records for replay;
 - `store-repair --dry-run --json` reports intended non-destructive actions and does not modify files;
+- `store-repair --apply --json` holds the local store lease while writing, backs up original event logs through temp-file-and-rename, truncates partial tails or removes corrupt middle lines, preserves later valid replay events, refuses live owners, records redacted repair diagnostics, and is idempotent;
 - interrupted running runs and interrupted planning/running goals reload as failed, update manifests, append diagnostic/terminal replay events, clear active lists, and appear in store health;
 - health, repair dry-run, and diagnostics bundle output remain redacted;
 - `npm pack --dry-run` remains covered by the public contract test and excludes `.reference/`, fixtures, and real smoke output.

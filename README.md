@@ -23,12 +23,12 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P2-6 CI release automation and prepublish-guard track, not a stable API release.
+- This is a P2-8 crash-consistency and fault-injection gate track, not a stable API release.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no WAL, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended for local adapter orchestration on the user machine, not a hosted control plane.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance contracts, redacted diagnostics, parser fixtures, and thin local smoke/query CLI commands.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance contracts, redacted diagnostics, parser fixtures, and thin local smoke/query CLI commands.
 
 ## Why
 
@@ -331,6 +331,7 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 agent-runtime store-health --storage-dir .agent-runtime --json
 agent-runtime store-lock --storage-dir .agent-runtime --json
 agent-runtime store-repair --storage-dir .agent-runtime --dry-run --json
+agent-runtime store-repair --storage-dir .agent-runtime --apply --json
 agent-runtime diagnostics run run_123 --storage-dir .agent-runtime --json
 agent-runtime diagnostics goal goal_123 --storage-dir .agent-runtime --json --out diagnostics-goal_123.json
 agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file task.md --expect-text "expected reply" --timeout-ms 30000 --json --diagnostics
@@ -385,7 +386,7 @@ When a new writer runtime opens a `storageDir`, terminal runs/goals are readable
 
 `runs`, `goals`, `run-status`, `goal-status`, `replay-run`, `replay-goal`, `store-health`, `store-lock`, and `diagnostics` are read-only inspection paths for a supplied `storageDir`; they do not acquire the writer lease or interrupt active work. `store-lock` prints the current lock owner/status. `store-health` scans the on-disk store without launching an agent. It reports lock status, active records with owner live/stale/closed state, run/goal totals, corrupt manifests, corrupt event logs, corrupt line counts, partial JSONL tail detection, retained event counts, last good event id/sequence, repair recommendations, interrupted historical records, storage-level sync/lease diagnostics, and consistency warnings. Middle corrupt JSONL lines are skipped so later valid records can still replay; partial tail records stop at the last known-good boundary. Terminal manifests without terminal events and non-terminal manifests with terminal events are reported as warnings; the runtime does not silently reconcile them.
 
-`store-repair --dry-run --json` reports the non-destructive repair plan for corrupt event logs. Partial tails are reported as `truncate_partial_tail`; middle corrupt lines are reported as `isolate_corrupt_line`/manual-review actions. The dry-run does not modify files and redacts corrupt tail previews. Destructive repair is intentionally not implemented yet; any future apply mode must be explicit and backup the original file first.
+`store-repair --json` defaults to the same non-destructive plan as `--dry-run`. Its output uses `schemaVersion: "agent-runtime.storeRepair.v1"`. Partial tails are reported as `truncate_partial_tail`; middle corrupt lines are reported as `isolate_corrupt_line`; terminal manifest/event mismatches are `manual_review` and are not auto-fixed. `--apply` is explicit, requires `--storage-dir`, refuses a live writer owner, holds the local store lease while writing, backs up each original event log under `repair-backups/<timestamp>/...`, and rewrites through temp-file-and-rename with best-effort fsync. If backup creation fails, the original event log is not rewritten. If rewrite fails after backup creation, the backup path is reported and the original log remains readable rather than becoming a partial rewrite. Successful apply records `AGENT_STORE_REPAIR_APPLIED`; failed apply records `AGENT_STORE_REPAIR_FAILED`, both redacted, so later health and diagnostics bundles can show repair evidence. Apply is conservative and idempotent; it is not a WAL, database transaction layer, daemon resume, or compaction service.
 
 Diagnostics bundles are redacted JSON evidence packets for one run or goal. A bundle uses `schemaVersion: "agent-runtime.diagnostics.v1"` and includes the sanitized manifest, an event summary rather than full event payloads, `RuntimeDiagnostic[]` items, storage-level diagnostics, goal task attempt evidence when present, a supervisor summary with terminal reason and owner/lease status, and an environment-safe adapter summary. `--out <file>` writes the bundle with a temp-file-and-rename atomic write. Bundles and health output do not include raw corrupt JSONL lines, tokens, Bearer values, auth-token environment assignments, full environment dumps, prompts, or absolute private paths.
 

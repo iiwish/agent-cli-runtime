@@ -9,6 +9,7 @@ import {
   readFileSync,
   renameSync,
   appendFileSync,
+  unlinkSync,
   writeSync,
 } from "node:fs";
 import path from "node:path";
@@ -19,11 +20,12 @@ import type { GoalRecord } from "../goals/goal-types.js";
 import type { RunRecord } from "../runs/run-types.js";
 import { appendJsonl, readJsonl } from "./jsonl-store.js";
 import { validateGoalManifest, validateRunManifest } from "./manifest-validation.js";
-import type { FileStorage, StorageDurability, StorageSyncHooks, StoredGoalSnapshot, StoredRunSnapshot } from "./storage-types.js";
+import type { FileStorage, StorageDurability, StorageFaultHooks, StorageSyncHooks, StoredGoalSnapshot, StoredRunSnapshot } from "./storage-types.js";
 
 export interface JsonFileStorageOptions {
   durability?: StorageDurability;
   sync?: StorageSyncHooks;
+  faults?: StorageFaultHooks;
   canWrite?: () => boolean;
 }
 
@@ -134,6 +136,7 @@ export class JsonFileStorage implements FileStorage {
     return {
       durability: this.durability,
       sync: this.options.sync,
+      faults: this.options.faults,
       onSyncDiagnostic: (message) => {
         this.recordDurabilityDiagnostic(`Storage ${operation} sync fallback: ${message}`);
       },
@@ -198,15 +201,29 @@ function atomicWriteJson(
 ): void {
   mkdirSync(path.dirname(file), { recursive: true });
   const tmp = path.join(path.dirname(file), `.manifest.${process.pid}.${randomUUID()}.tmp`);
-  const fd = openSync(tmp, "w");
+  let fd: number | undefined;
+  let renamed = false;
   try {
+    options.faults?.beforeManifestTempWrite?.(file);
+    fd = openSync(tmp, "w");
     writeSync(fd, `${JSON.stringify(value, null, 2)}\n`, undefined, "utf8");
     syncFileDescriptor(fd, options);
-  } finally {
     closeSync(fd);
+    fd = undefined;
+    options.faults?.beforeManifestRename?.(tmp, file);
+    renameSync(tmp, file);
+    renamed = true;
+    syncDirectory(path.dirname(file), options);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+    if (!renamed) {
+      try {
+        if (existsSync(tmp)) unlinkSync(tmp);
+      } catch {
+        // Temp cleanup is best-effort; the old manifest remains untouched.
+      }
+    }
   }
-  renameSync(tmp, file);
-  syncDirectory(path.dirname(file), options);
 }
 
 function sanitizeForStorage<T>(value: T): T {

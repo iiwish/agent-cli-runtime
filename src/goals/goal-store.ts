@@ -218,13 +218,13 @@ export class GoalStore {
     this.emit(goal.id, { type: "goal_finished", goalId: goal.id, result: "failed" });
   }
 
-  private markPersistenceFailed(goal: StoredGoal, error?: unknown): void {
+  private markPersistenceFailed(goal: StoredGoal, error?: unknown, options: { persistManifest?: boolean } = {}): void {
     if (goal.persistenceFailed) return;
-    goal.persistenceFailed = true;
     const message = `Goal event persistence failed: ${errorMessage(error)}`;
     goal.status = "failed";
     goal.result = "failed";
     goal.updatedAt = Date.now();
+    goal.diagnostics.push(diagnostic("AGENT_EVENT_PERSIST_FAILED", message));
     const errorEvent: ReplayEvent<SchedulerEvent> = {
       id: goal.nextEventId++,
       sequence: goal.nextEventId - 1,
@@ -246,6 +246,14 @@ export class GoalStore {
       subscriber.end();
     }
     goal.subscribers.clear();
+    if (options.persistManifest && this.storage) {
+      try {
+        this.storage.writeGoalManifest(this.publicRecord(goal));
+      } catch {
+        // The diagnostic remains visible to current callers even if the failed manifest cannot be persisted.
+      }
+    }
+    goal.persistenceFailed = true;
   }
 
   private tryPersistManifest(goal: StoredGoal): boolean {
@@ -266,7 +274,7 @@ export class GoalStore {
       this.storage.appendGoalEvent(goal.id, event);
       return true;
     } catch (error) {
-      this.markPersistenceFailed(goal, error);
+      this.markPersistenceFailed(goal, error, { persistManifest: true });
       return false;
     }
   }

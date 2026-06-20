@@ -1,4 +1,19 @@
-import { existsSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fdatasyncSync,
+  fsyncSync,
+  appendFileSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { RuntimeDiagnostic } from "../core/diagnostics.js";
@@ -8,7 +23,7 @@ import { terminalReasonFromDiagnosticCode, terminalReasonFromResult } from "../c
 import { redactUnknown } from "../core/redaction.js";
 import { readJsonl } from "./jsonl-store.js";
 import { isRecord, validateGoalManifest, validateRunManifest } from "./manifest-validation.js";
-import { inspectOwner, inspectStorageLock, type OwnerStatus, type RuntimeOwner, type StorageLockInspection } from "./storage-lease.js";
+import { inspectOwner, inspectStorageLock, StorageLease, type OwnerStatus, type RuntimeOwner, type StorageLockInspection } from "./storage-lease.js";
 import type { RunRecord } from "../runs/run-types.js";
 import type { GoalRecord } from "../goals/goal-types.js";
 import { isTerminal } from "../runs/run-store.js";
@@ -86,23 +101,33 @@ export interface StoreRepairAction {
   action: "truncate_partial_tail" | "isolate_corrupt_line" | "manual_review";
   dryRun: boolean;
   applied: boolean;
+  backupPath: string | null;
   line?: number;
-  retainedEventCount?: number;
+  retainedEventCount: number;
+  removedLineCount: number;
+  truncatedBytes: number;
   lastGoodEventId?: number;
   lastGoodSequence?: number;
   reason: string;
   redactedTailPreview?: string;
+  diagnostics: RuntimeDiagnostic[];
 }
 
 export interface StoreRepairReport {
-  schemaVersion: "agent-runtime.store-repair.v1";
+  schemaVersion: "agent-runtime.storeRepair.v1";
   storageDir: string;
   checkedAt: number;
   dryRun: boolean;
   applied: boolean;
   ok: boolean;
+  blockedReason?: string;
   actions: StoreRepairAction[];
   diagnostics: StoreHealthSummary;
+}
+
+export interface StoreRepairFaultHooks {
+  beforeBackupWrite?: (file: string) => void;
+  beforeRepairRewrite?: (file: string) => void;
 }
 
 export type ExportDiagnosticsRequest =
@@ -165,7 +190,7 @@ export function inspectStoreDirectory(storageDir: string): StoreHealth {
       && warnings.length === 0
       && activeInterrupted.length === 0
       && lock.status !== "invalid"
-      && storageDiagnostics.length === 0,
+      && storageDiagnostics.every(isNonBlockingStorageDiagnostic),
     storageDir,
     checkedAt: Date.now(),
     lock,
@@ -245,48 +270,77 @@ export function replayStoredGoalEvents(storageDir: string, goalId: string, after
 }
 
 export function inspectStoreRepairDryRun(storageDir: string): StoreRepairReport {
+  return inspectStoreRepair(storageDir, { apply: false });
+}
+
+export function inspectStoreRepair(storageDir: string, options: { apply?: boolean; faults?: StoreRepairFaultHooks } = {}): StoreRepairReport {
   const health = inspectStoreDirectory(storageDir);
+  const dryRun = !options.apply;
   const actions = [
-    ...health.partialTails.map((issue): StoreRepairAction => ({
-      kind: issue.kind,
-      id: issue.id,
-      file: issue.file,
-      action: "truncate_partial_tail",
-      dryRun: true,
-      applied: false,
-      line: issue.line,
-      retainedEventCount: issue.retainedEventCount,
-      lastGoodEventId: issue.lastGoodEventId,
-      lastGoodSequence: issue.lastGoodSequence,
-      reason: issue.reason,
-      redactedTailPreview: issue.redactedTailPreview,
-    })),
+    ...health.partialTails.map((issue) => repairActionFromIssue(storageDir, issue, "truncate_partial_tail", dryRun)),
     ...health.corruptEventLogs
       .filter((issue) => !issue.partialTailDetected)
-      .map((issue): StoreRepairAction => ({
-        kind: issue.kind,
-        id: issue.id,
-        file: issue.file,
-        action: issue.repairRecommendation === "isolate_corrupt_line" ? "isolate_corrupt_line" : "manual_review",
-        dryRun: true,
-        applied: false,
-        line: issue.line,
-        retainedEventCount: issue.retainedEventCount,
-        lastGoodEventId: issue.lastGoodEventId,
-        lastGoodSequence: issue.lastGoodSequence,
-        reason: issue.reason,
-        redactedTailPreview: issue.redactedTailPreview,
-      })),
+      .map((issue) => repairActionFromIssue(
+        storageDir,
+        issue,
+        issue.repairRecommendation === "isolate_corrupt_line" ? "isolate_corrupt_line" : "manual_review",
+        dryRun,
+      )),
+    ...health.warnings.map((warning): StoreRepairAction => ({
+      kind: warning.kind,
+      id: warning.id,
+      file: warning.file,
+      action: "manual_review",
+      dryRun,
+      applied: false,
+      backupPath: null,
+      retainedEventCount: 0,
+      removedLineCount: 0,
+      truncatedBytes: 0,
+      reason: warning.message,
+      diagnostics: [{ code: warning.code, message: warning.message, retryable: false }],
+    })),
   ];
+  let blockedReason: string | undefined;
+  const diagnostics = cloneSummary(health.diagnostics);
+  let lease: StorageLease | undefined;
+  if (options.apply) {
+    const liveActiveRecord = health.activeRecords.find((record) => record.ownerStatus === "live");
+    const hasRepairableActions = actions.some((action) => action.action === "truncate_partial_tail" || action.action === "isolate_corrupt_line");
+    if (health.lock.status === "live") {
+      blockedReason = "store has a live writer owner; repair apply is refused";
+    } else if (liveActiveRecord) {
+      blockedReason = `${liveActiveRecord.kind} ${liveActiveRecord.id} has a live owner; repair apply is refused`;
+    } else if (!hasRepairableActions) {
+      // Nothing to mutate; keep no-op/manual-review apply from touching the store.
+    } else {
+      try {
+        lease = StorageLease.acquire(storageDir);
+        applyRepairActions(storageDir, actions, options.faults);
+        persistRepairDiagnostic(storageDir, actions);
+      } catch (error) {
+        blockedReason = `repair apply failed or could not acquire exclusive store access: ${errorMessage(error)}`;
+        persistRepairFailureDiagnostic(storageDir, error);
+      } finally {
+        lease?.close();
+      }
+    }
+    if (blockedReason) {
+      const code = /live (writer )?owner/u.test(blockedReason) ? "AGENT_STORE_REPAIR_REFUSED_LIVE_OWNER" : "AGENT_STORE_REPAIR_FAILED";
+      increment(diagnostics.byCode, code);
+      diagnostics.total += 1;
+    }
+  }
   return redactUnknown({
-    schemaVersion: "agent-runtime.store-repair.v1",
+    schemaVersion: "agent-runtime.storeRepair.v1",
     storageDir,
     checkedAt: Date.now(),
-    dryRun: true,
-    applied: false,
-    ok: actions.length === 0,
+    dryRun,
+    applied: actions.some((action) => action.applied),
+    ok: !blockedReason && (dryRun ? actions.length === 0 : actions.every((action) => action.applied)),
+    blockedReason,
     actions,
-    diagnostics: health.diagnostics,
+    diagnostics,
   });
 }
 
@@ -574,6 +628,10 @@ function readStoreDiagnostics(storageDir: string): RuntimeDiagnostic[] {
   return diagnostics;
 }
 
+function isNonBlockingStorageDiagnostic(diagnostic: RuntimeDiagnostic): boolean {
+  return diagnostic.code === "AGENT_STORE_REPAIR_APPLIED";
+}
+
 function diagnosticsForRecord(record: ScannedRecord): RuntimeDiagnostic[] {
   const diagnostics: RuntimeDiagnostic[] = [...manifestDiagnostics(record.manifest)];
   if (record.manifestIssue) diagnostics.push({ code: "AGENT_STORE_RECORD_CORRUPT", message: record.manifestIssue.reason, retryable: false });
@@ -757,6 +815,314 @@ function recordOwner(manifest: Record<string, unknown>): RuntimeOwner | undefine
     heartbeatAt: owner.heartbeatAt,
     closedAt: typeof owner.closedAt === "number" ? owner.closedAt : undefined,
   };
+}
+
+interface JsonlLine {
+  line: number;
+  startOffset: number;
+  endOffset: number;
+  text: string;
+}
+
+interface JsonlRepairIssue {
+  line: number;
+  reason: string;
+  partialTail: boolean;
+  retainedEventCount: number;
+  lastGoodEventId?: number;
+  lastGoodSequence?: number;
+  redactedTailPreview?: string;
+  startOffset: number;
+}
+
+interface JsonlRepairScan {
+  text: string;
+  validLines: JsonlLine[];
+  issues: JsonlRepairIssue[];
+}
+
+function repairActionFromIssue(
+  storageDir: string,
+  issue: StoreHealthIssue,
+  action: StoreRepairAction["action"],
+  dryRun: boolean,
+): StoreRepairAction {
+  const planned = plannedRepairMetrics(storageDir, issue, action);
+  return {
+    kind: issue.kind,
+    id: issue.id,
+    file: issue.file,
+    action,
+    dryRun,
+    applied: false,
+    backupPath: null,
+    line: issue.line,
+    retainedEventCount: planned.retainedEventCount ?? issue.retainedEventCount ?? 0,
+    removedLineCount: planned.removedLineCount ?? issue.corruptLineCount ?? 0,
+    truncatedBytes: planned.truncatedBytes ?? 0,
+    lastGoodEventId: issue.lastGoodEventId,
+    lastGoodSequence: issue.lastGoodSequence,
+    reason: issue.reason,
+    redactedTailPreview: issue.redactedTailPreview,
+    diagnostics: [],
+  };
+}
+
+function plannedRepairMetrics(
+  storageDir: string,
+  issue: StoreHealthIssue,
+  action: StoreRepairAction["action"],
+): Partial<Pick<StoreRepairAction, "retainedEventCount" | "removedLineCount" | "truncatedBytes">> {
+  if (action === "manual_review") return { retainedEventCount: issue.retainedEventCount ?? 0, removedLineCount: 0, truncatedBytes: 0 };
+  const absolute = path.join(storageDir, issue.file);
+  if (!isInside(storageDir, absolute) || !existsSync(absolute)) return {};
+  try {
+    const scan = scanJsonlForRepair(absolute);
+    const matched = issue.line === undefined ? undefined : scan.issues.find((candidate) => candidate.line === issue.line);
+    if (!matched) return {};
+    return {
+      retainedEventCount: matched.retainedEventCount,
+      removedLineCount: 1,
+      truncatedBytes: matched.partialTail ? Math.max(0, Buffer.byteLength(scan.text) - Buffer.byteLength(scan.text.slice(0, matched.startOffset))) : 0,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function applyRepairActions(storageDir: string, actions: StoreRepairAction[], faults: StoreRepairFaultHooks | undefined): void {
+  const repairable = actions.filter((action) => action.action === "truncate_partial_tail" || action.action === "isolate_corrupt_line");
+  const byFile = new Map<string, StoreRepairAction[]>();
+  for (const action of repairable) {
+    const actionsForFile = byFile.get(action.file) ?? [];
+    actionsForFile.push(action);
+    byFile.set(action.file, actionsForFile);
+  }
+  const backupRoot = path.join("repair-backups", `${new Date().toISOString().replace(/[:.]/gu, "-")}-${randomUUID()}`);
+  for (const [relative, fileActions] of byFile) {
+    const absolute = path.join(storageDir, relative);
+    if (!isInside(storageDir, absolute) || !existsSync(absolute)) continue;
+    const scan = scanJsonlForRepair(absolute);
+    const issueLines = new Set(scan.issues.map((issue) => issue.line));
+    const matchingActions = fileActions.filter((action) => action.line !== undefined && issueLines.has(action.line));
+    if (matchingActions.length === 0) continue;
+    const backupPath = path.join(backupRoot, relative);
+    const absoluteBackup = path.join(storageDir, backupPath);
+    const diagnostics: RuntimeDiagnostic[] = [];
+    mkdirSync(path.dirname(absoluteBackup), { recursive: true });
+    faults?.beforeBackupWrite?.(absoluteBackup);
+    atomicWriteTextFile(absoluteBackup, scan.text, diagnostics);
+    for (const action of matchingActions) {
+      action.backupPath = backupPath;
+      action.diagnostics = diagnostics;
+    }
+    const partialOnly = scan.issues.length === 1 && scan.issues[0]?.partialTail === true;
+    const repaired = partialOnly
+      ? scan.text.slice(0, scan.issues[0]?.startOffset ?? scan.text.length)
+      : scan.validLines.map((line) => `${JSON.stringify(JSON.parse(line.text) as unknown)}\n`).join("");
+    faults?.beforeRepairRewrite?.(absolute);
+    atomicWriteTextFile(absolute, repaired, diagnostics);
+    const truncatedBytes = Math.max(0, Buffer.byteLength(scan.text) - Buffer.byteLength(repaired));
+    const removedLineCount = scan.issues.length;
+    const retainedEventCount = scan.validLines.length;
+    for (const action of matchingActions) {
+      action.applied = true;
+      action.retainedEventCount = retainedEventCount;
+      action.removedLineCount = matchingActions.length || removedLineCount;
+      action.truncatedBytes = action.action === "truncate_partial_tail" ? truncatedBytes : 0;
+      action.diagnostics = diagnostics;
+    }
+  }
+}
+
+function persistRepairFailureDiagnostic(storageDir: string, error: unknown): void {
+  const diagnostic = redactUnknown({
+    timestamp: Date.now(),
+    diagnostic: {
+      code: "AGENT_STORE_REPAIR_FAILED",
+      message: `Store repair apply failed: ${errorMessage(error)}`,
+      retryable: false,
+      actionableHints: ["Inspect store-health output, keep repair-backups, and rerun store-repair after fixing the underlying filesystem error."],
+    },
+  });
+  try {
+    appendFileSync(path.join(storageDir, "diagnostics.jsonl"), `${JSON.stringify(diagnostic)}\n`, "utf8");
+  } catch {
+    // Failure diagnostics are best-effort; the repair report still carries blockedReason.
+  }
+}
+
+function persistRepairDiagnostic(storageDir: string, actions: StoreRepairAction[]): void {
+  const appliedActions = actions.filter((action) => action.applied);
+  if (appliedActions.length === 0) return;
+  const diagnostic = redactUnknown({
+    timestamp: Date.now(),
+    diagnostic: {
+      code: "AGENT_STORE_REPAIR_APPLIED",
+      message: `Store repair applied ${appliedActions.length} action(s).`,
+      retryable: false,
+      actionableHints: appliedActions.map((action) =>
+        `${action.kind}:${action.id} ${action.action} file=${action.file} backup=${action.backupPath ?? "<none>"} removed=${action.removedLineCount} truncatedBytes=${action.truncatedBytes}`,
+      ),
+    },
+  });
+  try {
+    appendFileSync(path.join(storageDir, "diagnostics.jsonl"), `${JSON.stringify(diagnostic)}\n`, "utf8");
+  } catch {
+    // Repair diagnostics are best-effort; the event-log repair has already completed.
+  }
+}
+
+function scanJsonlForRepair(file: string): JsonlRepairScan {
+  const text = readFileSync(file, "utf8");
+  const lines = jsonlLines(text);
+  const lastNonEmptyLine = [...lines].reverse().find((line) => line.text.trim())?.line ?? -1;
+  const validLines: JsonlLine[] = [];
+  const issues: JsonlRepairIssue[] = [];
+  for (const line of lines) {
+    if (!line.text.trim()) continue;
+    try {
+      const parsed = JSON.parse(line.text) as unknown;
+      if (!isReplayEvent(parsed)) {
+        issues.push(repairIssue(line, "line is not a replay event", validLines, false));
+        continue;
+      }
+      validLines.push(line);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const partialTail = isPartialTailForRepair(text, line.line, lastNonEmptyLine, reason);
+      issues.push(repairIssue(line, reason, validLines, partialTail));
+      if (partialTail) break;
+    }
+  }
+  return { text, validLines, issues };
+}
+
+function repairIssue(line: JsonlLine, reason: string, validLines: JsonlLine[], partialTail: boolean): JsonlRepairIssue {
+  let lastGoodEventId: number | undefined;
+  let lastGoodSequence: number | undefined;
+  const lastGood = validLines.at(-1);
+  if (lastGood) {
+    try {
+      const parsed = JSON.parse(lastGood.text) as { id?: unknown; sequence?: unknown };
+      lastGoodEventId = typeof parsed.id === "number" ? parsed.id : undefined;
+      lastGoodSequence = typeof parsed.sequence === "number" ? parsed.sequence : lastGoodEventId;
+    } catch {
+      // Last good line was already parsed above.
+    }
+  }
+  return {
+    line: line.line,
+    reason,
+    partialTail,
+    retainedEventCount: validLines.length,
+    lastGoodEventId,
+    lastGoodSequence,
+    redactedTailPreview: redactUnknown(line.text.slice(0, 256)) as string,
+    startOffset: line.startOffset,
+  };
+}
+
+function jsonlLines(text: string): JsonlLine[] {
+  const lines: JsonlLine[] = [];
+  let start = 0;
+  let line = 1;
+  while (start < text.length) {
+    const newline = text.indexOf("\n", start);
+    const endOffset = newline === -1 ? text.length : newline + 1;
+    const raw = text.slice(start, endOffset);
+    const lineText = raw.endsWith("\n") ? raw.slice(0, raw.endsWith("\r\n") ? -2 : -1) : raw;
+    lines.push({ line, startOffset: start, endOffset, text: lineText });
+    start = endOffset;
+    line += 1;
+  }
+  return lines;
+}
+
+function isPartialTailForRepair(text: string, line: number, lastNonEmptyLine: number, reason: string): boolean {
+  return line === lastNonEmptyLine
+    && !/\r?\n$/u.test(text)
+    && /(end of JSON input|unterminated|string|property name|after|expected|unexpected)/iu.test(reason);
+}
+
+function isReplayEvent(value: unknown): value is ReplayEvent<unknown> {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.id === "number" && typeof record.timestamp === "number" && Boolean(record.event);
+}
+
+function atomicWriteTextFile(file: string, text: string, diagnostics: RuntimeDiagnostic[]): void {
+  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${randomUUID()}.tmp`);
+  const fd = openSync(tmp, "w");
+  let renamed = false;
+  try {
+    writeSync(fd, text, undefined, "utf8");
+    syncFileDescriptor(fd, diagnostics);
+  } finally {
+    closeSync(fd);
+  }
+  try {
+    renameSync(tmp, file);
+    renamed = true;
+    syncPath(path.dirname(file), diagnostics);
+  } finally {
+    if (!renamed) {
+      try {
+        unlinkSync(tmp);
+      } catch {
+        // Temp cleanup is best-effort; the original target was not replaced.
+      }
+    }
+  }
+}
+
+function syncFileDescriptor(fd: number, diagnostics: RuntimeDiagnostic[]): void {
+  try {
+    fdatasyncSync(fd);
+  } catch (fdatasyncError) {
+    try {
+      fsyncSync(fd);
+    } catch (fsyncError) {
+      diagnostics.push({
+        code: "AGENT_STORAGE_SYNC_FALLBACK",
+        message: `repair file sync fallback: fdatasync failed (${errorMessage(fdatasyncError)}); fsync failed (${errorMessage(fsyncError)})`,
+        retryable: false,
+      });
+    }
+  }
+}
+
+function syncPath(targetPath: string, diagnostics: RuntimeDiagnostic[]): void {
+  let fd: number | undefined;
+  try {
+    const stat = statSync(targetPath);
+    fd = openSync(stat.isDirectory() ? targetPath : path.dirname(targetPath), "r");
+    fsyncSync(fd);
+  } catch (error) {
+    diagnostics.push({
+      code: "AGENT_STORAGE_SYNC_FALLBACK",
+      message: `repair directory sync skipped (${errorMessage(error)})`,
+      retryable: false,
+    });
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+function cloneSummary(summary: StoreHealthSummary): StoreHealthSummary {
+  return {
+    total: summary.total,
+    byCode: { ...summary.byCode },
+  };
+}
+
+function isInside(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function compareReplayEvents(left: ReplayEvent<unknown>, right: ReplayEvent<unknown>): number {

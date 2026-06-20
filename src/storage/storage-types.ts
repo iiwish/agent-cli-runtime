@@ -55,3 +55,9 @@ export interface StorageSyncHooks {
   fdatasyncSync?: (fd: number) => void;
   fsyncSync?: (fd: number) => void;
 }
+
+export interface StorageFaultHooks {
+  beforeManifestTempWrite?: (file: string) => void;
+  beforeManifestRename?: (tmp: string, file: string) => void;
+  beforeJsonlAppend?: (file: string) => void;
+}

@@ -19,6 +19,7 @@ import {
   getStoredRun,
   inspectStoreDirectory,
   inspectStoreLock,
+  inspectStoreRepair,
   inspectStoreRepairDryRun,
   listStoredGoals,
   listStoredRuns,
@@ -117,9 +118,10 @@ async function main(): Promise<void> {
   }
   if (parsed.command === "store-repair") {
     const storageDir = requiredStringFlag(parsed, "storage-dir", "store-repair requires --storage-dir <dir>");
-    if (parsed.flags.has("apply")) throw new Error("store-repair --apply is not implemented; run --dry-run to inspect repair actions");
-    if (!parsed.flags.has("dry-run")) throw new Error("store-repair requires --dry-run unless --apply is implemented");
-    output(parsed, inspectStoreRepairDryRun(path.resolve(storageDir)));
+    if (parsed.flags.has("apply") && parsed.flags.has("dry-run")) throw new Error("store-repair accepts either --dry-run or --apply, not both");
+    output(parsed, parsed.flags.has("apply")
+      ? inspectStoreRepair(path.resolve(storageDir), { apply: true })
+      : inspectStoreRepairDryRun(path.resolve(storageDir)));
     return;
   }
   if (parsed.command === "diagnostics") {
@@ -1026,7 +1028,7 @@ agent-runtime goal-status <goalId> [--storage-dir <dir>] [--json]
 agent-runtime replay-goal <goalId> [--storage-dir <dir>] [--after <eventId>] [--jsonl]
 agent-runtime store-health --storage-dir <dir> [--json]
 agent-runtime store-lock --storage-dir <dir> [--json]
-agent-runtime store-repair --storage-dir <dir> --dry-run [--json]
+agent-runtime store-repair --storage-dir <dir> [--dry-run | --apply] [--json]
 agent-runtime diagnostics run <runId> --storage-dir <dir> [--json] [--out <file>]
 agent-runtime diagnostics goal <goalId> --storage-dir <dir> [--json] [--out <file>]
 
