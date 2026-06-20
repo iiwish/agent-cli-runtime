@@ -1,18 +1,19 @@
 # Agent CLI Compatibility Matrix
 
-Status: P2-9 Release Candidate API & Consumer Compatibility Gate
+Status: P2-10 Release Candidate Artifact & Remote CI Audit
 Last updated: 2026-06-20
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P2-9 freezes the package-root public API contract for the release candidate, adds tarball TypeScript consumer typecheck plus fake library run/goal/replay/diagnostics smoke, hardens CLI JSON success/error contracts, and refreshes local real-CLI detection/preflight evidence. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P2-10 adds remote CI and release-candidate artifact audit evidence on top of the P2-9 package-root API and consumer compatibility gate. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P2-9 pre-alpha release-candidate evidence, which is intended to be the default interpretation for this matrix.
+Current status is P2-10 pre-alpha release-candidate evidence, which is intended to be the default interpretation for this matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
 - `npm test` uses Vitest's verbose reporter to keep long contract/install-smoke files chatty enough for CI and local watchdogs.
 - `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, dogfood, production audit, package boundary checks, and pack dry-run.
+- `npm publish --dry-run --ignore-scripts --tag alpha` is a documented manual local dry-run check; it is not a remote CI gate.
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
 - Evidence modes are intentionally separate:
   - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
@@ -22,6 +23,32 @@ Current status is P2-9 pre-alpha release-candidate evidence, which is intended t
 - P1-6 and earlier notes in this file are historical references for parser fixtures, timeout/reconnect evidence, and compatibility context; they are not equivalent to current "latest expected" contract assumptions.
 - When using this file as runtime contract input, prioritize the `Status` section, explicit "Runtime notes" in each adapter, and the most recent command evidence.
 - For changed behavior, add a new evidence row at the top of the section rather than keeping the old row as authoritative.
+
+## P2-10 Release Candidate Artifact And Remote CI Audit
+
+Release-candidate audit evidence:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run package:check
+npm run dogfood
+npm run prepublish:check
+npm pack --dry-run
+npm publish --dry-run --ignore-scripts --tag alpha
+node ./dist/cli/main.js conformance --mode real --agent all --json
+```
+
+P2-10 release-candidate semantics:
+
+- `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
+- The CI dogfood gate runs `npm run dogfood` once on Node.js 22 and does not pass `--allow-real-run`.
+- `.github/workflows/release-candidate.yml` remains `workflow_dispatch` only. It runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates `npm pack --json` output, validates the package file list, and uploads the tarball, pack metadata, and package file list artifacts.
+- No workflow step runs `npm publish`, sets `NODE_AUTH_TOKEN`, or requires real Codex/Claude/OpenCode installation.
+- [docs/release-report.md](./release-report.md) is the release-candidate evidence entrypoint for local commands, remote workflow expectations, artifact review, package boundary, real CLI evidence boundaries, known risks, and non-goals.
+- Remote GitHub Actions evidence must be manually triggered and reviewed; it is not treated as passed merely because workflow files exist locally.
 
 ## P2-9 Release Candidate API And Consumer Compatibility Evidence
 

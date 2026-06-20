@@ -70,6 +70,7 @@ const requiredFiles = [
   "README.zh-CN.md",
   "LICENSE",
   "docs/release-checklist.md",
+  "docs/release-report.md",
   "docs/production-readiness.md",
   "docs/compatibility.md",
   "examples/cli-dogfood.md",

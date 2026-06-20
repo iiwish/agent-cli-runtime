@@ -1,6 +1,6 @@
 # Release Checklist (pre-alpha / developer preview)
 
-## P2-9 release candidate gate
+## P2-10 release candidate gate
 
 - [ ] `npm ci`
 - [ ] `npm run typecheck`
@@ -27,10 +27,13 @@
 - [ ] `npm audit --omit=dev`
 - [ ] `npm run package:check`
 - [ ] `npm pack --dry-run`
+- [ ] `npm publish --dry-run --ignore-scripts --tag alpha`
 
 `npm run dogfood` is the default publish-readiness bundle. It rebuilds, runs offline fixtures/fake conformance, runs real local detection/profile conformance without `--allow-real-run`, executes fake-CLI examples, performs a pack dry-run, and installs the packed tarball into a temporary project for package-root import, TypeScript `tsc --noEmit`, fake library run/goal/replay/diagnostics, and installed CLI smoke.
 
 `npm run prepublish:check` is the local release-candidate guard. It combines typecheck, lint, tests, build, dogfood, production audit, package boundary checking, and pack dry-run. It must not run authenticated real agents.
+
+`npm publish --dry-run --ignore-scripts --tag alpha` is a manual local safety check only. It must show `tag alpha`, must not publish, and must not require an npm token. Keep it out of required CI unless the output is proven stable enough for this repository.
 
 `npm test` uses Vitest's verbose reporter so long contract/install-smoke files keep emitting progress in CI and outer runners instead of appearing idle.
 
@@ -40,11 +43,13 @@
 - [ ] Confirm the workflow runs `npm ci`, `npm run ci`, and `npm run dogfood`.
 - [ ] Confirm dogfood output is limited to fixtures, fake CLIs, and real local detection/profile certification without `--allow-real-run`.
 - [ ] Confirm `npm pack --json` creates a tarball artifact but no `npm publish` step exists.
+- [ ] Confirm the workflow validates `release-candidate/package-files.txt` before artifact upload.
 - [ ] Download and review the uploaded artifacts:
   - `agent-cli-runtime-tarball`
   - `agent-cli-runtime-pack-metadata`
   - `agent-cli-runtime-package-files`
 - [ ] Confirm no npm token, npm provenance publish, or registry credential is required.
+- [ ] Confirm artifacts use the documented 14-day retention window.
 
 ## Package boundary verification
 
@@ -61,6 +66,7 @@
   - raw real CLI output
   - real provider tokens or token-looking values.
 - [ ] Confirm `dist/`, docs, examples, `scripts/dogfood.mjs`, README files, LICENSE, and release docs are included.
+- [ ] Confirm `docs/release-report.md` is included.
 - [ ] Confirm package root value exports remain limited to `createAgentRuntime`; replay, diagnostics, and storage inspection are facade methods plus public type exports only.
 - [ ] Confirm built `dist/index.d.ts` does not re-export package-root types from `storage/`, parser, store, or adapter instance internals.
 
@@ -98,7 +104,8 @@
 - [ ] `README.md` and `README.zh-CN.md` explain Codex / Claude / OpenCode configuration without token values.
 - [ ] Claude Anthropic-compatible provider docs list environment variable names/placeholders only; no real token values.
 - [ ] `docs/compatibility.md` is refreshed with the 2026-06-20 local real conformance detection/preflight evidence and does not describe skipped/auth-missing runs as real-run success.
-- [ ] `README.md`, `README.zh-CN.md`, `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-9 status.
+- [ ] `README.md`, `README.zh-CN.md`, `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-10 status.
+- [ ] `docs/release-report.md` records local commands, remote workflow evidence expectations, artifact checklist, package boundary, real CLI evidence boundary, known risks, and explicit non-goals.
 - [ ] `docs/production-readiness.md` names remaining known risks rather than treating skipped/preflight evidence as real run success.
 
 ## Final review notes

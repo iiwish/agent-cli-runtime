@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P2-9 Release Candidate API & Consumer Compatibility Gate
+状态：P2-10 Release Candidate Artifact & Remote CI Audit
 负责人：local project
 最后更新：2026-06-20
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -1079,6 +1079,17 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - CLI JSON error contract 覆盖：缺少必需参数，以及 `store-repair --apply --dry-run` 互斥错误；`--json` 错误输出为短、可解析、redacted JSON，退出码为 `1`，不泄露 cwd/token/prompt 内容。
 - `docs/compatibility.md` 刷新到 2026-06-20 当前本机 detection/preflight evidence：Codex `codex-cli 0.142.0-alpha.1` 为 `real_run_skipped`，Claude Code `2.1.178` 为 `auth_missing`，OpenCode `1.15.6` 为 `real_run_skipped`；未带 `--allow-real-run` 的 skipped 不写成真实执行成功。
 - P2-9 不发布 npm，不新增 scheduler 大功能，不引入 daemon、database、WAL、remote worker、web UI 或 telemetry。
+
+### P2-10：Release Candidate Artifact & Remote CI Audit
+
+- P2-10 不新增 runtime 大功能；目标是把 P2-9 本地 release-candidate 证据推进到远端 CI 与 release-candidate artifact 可审查状态。
+- `.github/workflows/ci.yml` 保持 Node.js 20/22/24 matrix，覆盖 typecheck、lint、test、build、production dependency audit、package boundary check 与 pack dry-run。
+- CI dogfood 只在 Node.js 22 单独执行 `npm run dogfood`，不传 `--allow-real-run`，不启动 authenticated real agent run。
+- `.github/workflows/release-candidate.yml` 保持 manual `workflow_dispatch`，执行 `npm ci`、`npm run ci`、`npm run dogfood`，生成 `npm pack --json` metadata、tarball 与 package file list，校验 file list 后上传 artifact；不执行 `npm publish`，不设置 `NODE_AUTH_TOKEN`，不需要 npm token。
+- Release-candidate artifacts 为 `agent-cli-runtime-tarball`、`agent-cli-runtime-pack-metadata`、`agent-cli-runtime-package-files`，保留 14 天；file list 不得包含 `.reference/`、tests、fixtures、fault fixtures、repair backups、raw corrupt samples、raw real CLI output、真实私有路径或 token-looking values。
+- 新增 `docs/release-report.md` 作为 0.1.0-alpha.0 release-candidate evidence 入口，记录本地验证命令、远端 workflow 预期证据、artifact review checklist、package boundary、real CLI evidence 边界、known risks 和 explicit non-goals。
+- `npm publish --dry-run --ignore-scripts --tag alpha` 是本地手动 dry-run gate；显式 `--tag alpha` 用来保证 dry-run 输出符合 pre-alpha 发布意图，不发布 npm，不要求 npm token，不放进远端 required CI，以免 npm dry-run 输出和 registry 状态造成 flaky gate。
+- P2-10 仍不宣称 stable API，不宣称 OpenDesign daemon parity，不新增 daemon、database、WAL、remote worker、web UI、telemetry 或 scheduler expansion。
 
 ## 19. 待定问题
 

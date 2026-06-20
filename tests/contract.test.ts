@@ -1446,12 +1446,71 @@ setInterval(() => {}, 1000);
     expect(files).toContain("examples/library-goal.js");
     expect(files).toContain("examples/cli-dogfood.md");
     expect(files).toContain("docs/production-readiness.md");
+    expect(files).toContain("docs/release-report.md");
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\/secrets/u));
     expect(files).not.toContainEqual(expect.stringMatching(/^docs\/fixtures\//u));
     expect(stdout).not.toContain(`sk${"A".repeat(20)}`);
+  });
+
+  it("keeps remote CI and release-candidate workflows audit-only and artifact-focused", async () => {
+    const ci = await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
+    const releaseCandidate = await readFile(path.join(root, ".github", "workflows", "release-candidate.yml"), "utf8");
+    const ciCompact = ci.replace(/\s+/gu, "");
+
+    expect(ciCompact).toContain("node-version:[20.x,22.x,24.x]");
+    for (const requiredStep of [
+      "npm run typecheck",
+      "npm run lint",
+      "npm test",
+      "npm run build",
+      "npm audit --omit=dev",
+      "npm run package:check",
+      "npm pack --dry-run",
+    ]) {
+      expect(ci).toContain(requiredStep);
+    }
+    expect(ci.match(/npm run dogfood/gu)).toHaveLength(1);
+    expect(ci).toContain("Dogfood gate on Node.js 22.x");
+    expect(ci).not.toContain("--allow-real-run");
+    expect(ci).not.toMatch(/\bnpm publish\b/u);
+    expect(ci).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(releaseCandidate).toMatch(/on:\n\s+workflow_dispatch:/u);
+    expect(releaseCandidate).toContain("npm run ci");
+    expect(releaseCandidate).toContain("npm run dogfood");
+    expect(releaseCandidate).toContain("npm pack --json");
+    expect(releaseCandidate).toContain("release-candidate/npm-pack.json");
+    expect(releaseCandidate).toContain("release-candidate/package-files.txt");
+    expect(releaseCandidate).toContain("Validate package file list");
+    expect(releaseCandidate).toContain("actions/upload-artifact@v4");
+    expect(releaseCandidate).toContain("agent-cli-runtime-tarball");
+    expect(releaseCandidate).toContain("agent-cli-runtime-pack-metadata");
+    expect(releaseCandidate).toContain("agent-cli-runtime-package-files");
+    expect(releaseCandidate).toContain("retention-days: 14");
+    expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
+    expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
+    expect(releaseCandidate).not.toContain("--allow-real-run");
+  });
+
+  it("documents publish dry-run with the alpha dist-tag instead of latest", async () => {
+    const docs = [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/compatibility.md",
+      "docs/production-readiness.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/ssot.md",
+    ];
+
+    for (const doc of docs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text).not.toMatch(/npm publish --dry-run --ignore-scripts(?! --tag alpha)/u);
+    }
   });
 
   it("runs the shipped library examples without real agent credentials", async () => {

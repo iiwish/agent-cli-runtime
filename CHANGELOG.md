@@ -2,6 +2,11 @@
 
 ## 0.1.0-alpha.0 — pre-alpha developer preview (release-candidate hardening)
 
+- P2-10 release candidate artifact and remote CI audit:
+  - added `docs/release-report.md` for local verification, remote workflow evidence expectations, artifact review, package boundary, real CLI evidence boundaries, known risks, and explicit non-goals;
+  - hardened the manual release-candidate workflow with package file-list validation and explicit artifact retention while keeping it `workflow_dispatch` only;
+  - added static workflow contract coverage for Node.js 20/22/24 CI, single-Node dogfood, release-candidate artifact uploads, and no publish/token steps;
+  - documented `npm publish --dry-run --ignore-scripts --tag alpha` as a local manual dry-run gate without making it a remote CI requirement.
 - P2-9 release candidate API and consumer compatibility gate:
   - froze the package-root value API to `createAgentRuntime` plus documented public TypeScript types;
   - moved store/diagnostics public type shapes behind `public-types` instead of root re-exporting storage internals;

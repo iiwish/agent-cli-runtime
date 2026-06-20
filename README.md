@@ -23,12 +23,12 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P2-9 release-candidate API and consumer compatibility gate track, not a stable API release.
+- This is a P2-10 release-candidate artifact and remote CI audit track, not a stable API release.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no WAL, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended for local adapter orchestration on the user machine, not a hosted control plane.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, package-root API contract tests, tarball TypeScript consumer smoke, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance contracts, redacted diagnostics, parser fixtures, and thin local smoke/query CLI commands.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md), and the release-candidate evidence entrypoint is [docs/release-report.md](./docs/release-report.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, package-root API contract tests, tarball TypeScript consumer smoke, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance contracts, redacted diagnostics, parser fixtures, remote CI/artifact audit checks, and thin local smoke/query CLI commands.
 
 ## Why
 
@@ -334,6 +334,8 @@ node ./dist/cli/main.js conformance --mode real --agent all --json
 CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node dogfood job runs `npm run dogfood` so the full matrix does not launch redundant install smokes. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
 
 For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates and uploads the npm tarball plus pack metadata and package file list. It does not publish and does not require an npm token.
+
+The release evidence summary is [docs/release-report.md](./docs/release-report.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate.
 
 Runnable examples are in [examples/library-run.js](./examples/library-run.js), [examples/library-goal.js](./examples/library-goal.js), and [examples/cli-dogfood.md](./examples/cli-dogfood.md). The JavaScript examples create local fake CLIs and do not require real provider secrets.
 

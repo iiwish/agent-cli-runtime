@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P2-9 release candidate API and consumer compatibility gate
+Status: P2-10 release candidate artifact and remote CI audit
 Last updated: 2026-06-20
 
-This project is still **pre-alpha / developer preview**. P2-9 moves the current pre-alpha into release-candidate shape without publishing npm: the package-root API boundary is tested against built artifacts, tarball consumers are typechecked with `tsc --noEmit`, installed-package fake run/goal/replay/diagnostics smoke is covered, CLI success/error JSON contracts are explicit, and the compatibility matrix is refreshed with 2026-06-20 local detection/preflight evidence. P2-9 keeps the P2-8 crash-consistency and repair safety work, but it is still not OpenDesign daemon-level production: it does not add daemon/web/db/WAL/telemetry/artifact layers.
+This project is still **pre-alpha / developer preview**. P2-10 moves the P2-9 local release-candidate evidence into remote CI and release-candidate artifact audit shape without publishing npm: CI and release-candidate workflows are statically covered, manual release-candidate artifacts include a tarball, pack metadata, and package file list, and [docs/release-report.md](./release-report.md) records the local/remote evidence boundary. P2-10 keeps the P2-9 API/consumer compatibility work and P2-8 crash-consistency/repair safety work, but it is still not OpenDesign daemon-level production: it does not add daemon/web/db/WAL/telemetry/artifact layers.
 
 ## Local-First Production Definition
 
@@ -27,6 +27,8 @@ For this repository, "production-ready local runtime" means:
 - CLI JSON success and error contracts are parseable, redacted, and covered for core release-facing commands;
 - `npm test` uses Vitest verbose output so long contract/install-smoke coverage does not look idle to CI or local watchdogs;
 - GitHub Actions CI runs Node.js 20/22/24 matrix checks plus one single-Node dogfood job;
+- the manual release-candidate workflow uploads the packed tarball, pack metadata, and validated package file list with explicit artifact retention;
+- the release report records local commands, remote evidence expectations, artifact review, package boundary, real CLI evidence boundaries, known risks, and non-goals;
 - validation evidence is replayable through goal manifests and diagnostics export.
 
 ## Production Readiness Gates
@@ -52,12 +54,15 @@ node ./dist/cli/main.js store-health --storage-dir <corrupt-fixture-temp-dir> --
 node ./dist/cli/main.js agents --json
 node ./dist/cli/main.js doctor --json
 npm pack --dry-run
+npm publish --dry-run --ignore-scripts --tag alpha
 ```
 
 Remote CI gates:
 
 - `.github/workflows/ci.yml`: Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run; single Node.js 22 dogfood job for `npm run dogfood`.
-- `.github/workflows/release-candidate.yml`: manual `workflow_dispatch` gate that runs `npm ci`, `npm run ci`, `npm run dogfood`, creates `npm pack --json` output, and uploads the tarball, pack metadata, and package file list. It does not publish and does not require an npm token.
+- `.github/workflows/release-candidate.yml`: manual `workflow_dispatch` gate that runs `npm ci`, `npm run ci`, `npm run dogfood`, creates `npm pack --json` output, validates the package file list, and uploads the tarball, pack metadata, and package file list. It does not publish and does not require an npm token.
+
+`npm publish --dry-run --ignore-scripts --tag alpha` is a manual local dry-run check. The explicit `--tag alpha` keeps dry-run output aligned with the pre-alpha release intent even when npm does not apply `publishConfig.tag` in dry-run output. It is intentionally documented but not required as a remote CI gate because npm dry-run output can vary by npm version and registry context.
 
 Package install smoke:
 
@@ -129,6 +134,7 @@ Included release-candidate artifacts:
 - `docs/compatibility.md`
 - `docs/production-readiness.md`
 - `docs/release-checklist.md`
+- `docs/release-report.md`
 - `examples/library-run.js`
 - `examples/library-goal.js`
 - `examples/cli-dogfood.md`
@@ -155,12 +161,12 @@ Excluded artifacts:
 ## Known Risks
 
 - Real CLI behavior can drift after this release candidate. Treat `docs/compatibility.md` as dated evidence, not a permanent guarantee.
-- P2-9 freezes only the package-root release-candidate API boundary. Internal files under `dist/` may exist in the tarball for declarations and CLI execution, but importing internal subpaths is not a documented contract.
+- P2-10 audits release-candidate workflows and artifacts. It still only freezes the package-root release-candidate API boundary from P2-9. Internal files under `dist/` may exist in the tarball for declarations and CLI execution, but importing internal subpaths is not a documented contract.
 - `status-only real smoke exit 0` remains intentionally non-passing: a real smoke run must emit `text_delta`; if required text is missing, classification is `unexpected_output`.
 - Real conformance preflight can classify a local CLI as unavailable/auth-missing because of machine-specific executable, auth, network, or proxy state. That skip is useful compatibility evidence but is not a successful real run.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume mappings remain in `needsVerification`.
 - Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment.
-- P2-9 does not implement scheduler expansion, daemon, database, WAL, remote workers, web UI, telemetry, npm publish, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
+- P2-10 does not implement scheduler expansion, daemon, database, WAL, remote workers, web UI, telemetry, npm publish, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
 
 ## Durable Supervisor Contract
 

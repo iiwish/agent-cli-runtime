@@ -5,7 +5,10 @@
   "type": "module",
   "license": "Apache-2.0",
   "bin": {
-    "agent-runtime": "./dist/cli/main.js"
+    "agent-runtime": "dist/cli/main.js"
+  },
+  "publishConfig": {
+    "tag": "alpha"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,6 +28,7 @@
     "LICENSE",
     "examples",
     "docs/release-checklist.md",
+    "docs/release-report.md",
     "docs/ssot.md",
     "docs/compatibility.md",
     "docs/production-readiness.md",
