@@ -23,142 +23,28 @@ import { terminalReasonFromDiagnosticCode, terminalReasonFromResult } from "../c
 import { redactUnknown } from "../core/redaction.js";
 import { readJsonl } from "./jsonl-store.js";
 import { isRecord, validateGoalManifest, validateRunManifest } from "./manifest-validation.js";
-import { inspectOwner, inspectStorageLock, StorageLease, type OwnerStatus, type RuntimeOwner, type StorageLockInspection } from "./storage-lease.js";
+import { inspectOwner, inspectStorageLock, StorageLease } from "./storage-lease.js";
 import type { RunRecord } from "../runs/run-types.js";
 import type { GoalRecord } from "../goals/goal-types.js";
 import { isTerminal } from "../runs/run-store.js";
 import { isTerminalGoal } from "../goals/goal-store.js";
-
-export interface InspectStoreOptions {
-  storageDir?: string;
-}
-
-export interface StoreHealthIssue {
-  kind: "run" | "goal";
-  id: string;
-  file: string;
-  line?: number;
-  reason: string;
-  retainedEventCount?: number;
-  corruptLineCount?: number;
-  partialTailDetected?: boolean;
-  lastGoodEventId?: number;
-  lastGoodSequence?: number;
-  repairRecommendation?: "none" | "truncate_partial_tail" | "isolate_corrupt_line" | "manual_review";
-  redactedTailPreview?: string;
-}
-
-export interface StoreHealthWarning {
-  kind: "run" | "goal";
-  id: string;
-  code: string;
-  message: string;
-  file: string;
-}
-
-export interface StoreHealthSummary {
-  total: number;
-  byCode: Record<string, number>;
-}
-
-export interface StoreActiveRecord {
-  kind: "run" | "goal";
-  id: string;
-  status: string;
-  file: string;
-  ownerStatus: OwnerStatus;
-  owner?: RuntimeOwner;
-  ownerAgeMs?: number;
-  reason?: string;
-}
-
-export interface StoreHealth {
-  ok: boolean;
-  storageDir?: string;
-  checkedAt: number;
-  lock: StorageLockInspection;
-  totals: {
-    runs: number;
-    goals: number;
-    corruptEventLogLines: number;
-    partialEventLogTails: number;
-    activeRecords: number;
-  };
-  corruptManifests: StoreHealthIssue[];
-  corruptEventLogs: StoreHealthIssue[];
-  partialTails: StoreHealthIssue[];
-  activeRecords: StoreActiveRecord[];
-  activeInterrupted: StoreHealthIssue[];
-  warnings: StoreHealthWarning[];
-  storageDiagnostics: RuntimeDiagnostic[];
-  diagnostics: StoreHealthSummary;
-}
-
-export interface StoreRepairAction {
-  kind: "run" | "goal";
-  id: string;
-  file: string;
-  action: "truncate_partial_tail" | "isolate_corrupt_line" | "manual_review";
-  dryRun: boolean;
-  applied: boolean;
-  backupPath: string | null;
-  line?: number;
-  retainedEventCount: number;
-  removedLineCount: number;
-  truncatedBytes: number;
-  lastGoodEventId?: number;
-  lastGoodSequence?: number;
-  reason: string;
-  redactedTailPreview?: string;
-  diagnostics: RuntimeDiagnostic[];
-}
-
-export interface StoreRepairReport {
-  schemaVersion: "agent-runtime.storeRepair.v1";
-  storageDir: string;
-  checkedAt: number;
-  dryRun: boolean;
-  applied: boolean;
-  ok: boolean;
-  blockedReason?: string;
-  actions: StoreRepairAction[];
-  diagnostics: StoreHealthSummary;
-}
+import type {
+  DiagnosticsBundle,
+  ExportDiagnosticsRequest,
+  RuntimeOwner,
+  StorageLockInspection,
+  StoreActiveRecord,
+  StoreHealth,
+  StoreHealthIssue,
+  StoreHealthSummary,
+  StoreHealthWarning,
+  StoreRepairAction,
+  StoreRepairReport,
+} from "../public-types.js";
 
 export interface StoreRepairFaultHooks {
   beforeBackupWrite?: (file: string) => void;
   beforeRepairRewrite?: (file: string) => void;
-}
-
-export type ExportDiagnosticsRequest =
-  | { kind: "run"; runId: string; storageDir?: string }
-  | { kind: "goal"; goalId: string; storageDir?: string };
-
-export interface DiagnosticsBundle {
-  schemaVersion: "agent-runtime.diagnostics.v1";
-  exportedAt: number;
-  storageDir?: string;
-  subject: {
-    kind: "run" | "goal";
-    id: string;
-  };
-  manifest: unknown | null;
-  events: {
-    total: number;
-    retained: number;
-    firstEventId?: number;
-    lastEventId?: number;
-    terminalEvent: boolean;
-    eventTypes: Record<string, number>;
-    corrupt?: StoreHealthIssue;
-    partialTail?: StoreHealthIssue;
-  };
-  diagnostics: RuntimeDiagnostic[];
-  storageDiagnostics: RuntimeDiagnostic[];
-  consistencyWarnings: StoreHealthWarning[];
-  attemptEvidence?: unknown[];
-  supervisorSummary: Record<string, unknown>;
-  adapterSummary: Record<string, unknown>;
 }
 
 interface ScannedRecord {

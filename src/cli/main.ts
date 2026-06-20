@@ -1038,6 +1038,17 @@ Storage durability:
 }
 
 main().catch((error) => {
-  process.stderr.write(`${redactText(error instanceof Error ? error.message : String(error))}\n`);
+  const message = redactText(error instanceof Error ? error.message : String(error));
+  if (process.argv.slice(2).includes("--json")) {
+    process.stdout.write(`${JSON.stringify({
+      ok: false,
+      error: {
+        code: "CLI_USAGE_ERROR",
+        message,
+      },
+    })}\n`);
+  } else {
+    process.stderr.write(`${message}\n`);
+  }
   process.exitCode = 1;
 });

@@ -3,7 +3,7 @@ import type { RuntimeDiagnostic } from "../core/diagnostics.js";
 import type { AgentId, PermissionPolicy } from "../adapters/adapter-types.js";
 import type { RuntimeContextBlock } from "../runs/run-types.js";
 import type { RunResult } from "../runs/run-result.js";
-import type { RuntimeOwner } from "../storage/storage-lease.js";
+import type { RuntimeOwner } from "../public-types.js";
 
 export interface CreateGoalRequest {
   cwd: string;

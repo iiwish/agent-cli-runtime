@@ -14,12 +14,9 @@ import type { RunStatus } from "../runs/run-result.js";
 import {
   exportDiagnosticsBundle,
   inspectStoreDirectory,
-  type DiagnosticsBundle,
-  type ExportDiagnosticsRequest,
-  type InspectStoreOptions,
-  type StoreHealth,
 } from "../storage/store-inspection.js";
-import { DEFAULT_LEASE_STALE_MS, StorageLease, type RuntimeOwner } from "../storage/storage-lease.js";
+import { DEFAULT_LEASE_STALE_MS, StorageLease } from "../storage/storage-lease.js";
+import type { DiagnosticsBundle, ExportDiagnosticsRequest, InspectStoreOptions, RuntimeOwner, StoreHealth } from "../public-types.js";
 
 export interface AgentRuntime {
   detect(options?: DetectOptions): Promise<DetectedAgent[]>;

@@ -2,7 +2,7 @@ import type { AgentEvent } from "../core/events.js";
 import type { RuntimeDiagnostic } from "../core/diagnostics.js";
 import type { AgentAdapterDef, AgentId, PermissionPolicy } from "../adapters/adapter-types.js";
 import type { RunStatus } from "./run-result.js";
-import type { RuntimeOwner } from "../storage/storage-lease.js";
+import type { RuntimeEnvironment, RuntimeOwner } from "../public-types.js";
 
 export interface RuntimeContextBlock {
   title: string;
@@ -17,7 +17,7 @@ export interface RuntimeSessionRef {
 
 export interface RuntimeOptions {
   adapters?: AgentAdapterDef[];
-  env?: NodeJS.ProcessEnv;
+  env?: RuntimeEnvironment;
   searchPath?: string[];
   storageDir?: string;
   storage?: {

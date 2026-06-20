@@ -23,12 +23,12 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P2-8 crash-consistency and fault-injection gate track, not a stable API release.
+- This is a P2-9 release-candidate API and consumer compatibility gate track, not a stable API release.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no WAL, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended for local adapter orchestration on the user machine, not a hosted control plane.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance contracts, redacted diagnostics, parser fixtures, and thin local smoke/query CLI commands.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, package-root API contract tests, tarball TypeScript consumer smoke, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance contracts, redacted diagnostics, parser fixtures, and thin local smoke/query CLI commands.
 
 ## Why
 
@@ -207,6 +207,8 @@ For the pre-alpha release, the package root is intentionally small. It exports t
 - experimental extension surface: adapter-authoring types such as `AgentAdapterDef`, `BuildArgsInput`, `PromptTransport`, `StreamParser`, and `AdapterCompatibilityProfile`;
 - not exported from the package root: built-in adapter values, parser helpers, executable-resolution helpers, stores, schedulers, and task-graph helpers.
 
+The published tarball may contain internal `dist/` files because TypeScript declarations and the CLI need them, but only the package root import (`import { createAgentRuntime } from "agent-cli-runtime"`) is a documented API boundary.
+
 `getAdapter(id)` and `RuntimeOptions.adapters` exist for adapter experimentation in pre-alpha. Treat them as extension points whose shape may still change before a stable release.
 
 ## API Stability (pre-alpha / developer preview)
@@ -246,6 +248,36 @@ Quick library smoke after installation:
 ```bash
 node -e "import('agent-cli-runtime').then((m) => console.log(typeof m.createAgentRuntime))"
 ```
+
+Minimal TypeScript consumer:
+
+```ts
+import {
+  createAgentRuntime,
+  type CreateGoalRequest,
+  type RunRequest,
+} from "agent-cli-runtime";
+
+const runtime = createAgentRuntime({ storageDir: "./.agent-runtime" });
+
+const runRequest: RunRequest = {
+  agentId: "codex",
+  cwd: process.cwd(),
+  prompt: "Reply with a one-line status.",
+};
+
+const goalRequest: CreateGoalRequest = {
+  defaultAgentId: "codex",
+  cwd: process.cwd(),
+  objective: "Summarize this repository.",
+};
+
+void runRequest;
+void goalRequest;
+void runtime.shutdown();
+```
+
+The release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run dogfood` and [docs/release-checklist.md](./docs/release-checklist.md).
 
 Required local agent CLIs are optional by scenario:
 

@@ -7,7 +7,8 @@ import type { AgentId } from "../adapters/adapter-types.js";
 import type { RunRecord } from "./run-types.js";
 import type { RunStatus } from "./run-result.js";
 import type { FileStorage } from "../storage/storage-types.js";
-import { inspectOwner, type RuntimeOwner } from "../storage/storage-lease.js";
+import { inspectOwner } from "../storage/storage-lease.js";
+import type { RuntimeOwner } from "../public-types.js";
 
 interface StoredRun extends RunRecord {
   events: Array<ReplayEvent<AgentEvent>>;

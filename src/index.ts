@@ -36,6 +36,10 @@ export type {
   DiagnosticsBundle,
   ExportDiagnosticsRequest,
   InspectStoreOptions,
+  OwnerStatus,
+  RuntimeEnvironment,
+  RuntimeOwner,
+  StorageLockInspection,
   StoreHealth,
   StoreActiveRecord,
   StoreHealthIssue,
@@ -43,4 +47,4 @@ export type {
   StoreRepairReport,
   StoreHealthSummary,
   StoreHealthWarning,
-} from "./storage/store-inspection.js";
+} from "./public-types.js";

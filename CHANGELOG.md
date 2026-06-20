@@ -2,6 +2,21 @@
 
 ## 0.1.0-alpha.0 — pre-alpha developer preview (release-candidate hardening)
 
+- P2-9 release candidate API and consumer compatibility gate:
+  - froze the package-root value API to `createAgentRuntime` plus documented public TypeScript types;
+  - moved store/diagnostics public type shapes behind `public-types` instead of root re-exporting storage internals;
+  - added built-package root contract tests and tarball TypeScript consumer `tsc --noEmit` smoke;
+  - added installed-package fake library run/goal/replay/diagnostics smoke without real CLI credentials;
+  - hardened CLI `--json` error output for parseable redacted exit-code-1 failures;
+  - refreshed compatibility evidence for 2026-06-20 local detection/preflight without claiming skipped/auth-missing runs succeeded.
+- P2-8 crash-consistency and repair safety:
+  - added fault-injected coverage for manifest temp writes, rename, JSONL append, fsync/fdatasync fallback, repair backup/rewrite, and lock acquire/close paths;
+  - preserved old manifests on failed writes, converted append failures into terminal diagnostics, and kept repair backup/rewrite failures non-destructive and diagnosable;
+  - kept corrupt lock read-only inspection, repair diagnostics, and package artifacts redacted.
+- P2-7 durable store repair hardening:
+  - made `store-repair --apply` explicit, lease-aware, backup-backed, idempotent, and live-owner refusing;
+  - kept `store-repair --dry-run --json` non-destructive with redacted planned actions;
+  - documented repair as local JSONL partial/corrupt record repair, not WAL, database transactions, daemon resume, or compaction.
 - Release hygiene and package boundary finalization for P1-8.
 - Added `CHANGELOG.md`, `SECURITY.md`, and `CONTRIBUTING.md`.
 - Clarified API and install contract: package root intentionally exposes only `createAgentRuntime` as the value export and public facade types; adapter/parser/internal helpers stay internal.
@@ -12,4 +27,3 @@
   - no WAL,
   - no remote runtime mode.
 - Confirmed package packaging boundary excludes `.reference/`, `tests/`, and fixture directories; redaction and secrets hygiene remains enforced in diagnostics and package artifacts.
-

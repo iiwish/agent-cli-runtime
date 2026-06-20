@@ -7,6 +7,7 @@ import { redactText } from "../core/redaction.js";
 import { resolveExecutable } from "./executable-resolution.js";
 import { execProbe } from "./invocation.js";
 import { mergeEnv } from "./env.js";
+import type { RuntimeEnvironment } from "../public-types.js";
 
 export interface DetectOptions {
   envByAgent?: Record<string, Record<string, string>>;
@@ -16,7 +17,7 @@ export interface DetectOptions {
 
 export interface DetectionContext {
   adapters: AgentAdapterDef[];
-  env?: NodeJS.ProcessEnv;
+  env?: RuntimeEnvironment;
   searchPath?: string[];
 }
 

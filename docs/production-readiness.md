@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P2-8 crash consistency and fault injection gate
+Status: P2-9 release candidate API and consumer compatibility gate
 Last updated: 2026-06-20
 
-This project is still **pre-alpha / developer preview**. P2-8 adds fault-injected crash consistency coverage for the existing local JSON manifest, JSONL event log, and lock-file store: failed manifest writes preserve the old manifest, failed event appends become terminal diagnostics, repair backup/rewrite failures are diagnosable and non-destructive, corrupt locks do not block read-only inspection, and repair/health/diagnostics output stays redacted. P2-8 is still not OpenDesign daemon-level production: it does not add daemon/web/db/WAL/telemetry/artifact layers.
+This project is still **pre-alpha / developer preview**. P2-9 moves the current pre-alpha into release-candidate shape without publishing npm: the package-root API boundary is tested against built artifacts, tarball consumers are typechecked with `tsc --noEmit`, installed-package fake run/goal/replay/diagnostics smoke is covered, CLI success/error JSON contracts are explicit, and the compatibility matrix is refreshed with 2026-06-20 local detection/preflight evidence. P2-9 keeps the P2-8 crash-consistency and repair safety work, but it is still not OpenDesign daemon-level production: it does not add daemon/web/db/WAL/telemetry/artifact layers.
 
 ## Local-First Production Definition
 
@@ -22,7 +22,9 @@ For this repository, "production-ready local runtime" means:
 - CLI event JSONL is versioned as `agent-runtime.event.v1` for both live stream and replay output;
 - real CLI conformance defaults to detection/profile certification only; authenticated real agent runs require explicit `--allow-real-run`;
 - `npm run dogfood` is the default release-candidate gate and does not launch authenticated real agent runs;
+- `npm run dogfood` also installs the packed tarball into a temporary TypeScript consumer, runs `tsc --noEmit`, and executes fake-CLI library run/goal/replay/diagnostics smoke;
 - `npm run prepublish:check` is the local prepublish guard and also avoids authenticated real agent runs;
+- CLI JSON success and error contracts are parseable, redacted, and covered for core release-facing commands;
 - `npm test` uses Vitest verbose output so long contract/install-smoke coverage does not look idle to CI or local watchdogs;
 - GitHub Actions CI runs Node.js 20/22/24 matrix checks plus one single-Node dogfood job;
 - validation evidence is replayable through goal manifests and diagnostics export.
@@ -68,11 +70,15 @@ package_file="$(printf '%s' "$pack_info" | node -e "const data = JSON.parse(requ
   npm init -y
   npm install "$tmp_dir/$package_file" --no-save --ignore-scripts --no-audit --no-fund
   node -e "import('agent-cli-runtime').then((m) => { if (typeof m.createAgentRuntime !== 'function') process.exit(1); })"
+  node /path/to/typescript/bin/tsc --noEmit
+  node consumer.mjs
   node ./node_modules/.bin/agent-runtime conformance --mode fixtures --json
   node ./node_modules/.bin/agent-runtime conformance --mode fake --json
   node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json
 )
 ```
+
+The checked-in automated version of this smoke is `npm run dogfood`; it creates the temporary `consumer.ts`, `consumer.mjs`, fake adapter binary, and fake CLI environment itself.
 
 Manual real CLI run gate, only on a machine where the selected CLI is installed, authorized, and safe to run:
 
@@ -149,11 +155,12 @@ Excluded artifacts:
 ## Known Risks
 
 - Real CLI behavior can drift after this release candidate. Treat `docs/compatibility.md` as dated evidence, not a permanent guarantee.
+- P2-9 freezes only the package-root release-candidate API boundary. Internal files under `dist/` may exist in the tarball for declarations and CLI execution, but importing internal subpaths is not a documented contract.
 - `status-only real smoke exit 0` remains intentionally non-passing: a real smoke run must emit `text_delta`; if required text is missing, classification is `unexpected_output`.
 - Real conformance preflight can classify a local CLI as unavailable/auth-missing because of machine-specific executable, auth, network, or proxy state. That skip is useful compatibility evidence but is not a successful real run.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume mappings remain in `needsVerification`.
 - Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment.
-- P2-8 repair and fault-injection hardening does not implement WAL, database transactions, compaction, manifest semantic reconciliation, daemon resume, remote workers, or multi-host coordination. It repairs only local JSONL event-log partial/corrupt records within the existing store layout.
+- P2-9 does not implement scheduler expansion, daemon, database, WAL, remote workers, web UI, telemetry, npm publish, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
 
 ## Durable Supervisor Contract
 

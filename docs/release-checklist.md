@@ -1,6 +1,6 @@
 # Release Checklist (pre-alpha / developer preview)
 
-## P2-8 release candidate gate
+## P2-9 release candidate gate
 
 - [ ] `npm ci`
 - [ ] `npm run typecheck`
@@ -16,6 +16,11 @@
 - [ ] `node ./dist/cli/main.js smoke --mode fixtures --json`
 - [ ] `node ./dist/cli/main.js agents --json`
 - [ ] `node ./dist/cli/main.js doctor --json`
+- [ ] `node ./dist/cli/main.js store-health --storage-dir <empty-temp-dir> --json`
+- [ ] `node ./dist/cli/main.js store-repair --storage-dir <empty-temp-dir> --dry-run --json`
+- [ ] Error contract: `node ./dist/cli/main.js run --json` exits `1` and prints parseable redacted JSON.
+- [ ] Error contract: `node ./dist/cli/main.js store-health --json` exits `1` and prints parseable redacted JSON.
+- [ ] Error contract: `node ./dist/cli/main.js store-repair --storage-dir <temp-dir> --apply --dry-run --json` exits `1` and prints parseable redacted JSON.
 - [ ] `node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --dry-run --json`
 - [ ] `node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --apply --json`
 - [ ] `node ./dist/cli/main.js store-health --storage-dir <corrupt-fixture-temp-dir> --json`
@@ -23,7 +28,7 @@
 - [ ] `npm run package:check`
 - [ ] `npm pack --dry-run`
 
-`npm run dogfood` is the default publish-readiness bundle. It rebuilds, runs offline fixtures/fake conformance, runs real local detection/profile conformance without `--allow-real-run`, executes fake-CLI examples, performs a pack dry-run, and installs the packed tarball into a temporary project for import and installed CLI smoke.
+`npm run dogfood` is the default publish-readiness bundle. It rebuilds, runs offline fixtures/fake conformance, runs real local detection/profile conformance without `--allow-real-run`, executes fake-CLI examples, performs a pack dry-run, and installs the packed tarball into a temporary project for package-root import, TypeScript `tsc --noEmit`, fake library run/goal/replay/diagnostics, and installed CLI smoke.
 
 `npm run prepublish:check` is the local release-candidate guard. It combines typecheck, lint, tests, build, dogfood, production audit, package boundary checking, and pack dry-run. It must not run authenticated real agents.
 
@@ -56,7 +61,8 @@
   - raw real CLI output
   - real provider tokens or token-looking values.
 - [ ] Confirm `dist/`, docs, examples, `scripts/dogfood.mjs`, README files, LICENSE, and release docs are included.
-- [ ] Confirm package root value exports remain limited to `createAgentRuntime`; replay, diagnostics, and storage inspection are facade methods plus type exports only.
+- [ ] Confirm package root value exports remain limited to `createAgentRuntime`; replay, diagnostics, and storage inspection are facade methods plus public type exports only.
+- [ ] Confirm built `dist/index.d.ts` does not re-export package-root types from `storage/`, parser, store, or adapter instance internals.
 
 ## Install smoke
 
@@ -68,6 +74,9 @@
 - [ ] `npm init -y`.
 - [ ] `npm install "$tmp_dir/$package_file" --no-save --ignore-scripts --no-audit --no-fund`.
 - [ ] `node -e "(async()=>{ const m = await import('agent-cli-runtime'); if (typeof m.createAgentRuntime !== 'function') process.exit(1); console.log(typeof m.createAgentRuntime); })()"`.
+- [ ] Create `consumer.ts` importing `createAgentRuntime`, `RunRequest`, `CreateGoalRequest`, and other public types from `agent-cli-runtime`.
+- [ ] Run `tsc --noEmit` in the temporary consumer project.
+- [ ] Create a fake consumer adapter/CLI and run installed-package library `run`, `createGoal`, `replayRunEvents`, `replayGoalEvents`, `exportDiagnostics`, and `inspectStore`.
 - [ ] `node ./node_modules/.bin/agent-runtime agents --json` returns JSON.
 - [ ] `node ./node_modules/.bin/agent-runtime doctor --json` returns an object with `ok`.
 - [ ] `node ./node_modules/.bin/agent-runtime conformance --mode fixtures --json` returns stable adapter summaries.
@@ -88,7 +97,8 @@
 - [ ] `README.md` and `README.zh-CN.md` explain npm install, `npx`, and local checkout paths.
 - [ ] `README.md` and `README.zh-CN.md` explain Codex / Claude / OpenCode configuration without token values.
 - [ ] Claude Anthropic-compatible provider docs list environment variable names/placeholders only; no real token values.
-- [ ] `README.md`, `README.zh-CN.md`, `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-8 status.
+- [ ] `docs/compatibility.md` is refreshed with the 2026-06-20 local real conformance detection/preflight evidence and does not describe skipped/auth-missing runs as real-run success.
+- [ ] `README.md`, `README.zh-CN.md`, `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-9 status.
 - [ ] `docs/production-readiness.md` names remaining known risks rather than treating skipped/preflight evidence as real run success.
 
 ## Final review notes

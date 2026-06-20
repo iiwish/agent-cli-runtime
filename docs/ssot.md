@@ -1,8 +1,8 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P2-8 Crash Consistency & Fault Injection Gate
+状态：P2-9 Release Candidate API & Consumer Compatibility Gate
 负责人：local project
-最后更新：2026-06-19
+最后更新：2026-06-20
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
 
 本页同时记录了当前边界与历史里程碑；凡未以“当前”或“P2-1”明确标注者，均作为历史证据归档，不代表当前承诺 API。
@@ -216,6 +216,7 @@ P1-1 package root 契约：
 - 稳定 MVP surface：`createAgentRuntime(options?)`、`AgentRuntime` facade、`DetectOptions` / `DetectedAgent`、`RunRequest` / `RunHandle` / `RunRecord` / `RunStatus`、`CreateGoalRequest` / `GoalHandle` / `GoalRecord` / `GoalStatus`、`AgentEvent` / `SchedulerEvent` / `ReplayEvent`、`RuntimeDiagnostic` / `RuntimeErrorCode`。
 - 实验 extension surface：`RuntimeOptions.adapters`、`AgentAdapterDef`、`BuildArgsInput`、`PromptTransport`、`StreamParser`、`AdapterCompatibilityProfile` 等 adapter authoring 类型。它们用于 pre-alpha adapter 实验，但 stable release 前仍可能调整。
 - 不从 package root 导出 runtime internals：内置 adapter values、parser helpers、executable resolution helpers、stores、schedulers、task graph helpers。内部测试可以继续从 `src/` 直接引用。
+- 发布 tarball 可包含内部 `dist/` 文件以支持 declarations 和 CLI，但文档承诺的 consumer API 只有 package root：`import { createAgentRuntime } from "agent-cli-runtime"`。
 
 P1-1 将 replay API 命名为 `replayRunEvents()` / `replayGoalEvents()`，因为它们返回的是可排序的 replay envelope，而不是 live event stream。实现可保留 `getRunEvents()` / `getGoalEvents()` 作为 pre-alpha 兼容 alias，但 README、CLI 和 SSOT 主契约使用 `replay*` 命名。
 
@@ -1065,6 +1066,19 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - 新增 `npm run prepublish:check` 本地 guard：组合 typecheck、lint、test、build、dogfood、production audit、package boundary check 与 pack dry-run。
 - 新增 package boundary script，校验 npm pack file list 不包含 `.reference/`、`tests/`、fixtures、raw real CLI output、真实私有路径或 token-looking values，并扫描 docs/examples/scripts 中的真实 token、Bearer value、auth env assignment value 和私有用户路径。
 - P2-6 仍是 pre-alpha / developer preview；不引入 OpenDesign daemon/web/db/telemetry/artifact，也不把 CI/dogfood/prepublish 默认边界扩大到 authenticated real agent run。
+
+### P2-9：Release Candidate API & Consumer Compatibility Gate
+
+- Package root value export 冻结为 `createAgentRuntime`；package root type exports 只覆盖 runtime facade、public record/event/diagnostics/store-health shapes 和 adapter-authoring public types。
+- `StoreHealth`、`StoreRepairReport`、`DiagnosticsBundle`、owner/lock 等对 consumer 有意义的 shape 归入 public type layer；root 不再从 `storage/*` 直接 re-export 这些类型。
+- Tarball 可保留内部 `dist/` 文件以支持 CLI 与 declarations；但外部 consumer 只应依赖 package root import，不应 import storage/parser/store/internal adapter paths。
+- Contract tests 覆盖 built package root：runtime value exports 只能看到 `createAgentRuntime`，`dist/index.d.ts` 不从 storage/parser/store internals 暴露 package-root public types。
+- Package install smoke 从 `npm pack --json --ignore-scripts` 生成 tarball，安装到临时 consumer project，写入 `consumer.ts`，执行 `tsc --noEmit`，并通过 installed package 执行 fake adapter library run、goal、run replay、goal replay、diagnostics export 和 store health。
+- `npm run dogfood` 同步执行上述 tarball TypeScript consumer smoke，不需要真实 Codex/Claude/OpenCode 凭据。
+- CLI JSON success contract 覆盖：`agents --json`、`doctor --json`、`conformance --mode fixtures --json`、`conformance --mode fake --json`、`store-health --json`、`store-repair --dry-run --json`。
+- CLI JSON error contract 覆盖：缺少必需参数，以及 `store-repair --apply --dry-run` 互斥错误；`--json` 错误输出为短、可解析、redacted JSON，退出码为 `1`，不泄露 cwd/token/prompt 内容。
+- `docs/compatibility.md` 刷新到 2026-06-20 当前本机 detection/preflight evidence：Codex `codex-cli 0.142.0-alpha.1` 为 `real_run_skipped`，Claude Code `2.1.178` 为 `auth_missing`，OpenCode `1.15.6` 为 `real_run_skipped`；未带 `--allow-real-run` 的 skipped 不写成真实执行成功。
+- P2-9 不发布 npm，不新增 scheduler 大功能，不引入 daemon、database、WAL、remote worker、web UI 或 telemetry。
 
 ## 19. 待定问题
 

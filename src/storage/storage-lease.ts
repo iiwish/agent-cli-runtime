@@ -2,31 +2,16 @@ import { appendFileSync, closeSync, existsSync, ftruncateSync, mkdirSync, openSy
 import path from "node:path";
 import { createId } from "../core/ids.js";
 import { redactUnknown } from "../core/redaction.js";
+import type { OwnerStatus, RuntimeOwner, StorageLockInspection } from "../public-types.js";
 
 export const STORAGE_LOCK_FILE = "runtime.lock.json";
 export const DEFAULT_LEASE_STALE_MS = 30_000;
-
-export interface RuntimeOwner {
-  runtimeInstanceId: string;
-  pid: number;
-  startedAt: number;
-  heartbeatAt: number;
-  closedAt?: number;
-}
-
-export type OwnerStatus = "missing" | "live" | "stale" | "closed" | "invalid";
 
 export interface OwnerInspection {
   status: OwnerStatus;
   owner?: RuntimeOwner;
   ageMs?: number;
   reason?: string;
-}
-
-export interface StorageLockInspection extends OwnerInspection {
-  file: string;
-  staleMs: number;
-  diagnostics: string[];
 }
 
 export interface StorageLeaseFaultHooks {

@@ -6,7 +6,8 @@ import { diagnostic } from "../core/diagnostics.js";
 import type { CreateGoalRequest, GoalRecord, ScheduledTask } from "./goal-types.js";
 import type { RunResult } from "../runs/run-result.js";
 import type { FileStorage } from "../storage/storage-types.js";
-import { inspectOwner, type RuntimeOwner } from "../storage/storage-lease.js";
+import { inspectOwner } from "../storage/storage-lease.js";
+import type { RuntimeOwner } from "../public-types.js";
 
 interface StoredGoal extends GoalRecord {
   subscribers: Set<AsyncQueue<SchedulerEvent>>;

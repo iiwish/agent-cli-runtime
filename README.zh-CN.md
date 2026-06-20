@@ -23,12 +23,12 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 本仓库目前处于 **pre-alpha / developer preview**。
 
 发布边界说明：
-- 这是 P2-8 crash-consistency 与 fault-injection gate 阶段，不承诺稳定 API。
+- 这是 P2-9 release-candidate API 与 consumer compatibility gate 阶段，不承诺稳定 API。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、WAL 或 remote runtime 模式承诺。
 - 运行时仍以本机本地编排为目标，不替代托管平台服务。
 
-SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 release-candidate-hardening 的 library-first Node.js/TypeScript 版本，默认 memory-only run / goal 调度，可选 durable local replay storage 及 crash/recovery health reporting，并补充 fault-injected consistency coverage；包含内置 CLI compatibility profiles、强化后的 planner/task-graph validation、版本化 event/diagnostics/conformance 契约、parser fixtures，以及本地 smoke/query 薄 CLI。
+SSOT 在 [docs/ssot.md](./docs/ssot.md)。当前实现是 release-candidate-hardening 的 library-first Node.js/TypeScript 版本，默认 memory-only run / goal 调度，可选 durable local replay storage 及 crash/recovery health reporting，并补充 fault-injected consistency coverage、package-root API contract tests 和 tarball TypeScript consumer smoke；包含内置 CLI compatibility profiles、强化后的 planner/task-graph validation、版本化 event/diagnostics/conformance 契约、parser fixtures，以及本地 smoke/query 薄 CLI。
 
 ## 为什么需要它
 
@@ -207,6 +207,8 @@ Pre-alpha release 的 package root 会刻意保持小。它只导出 `createAgen
 - experimental extension surface：adapter authoring 相关类型，例如 `AgentAdapterDef`、`BuildArgsInput`、`PromptTransport`、`StreamParser` 和 `AdapterCompatibilityProfile`；
 - 不从 package root 导出：内置 adapter values、parser helpers、executable-resolution helpers、stores、schedulers 和 task-graph helpers。
 
+发布 tarball 里可能包含内部 `dist/` 文件，因为 TypeScript declarations 和 CLI 需要它们；但文档承诺的 API 边界只有 package root import：`import { createAgentRuntime } from "agent-cli-runtime"`。
+
 `getAdapter(id)` 和 `RuntimeOptions.adapters` 是 pre-alpha 阶段为 adapter 实验保留的 extension points；在 stable release 之前，它们的形状仍可能调整。
 
 ## Pre-alpha API 发布边界
@@ -244,6 +246,36 @@ npm run dogfood
 ```bash
 node -e "import('agent-cli-runtime').then((m) => console.log(typeof m.createAgentRuntime))"
 ```
+
+最小 TypeScript consumer：
+
+```ts
+import {
+  createAgentRuntime,
+  type CreateGoalRequest,
+  type RunRequest,
+} from "agent-cli-runtime";
+
+const runtime = createAgentRuntime({ storageDir: "./.agent-runtime" });
+
+const runRequest: RunRequest = {
+  agentId: "codex",
+  cwd: process.cwd(),
+  prompt: "Reply with a one-line status.",
+};
+
+const goalRequest: CreateGoalRequest = {
+  defaultAgentId: "codex",
+  cwd: process.cwd(),
+  objective: "Summarize this repository.",
+};
+
+void runRequest;
+void goalRequest;
+void runtime.shutdown();
+```
+
+当前 release gate 会把 packed tarball 安装到临时 TypeScript 项目，执行 `tsc --noEmit`，再用 fake CLI 跑 library run / goal / replay / diagnostics smoke。见 `npm run dogfood` 和 [docs/release-checklist.md](./docs/release-checklist.md)。
 
 本机 agent CLI 按场景安装即可：
 

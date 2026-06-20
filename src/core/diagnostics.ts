@@ -33,7 +33,7 @@ export interface RuntimeDiagnostic {
   searchedLocations?: string[];
   probe?: string;
   exitCode?: number | null;
-  signal?: NodeJS.Signals | string | null;
+  signal?: string | null;
   stderrTail?: string;
   actionableHints?: string[];
   retryable?: boolean;

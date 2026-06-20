@@ -53,6 +53,23 @@ async function execCliJson<T = unknown>(
   return JSON.parse(stdout) as T;
 }
 
+async function execCliFailure(
+  args: string[],
+  options?: Parameters<typeof execFileP>[2],
+): Promise<{ stdout: string; stderr: string; code: number | string | undefined }> {
+  try {
+    await execFileP(process.execPath, [cli, ...args], options);
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    return {
+      stdout: failure.stdout ?? "",
+      stderr: failure.stderr ?? "",
+      code: failure.code,
+    };
+  }
+  throw new Error(`expected CLI failure for ${args.join(" ")}`);
+}
+
 async function execInstalledCliJson<T = unknown>(
   bin: string,
   args: string[],
@@ -144,6 +161,17 @@ describe("public contract", () => {
     const runtime = createAgentRuntime();
     expect(typeof runtime.replayRunEvents).toBe("function");
     expect(typeof runtime.replayGoalEvents).toBe("function");
+  });
+
+  it("keeps the built package root free of internal value exports and storage type re-exports", async () => {
+    const built = await import("../dist/index.js");
+    const declaration = await readFile(path.join(root, "dist", "index.d.ts"), "utf8");
+
+    expect(Object.keys(built)).toEqual(["createAgentRuntime"]);
+    expect(declaration).toContain("./public-types.js");
+    expect(declaration).not.toContain("./storage/");
+    expect(declaration).not.toContain("./parsers/");
+    expect(declaration).not.toContain("./adapters/registry");
   });
 
   it("prints CLI help with all frozen commands and key flags", async () => {
@@ -266,6 +294,82 @@ describe("public contract", () => {
         }),
       ],
     });
+  }, 30_000);
+
+  it("keeps core CLI --json success contracts parseable", async () => {
+    const storageDir = await tempDir("agent-runtime-cli-contract-");
+
+    const agents = await execCliJson<DetectedAgent[]>(["agents", "--json"]);
+    const doctor = await execCliJson<{ ok: boolean; agents: DetectedAgent[] }>(["doctor", "--json"]);
+    const fixtureConformance = await execCliJson<{ schemaVersion: string; ok: boolean; mode: string }>([
+      "conformance",
+      "--mode",
+      "fixtures",
+      "--json",
+    ]);
+    const fakeConformance = await execCliJson<{ schemaVersion: string; ok: boolean; mode: string }>([
+      "conformance",
+      "--mode",
+      "fake",
+      "--json",
+    ]);
+    const health = await execCliJson<StoreHealth>(["store-health", "--storage-dir", storageDir, "--json"]);
+    const repair = await execCliJson<StoreRepairReport>(["store-repair", "--storage-dir", storageDir, "--dry-run", "--json"]);
+
+    expect(Array.isArray(agents)).toBe(true);
+    expect(doctor).toMatchObject({ ok: expect.any(Boolean), agents: expect.any(Array) });
+    expect(fixtureConformance).toMatchObject({
+      schemaVersion: "agent-runtime.conformance.v1",
+      ok: true,
+      mode: "fixtures",
+    });
+    expect(fakeConformance).toMatchObject({
+      schemaVersion: "agent-runtime.conformance.v1",
+      ok: true,
+      mode: "fake",
+    });
+    expect(health).toMatchObject({
+      ok: true,
+      totals: { runs: 0, goals: 0 },
+      lock: { status: "missing" },
+    });
+    expect(repair).toMatchObject({
+      schemaVersion: "agent-runtime.storeRepair.v1",
+      dryRun: true,
+      applied: false,
+      ok: true,
+      actions: [],
+    });
+  }, 60_000);
+
+  it("keeps CLI --json error contracts short, parseable, and redacted", async () => {
+    const storageDir = await tempDir("agent-runtime-cli-error-");
+    const secret = `sk-${"A".repeat(24)}`;
+    const privateCwd = await tempDir("private-cli-error-");
+    const failures = [
+      await execCliFailure(["run", "--json"]),
+      await execCliFailure(["store-health", "--json"]),
+      await execCliFailure(["store-repair", "--storage-dir", storageDir, "--apply", "--dry-run", "--json"]),
+      await execCliFailure([`unknown-${secret}`, "--prompt", `prompt ${secret} ${privateCwd}`, "--cwd", privateCwd, "--json"]),
+    ];
+
+    for (const failure of failures) {
+      const parsed = JSON.parse(failure.stdout) as { ok: false; error: { code: string; message: string } };
+      const text = `${failure.stdout}\n${failure.stderr}`;
+      expect(failure.code).toBe(1);
+      expect(failure.stderr).toBe("");
+      expect(parsed).toMatchObject({
+        ok: false,
+        error: {
+          code: "CLI_USAGE_ERROR",
+          message: expect.any(String),
+        },
+      });
+      expect(parsed.error.message.length).toBeLessThan(240);
+      expect(text).not.toContain(secret);
+      expect(text).not.toContain(privateCwd);
+      expect(text).not.toContain(`prompt ${secret}`);
+    }
   }, 30_000);
 
   it("certifies real conformance preflight without launching runs unless --allow-real-run is explicit", async () => {
@@ -532,9 +636,10 @@ process.stdin.on("end", () => {
   }, 30_000);
 
   it("refuses real smoke unless --allow-real-run is explicit", async () => {
-    await expect(execFileP(process.execPath, [cli, "smoke", "--mode", "real", "--agent", "codex", "--json"])).rejects.toMatchObject({
-      stderr: expect.stringContaining("smoke --mode real requires --allow-real-run"),
-    });
+    const failure = await execCliFailure(["smoke", "--mode", "real", "--agent", "codex", "--json"]);
+    const parsed = JSON.parse(failure.stdout) as { ok: false; error: { message: string } };
+    expect(failure).toMatchObject({ code: 1, stderr: "" });
+    expect(parsed.error.message).toContain("smoke --mode real requires --allow-real-run");
   }, 30_000);
 
   it("runs real smoke with --prompt-file without putting long prompts in argv", async () => {
@@ -1426,6 +1531,25 @@ exit 0
 `;
     await writeShellExecutable(installedFakeBinDir, "opencode", installedOpenCode);
     await writeShellExecutable(installedFakeBinDir, "opencode-cli", installedOpenCode);
+    await writeExecutable(installedFakeBinDir, "consumer-agent", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") {
+  console.log("consumer-agent 1.0.0");
+  process.exit(0);
+}
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => input += chunk);
+process.stdin.on("end", () => {
+  if (input.includes("Return strict JSON")) {
+    console.log(JSON.stringify({ tasks: [
+      { id: "T001", title: "Consumer task", objective: "consumer task run", dependencies: [], validationCommands: ["node -e \\"process.exit(0)\\""] }
+    ] }));
+    return;
+  }
+  console.log("consumer fake run ok");
+});
+`);
     const installedEnv = {
       ...process.env,
       PATH: `${installedFakeBinDir}${delimiter}${process.env.PATH ?? ""}`,
@@ -1443,6 +1567,128 @@ exit 0
     ], {
       cwd: tempProject,
     });
+    await writeFile(path.join(tempProject, "tsconfig.json"), JSON.stringify({
+      compilerOptions: {
+        target: "ES2022",
+        module: "NodeNext",
+        moduleResolution: "NodeNext",
+        strict: true,
+        skipLibCheck: false,
+        lib: ["ES2022", "DOM"],
+        noEmit: true,
+      },
+      include: ["consumer.ts"],
+    }, null, 2), "utf8");
+    await writeFile(path.join(tempProject, "consumer.ts"), `
+import {
+  createAgentRuntime,
+  type AgentAdapterDef,
+  type AgentEvent,
+  type CreateGoalRequest,
+  type DiagnosticsBundle,
+  type ReplayEvent,
+  type RunRequest,
+  type RuntimeOptions,
+  type StoreHealth,
+} from "agent-cli-runtime";
+
+const adapter: AgentAdapterDef = {
+  id: "consumer-fake",
+  displayName: "Consumer Fake",
+  bin: "consumer-agent",
+  versionArgs: ["--version"],
+  fallbackModels: [{ id: "default", label: "Default" }],
+  buildArgs: () => [],
+  promptTransport: { kind: "stdin", inputFormat: "text" },
+  stream: {
+    create: () => ({
+      parse: (chunk: string) => [{ type: "text_delta", text: chunk }],
+      flush: () => [],
+    }),
+  },
+};
+
+const runRequest: RunRequest = {
+  agentId: "consumer-fake",
+  cwd: ".",
+  prompt: "consumer run",
+};
+const goalRequest: CreateGoalRequest = {
+  defaultAgentId: "consumer-fake",
+  cwd: ".",
+  objective: "consumer goal",
+};
+const options: RuntimeOptions = {
+  adapters: [adapter],
+  searchPath: ["."],
+  storageDir: "./consumer-store",
+};
+const runtime = createAgentRuntime(options);
+const health: Promise<StoreHealth> = runtime.inspectStore();
+const diagnostics: Promise<DiagnosticsBundle> = runtime.exportDiagnostics({ kind: "run", runId: "run_missing" });
+const replay: ReplayEvent<AgentEvent>[] = [];
+
+void runRequest;
+void goalRequest;
+void health;
+void diagnostics;
+void replay;
+void runtime.shutdown();
+`, "utf8");
+    await writeFile(path.join(tempProject, "consumer.mjs"), `
+import { createAgentRuntime } from "agent-cli-runtime";
+
+const fakeBin = ${JSON.stringify(installedFakeBinDir)};
+const cwd = process.cwd();
+const storageDir = cwd + "/consumer-store";
+
+const adapter = {
+  id: "consumer-fake",
+  displayName: "Consumer Fake",
+  bin: "consumer-agent",
+  versionArgs: ["--version"],
+  fallbackModels: [{ id: "default", label: "Default" }],
+  buildArgs: () => [],
+  promptTransport: { kind: "stdin", inputFormat: "text" },
+  stream: {
+    create: () => ({
+      parse: (chunk) => chunk.split(/\\r?\\n/u).filter(Boolean).map((line) => ({ type: "text_delta", text: line + "\\n" })),
+      flush: () => [],
+    }),
+  },
+};
+
+const runtime = createAgentRuntime({
+  adapters: [adapter],
+  searchPath: [fakeBin],
+  storageDir,
+});
+
+const runHandle = await runtime.run({ agentId: "consumer-fake", cwd, prompt: "consumer run" });
+for await (const _event of runHandle.events) {}
+const run = await runtime.getRun(runHandle.runId);
+const runReplay = await runtime.replayRunEvents(runHandle.runId);
+const runDiagnostics = await runtime.exportDiagnostics({ kind: "run", runId: runHandle.runId });
+
+const goalHandle = await runtime.createGoal({ defaultAgentId: "consumer-fake", cwd, objective: "consumer goal" });
+for await (const _event of goalHandle.events) {}
+const goal = await runtime.getGoal(goalHandle.goalId);
+const goalReplay = await runtime.replayGoalEvents(goalHandle.goalId);
+const goalDiagnostics = await runtime.exportDiagnostics({ kind: "goal", goalId: goalHandle.goalId });
+const health = await runtime.inspectStore();
+await runtime.shutdown("consumer smoke complete");
+
+console.log(JSON.stringify({
+  run,
+  goal,
+  runReplayCount: runReplay.length,
+  goalReplayCount: goalReplay.length,
+  runDiagnosticsSchema: runDiagnostics.schemaVersion,
+  goalDiagnosticsSchema: goalDiagnostics.schemaVersion,
+  healthOk: health.ok,
+}));
+`, "utf8");
+    await execFileP(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "--noEmit"], { cwd: tempProject });
     const installedCli = path.join(tempProject, "node_modules", ".bin", "agent-runtime");
     const agents = await execInstalledCliJson<DetectedAgent[]>(installedCli, ["agents", "--json"], { cwd: tempProject, env: installedEnv });
     const doctor = await execInstalledCliJson<{ ok: boolean }>(installedCli, ["doctor", "--json"], { cwd: tempProject, env: installedEnv });
@@ -1458,6 +1704,18 @@ exit 0
       cwd: tempProject,
       env: installedEnv,
     });
+    const consumer = JSON.parse((await execFileP(process.execPath, ["consumer.mjs"], {
+      cwd: tempProject,
+      env: installedEnv,
+    })).stdout) as {
+      run: RunRecord;
+      goal: GoalRecord;
+      runReplayCount: number;
+      goalReplayCount: number;
+      runDiagnosticsSchema: string;
+      goalDiagnosticsSchema: string;
+      healthOk: boolean;
+    };
 
     expect(imported.stdout.trim()).toBe("function");
     expect(agents.length).toBeGreaterThan(0);
@@ -1465,6 +1723,15 @@ exit 0
     expect(smoke).toMatchObject({ ok: true, mode: "fixtures" });
     expect(conformance).toMatchObject({ ok: true, mode: "fixtures" });
     expect(fakeConformance).toMatchObject({ ok: true, mode: "fake" });
+    expect(consumer).toMatchObject({
+      run: { status: "succeeded" },
+      goal: { status: "succeeded" },
+      runDiagnosticsSchema: "agent-runtime.diagnostics.v1",
+      goalDiagnosticsSchema: "agent-runtime.diagnostics.v1",
+      healthOk: true,
+    });
+    expect(consumer.runReplayCount).toBeGreaterThan(0);
+    expect(consumer.goalReplayCount).toBeGreaterThan(0);
   }, 120_000);
 
   it("does not ship docs examples or fixtures with raw auth token patterns", async () => {

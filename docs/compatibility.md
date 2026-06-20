@@ -1,18 +1,19 @@
 # Agent CLI Compatibility Matrix
 
-Status: P2-6 CI Release Automation & Prepublish Guard
-Last updated: 2026-06-18
+Status: P2-9 Release Candidate API & Consumer Compatibility Gate
+Last updated: 2026-06-20
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as compatibility evidence, not a permanent guarantee. P2-6 adds repeatable CI, release-candidate artifact generation, a prepublish guard, and package-boundary checking on top of the P2-5 dogfood and install-smoke path. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P2-9 freezes the package-root public API contract for the release candidate, adds tarball TypeScript consumer typecheck plus fake library run/goal/replay/diagnostics smoke, hardens CLI JSON success/error contracts, and refreshes local real-CLI detection/preflight evidence. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P2-6 pre-alpha release-candidate CI evidence, which is intended to be the default interpretation for this matrix.
+Current status is P2-9 pre-alpha release-candidate evidence, which is intended to be the default interpretation for this matrix.
 
-- Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack` and install-smoke checks.
+- Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
 - `npm test` uses Vitest's verbose reporter to keep long contract/install-smoke files chatty enough for CI and local watchdogs.
 - `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, dogfood, production audit, package boundary checks, and pack dry-run.
+- `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
 - Evidence modes are intentionally separate:
   - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
   - `fake`: temporary local fake CLIs through the real adapter argv/stdin/parser path; no network or real account is used.
@@ -22,7 +23,7 @@ Current status is P2-6 pre-alpha release-candidate CI evidence, which is intende
 - When using this file as runtime contract input, prioritize the `Status` section, explicit "Runtime notes" in each adapter, and the most recent command evidence.
 - For changed behavior, add a new evidence row at the top of the section rather than keeping the old row as authoritative.
 
-## P2-6 CI Release Automation Evidence
+## P2-9 Release Candidate API And Consumer Compatibility Evidence
 
 Release-candidate gates:
 
@@ -35,26 +36,41 @@ npm run ci
 npm run dogfood
 npm run prepublish:check
 npm run package:check
+node ./dist/cli/main.js conformance --mode real --agent all --json
 npm pack --dry-run
 ```
 
-CI/release semantics:
+P2-9 release-candidate semantics:
 
-- `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
-- The official test script is `vitest run --reporter=verbose --no-file-parallelism --testTimeout 30000`, keeping full-suite progress visible without dropping P2-5/P2-6 contract coverage.
-- The CI dogfood gate runs `npm run dogfood` once on Node.js 22. It does not pass `--allow-real-run`, so real mode is limited to executable/version/auth/model/profile certification and runnable adapters report `real_run_skipped`.
+- Package root value exports remain limited to `createAgentRuntime`; root type exports come from documented public types and facade/adapter-authoring types, not storage/parser/store internals.
+- The published tarball may include internal `dist/` implementation files, but only the package root API is documented as stable for consumers.
 - The package install smoke uses `npm install <tarball> --no-save --ignore-scripts --no-audit --no-fund`.
+- The consumer TypeScript smoke imports `createAgentRuntime`, `RunRequest`, `CreateGoalRequest`, and other public types from the package root, then runs `tsc --noEmit` from the temporary project.
+- The installed-package fake library smoke executes run, goal, replay, diagnostics export, and store health through a consumer-supplied fake adapter; it does not require Codex, Claude, OpenCode, network, or real credentials.
+- CLI JSON success contracts are covered for `agents --json`, `doctor --json`, `conformance --mode fixtures --json`, `conformance --mode fake --json`, `store-health --json`, and `store-repair --dry-run --json`.
+- CLI JSON error contracts are covered for missing required parameters and mutually exclusive `store-repair --apply --dry-run`; errors return exit code `1`, a short parseable JSON object, and redacted messages.
+- `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
+- The official test script is `vitest run --reporter=verbose --no-file-parallelism --testTimeout 30000`, keeping full-suite progress visible without dropping contract/install-smoke coverage.
+- The CI dogfood gate runs `npm run dogfood` once on Node.js 22. It does not pass `--allow-real-run`, so real mode is limited to executable/version/auth/model/profile certification and runnable adapters report `real_run_skipped`.
 - `.github/workflows/release-candidate.yml` is `workflow_dispatch` only. It runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates `npm pack --json` output and uploads the tarball, pack metadata, and package file list as artifacts.
 - No workflow step runs `npm publish`, requests an npm token, or requires real Codex/Claude/OpenCode installation.
 - `scripts/check-package-boundary.mjs` checks the pack dry-run file list and scans docs/examples/scripts for real token-like values, Bearer values, auth environment assignment values, and private user paths.
+
+Current local real-CLI detection/preflight evidence from `node ./dist/cli/main.js conformance --mode real --agent all --json` on 2026-06-20:
+
+| Adapter | CLI version | Auth/model source | runClassification | skippedReason | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Codex CLI | `codex-cli 0.142.0-alpha.1` | auth `unknown`; models `live` | `real_run_skipped` | `real_run_not_allowed` | Detection/profile passed; no real run launched because `--allow-real-run` was not supplied. Session and auth probe remain `needsVerification`. |
+| Claude Code | `2.1.178 (Claude Code)` | auth `missing`; models `fallback` | `auth_missing` | `auth_missing` | Detection/profile passed; run skipped before launch because local auth is missing. `--session-id` and reasoning remain `needsVerification`. |
+| OpenCode | `1.15.6` | auth `unknown`; models `live` | `real_run_skipped` | `real_run_not_allowed` | Detection/profile passed; no real run launched because `--allow-real-run` was not supplied. Extra dirs, session, and read-only/workspace-write flags remain `needsVerification`. |
 
 ## Summary
 
 | Adapter | CLI path | CLI version tested | Detection | Run smoke | Goal smoke | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Codex CLI | redacted local app path | `codex-cli 0.140.0-alpha.19` | Pass | Pass: P2-4 opt-in real conformance matched expected text, reported no cwd mutation, and diagnostics count was 0. | Not run in P2-4 | Uses `codex exec --json` with stdin prompt and `-C <cwd>`. Live model probe passed. P2-4 reports `real_run_skipped` without `--allow-real-run`; timeout diagnostics still show sanitized argv/profile, parsed event count, stdout/stderr tails, and startup diagnostic hints when needed. |
-| Claude Code | redacted local app path | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P2-4 | `claude auth status` returned auth missing in the local P2-4 certification. Conformance skips the run without launching Claude. |
-| OpenCode | redacted local app path | `1.15.6` | Pass | Not run by default in P2-4 real conformance; P1-6 opt-in run passed with expected text and no cwd mutation. | Not run in P2-4 | P2-4 reports `real_run_skipped` without `--allow-real-run` and live model source is available. Explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
+| Codex CLI | redacted local app path | `codex-cli 0.142.0-alpha.1` | Pass | Skipped in P2-9 default real conformance; prior opt-in Codex smoke evidence remains historical. | Not run in P2-9 | Uses `codex exec --json --skip-git-repo-check` with stdin prompt and `-C <cwd>`. Live model probe passed. P2-9 reports `real_run_skipped` without `--allow-real-run`; session and auth probe remain `needsVerification`. |
+| Claude Code | redacted local app path | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P2-9 | `claude auth status` returned auth missing in the local P2-9 certification. Conformance skips before launching Claude. |
+| OpenCode | redacted local app path | `1.15.6` | Pass | Skipped in P2-9 default real conformance; prior opt-in OpenCode smoke evidence remains historical. | Not run in P2-9 | P2-9 reports `real_run_skipped` without `--allow-real-run` and live model source is available. Explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
 
 ## Verified Invocation Shapes
 
@@ -75,7 +91,8 @@ Runtime notes:
 - auth probe: no stable non-mutating auth probe is enabled; auth status is `unknown`
 - model probe: `codex debug models`; parser keeps only model `slug`/`display_name` and ignores hidden models
 - parser note: transient `Reconnecting... n/5` structured error frames are normalized to `status: reconnecting`; they are not fatal if the run later emits text/usage and exits `0`
-- P1-5 real smoke evidence: the opt-in read-only smoke passed on 2026-06-17. Prior P0-4 timeout/reconnect captures remain useful parser and diagnostics fixtures, but are not the latest local status.
+- 2026-06-20 P2-9 local certification: executable/version/model preflight passed for `codex-cli 0.142.0-alpha.1`; no real run was launched because `--allow-real-run` was not supplied.
+- Historical opt-in Codex real smoke evidence remains useful but is not the latest local status.
 
 ### Claude Code
 
@@ -92,7 +109,7 @@ Runtime notes:
 - capability probe: `claude -p --help`; current local output includes the tracked capability flags and produced no capability diagnostics
 - model probe: no live model probe; fallback aliases are `default`, `sonnet`, `opus`, `haiku`
 - `--resume` is the verified resume path in fixtures; `--session-id` is represented in the profile as `needsVerification` and is not emitted by `buildArgs()`
-- P1-5 real smoke behavior: `smoke --mode real` preflights detection and returns `classification: "auth_missing"` without launching Claude when local auth is missing.
+- 2026-06-20 P2-9 local certification: executable/version/auth preflight passed for `2.1.178 (Claude Code)`, but auth was `missing`; no real run was launched.
 - DeepSeek Anthropic-compatible config can be supplied through environment variables:
 
 ```bash
@@ -122,8 +139,8 @@ Runtime notes:
 - model probe: `opencode models`
 - read-only and workspace-write are left to OpenCode defaults until stable permission flags are verified
 - extra dirs and session/resume are not mapped; profile marks them as `needsVerification`
-- P2-4 current local certification: executable/version/model preflight passed for `opencode` 1.15.6, and no real run was launched because `--allow-real-run` was not supplied.
-- P1-5 real smoke evidence: stdin prompt support is verified for local `opencode` 1.15.6 through the opt-in non-mutating isolated smoke. Keep prompt out of argv; do not switch to positional argv prompt. The runtime requested read-only behavior, but OpenCode explicit read-only/workspace-write flags remain unverified.
+- 2026-06-20 P2-9 local certification: executable/version/model preflight passed for `opencode` 1.15.6; no real run was launched because `--allow-real-run` was not supplied.
+- Historical opt-in OpenCode real smoke evidence verifies stdin prompt support for local `opencode` 1.15.6. Keep prompt out of argv; do not switch to positional argv prompt. The runtime requested read-only behavior, but OpenCode explicit read-only/workspace-write flags remain unverified.
 
 ## Smoke Commands
 
