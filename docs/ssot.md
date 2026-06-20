@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P2-10 Release Candidate Artifact & Remote CI Audit
+状态：P2-11 Release Candidate Artifact Verification & Remote Evidence Intake
 负责人：local project
 最后更新：2026-06-20
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -1090,6 +1090,16 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - 新增 `docs/release-report.md` 作为 0.1.0-alpha.0 release-candidate evidence 入口，记录本地验证命令、远端 workflow 预期证据、artifact review checklist、package boundary、real CLI evidence 边界、known risks 和 explicit non-goals。
 - `npm publish --dry-run --ignore-scripts --tag alpha` 是本地手动 dry-run gate；显式 `--tag alpha` 用来保证 dry-run 输出符合 pre-alpha 发布意图，不发布 npm，不要求 npm token，不放进远端 required CI，以免 npm dry-run 输出和 registry 状态造成 flaky gate。
 - P2-10 仍不宣称 stable API，不宣称 OpenDesign daemon parity，不新增 daemon、database、WAL、remote worker、web UI、telemetry 或 scheduler expansion。
+
+### P2-11：Release Candidate Artifact Verification & Remote Evidence Intake
+
+- P2-11 不新增 runtime API；目标是把 P2-10 的 release-candidate workflow/artifact 设计推进成可本地复现、可下载审查、可机器校验的候选发布证据闭环。
+- 新增 `scripts/verify-release-artifacts.mjs` 和 `npm run release:verify`，校验 `npm-pack.json`、`package-files.txt`、tarball basename/path/existence、package file list parity、禁止路径、私有路径与 token-looking values，并输出 `schemaVersion: "agent-cli-runtime.releaseVerification.v1"` 的 redacted JSON。
+- 新增 `scripts/create-release-candidate.mjs` 和 `npm run release:candidate`，本地生成 release-candidate 目录：运行 `npm pack --json --pack-destination <out-dir>`，写入 `npm-pack.json`、`package-files.txt`、tarball 和 `release-verification.json`；不执行 `npm publish`，默认不在仓库根目录留下 tarball。
+- `.github/workflows/release-candidate.yml` 继续只允许 manual `workflow_dispatch`，继续运行 `npm ci`、`npm run ci`、`npm run dogfood`，但 artifact 校验改为复用 `npm run release:verify`；上传 tarball、pack metadata、package file list 和 release verification JSON，retention 仍为 14 天。
+- Contract tests 覆盖合法 release artifact verification、`.reference/`、tests、fixtures、raw real CLI output、private paths、token-looking/Bearer values 的拒绝、verification JSON schema/redaction、workflow 不包含 `npm publish`、`NODE_AUTH_TOKEN` 或 `--allow-real-run`，以及 `npm publish --dry-run --ignore-scripts --tag alpha` 文档约束。
+- 文档只把远端 GitHub Actions 视为 manual/pending evidence；未实际触发并审查 workflow 前，不声明远端 release-candidate workflow 已通过。
+- P2-11 仍不发布 npm，不要求 npm token，不执行 authenticated real agent run，不新增 daemon、database、WAL、remote worker、web UI、telemetry 或 package root value API；`createAgentRuntime` 仍是唯一 root value export。
 
 ## 19. 待定问题
 

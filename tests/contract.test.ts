@@ -36,6 +36,8 @@ import { tempDir, writeExecutable } from "./helpers.js";
 const execFileP = promisify(execFile);
 const root = path.resolve(import.meta.dirname, "..");
 const cli = path.join(root, "dist", "cli", "main.js");
+const releaseVerifier = path.join(root, "scripts", "verify-release-artifacts.mjs");
+const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 
 function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -68,6 +70,23 @@ async function execCliFailure(
     };
   }
   throw new Error(`expected CLI failure for ${args.join(" ")}`);
+}
+
+async function execCliFailureViaNode(
+  args: string[],
+  options?: Parameters<typeof execFileP>[2],
+): Promise<{ stdout: string; stderr: string; code: number | string | undefined }> {
+  try {
+    await execFileP(process.execPath, args, options);
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    return {
+      stdout: failure.stdout ?? "",
+      stderr: failure.stderr ?? "",
+      code: failure.code,
+    };
+  }
+  throw new Error(`expected Node command failure for ${args.join(" ")}`);
 }
 
 async function execInstalledCliJson<T = unknown>(
@@ -1455,6 +1474,128 @@ setInterval(() => {}, 1000);
     expect(stdout).not.toContain(`sk${"A".repeat(20)}`);
   });
 
+  it("verifies legal release candidate artifacts with a stable redacted JSON schema", async () => {
+    const dir = await tempDir("agent-runtime-release-verify-");
+    const pack = [{
+      id: "agent-cli-runtime@0.1.0-alpha.0",
+      name: "agent-cli-runtime",
+      version: "0.1.0-alpha.0",
+      filename: "agent-cli-runtime-0.1.0-alpha.0.tgz",
+      files: [
+        { path: "dist/index.js", size: 1, mode: 420 },
+        { path: "README.md", size: 1, mode: 420 },
+        { path: "docs/release-report.md", size: 1, mode: 420 },
+        { path: "examples/library-run.js", size: 1, mode: 420 },
+        { path: "scripts/dogfood.mjs", size: 1, mode: 420 },
+      ],
+    }];
+    await writeFile(path.join(dir, "npm-pack.json"), JSON.stringify(pack, null, 2), "utf8");
+    await writeFile(path.join(dir, "package-files.txt"), `${pack[0].files.map((file) => file.path).join("\n")}\n`, "utf8");
+    await writeFile(path.join(dir, pack[0].filename), "fake tarball", "utf8");
+    const output = path.join(dir, "release-verification.json");
+
+    const { stdout } = await execFileP(process.execPath, [
+      releaseVerifier,
+      "--dir",
+      dir,
+      "--output",
+      output,
+    ]);
+    const verification = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      checkedFiles: { packMetadata: string; packageFileList: string; packageFiles: number };
+      tarball: { filename: string; path: string; exists: boolean; sizeBytes: number };
+      diagnostics: unknown[];
+      artifactNames: string[];
+      packageName: string;
+      version: string;
+    };
+    const written = JSON.parse(await readFile(output, "utf8"));
+
+    expect(written).toEqual(verification);
+    expect(verification).toMatchObject({
+      schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+      ok: true,
+      checkedFiles: { packMetadata: "npm-pack.json", packageFileList: "package-files.txt", packageFiles: 5 },
+      tarball: {
+        filename: "agent-cli-runtime-0.1.0-alpha.0.tgz",
+        path: "agent-cli-runtime-0.1.0-alpha.0.tgz",
+        exists: true,
+        sizeBytes: expect.any(Number),
+      },
+      diagnostics: [],
+      artifactNames: expect.arrayContaining([
+        "agent-cli-runtime-tarball",
+        "agent-cli-runtime-pack-metadata",
+        "agent-cli-runtime-package-files",
+        "agent-cli-runtime-release-verification",
+      ]),
+      packageName: "agent-cli-runtime",
+      version: "0.1.0-alpha.0",
+    });
+    expect(stdout).not.toContain(dir);
+  });
+
+  it("rejects release artifacts containing disallowed package paths and secret-looking values", async () => {
+    const dir = await tempDir("agent-runtime-release-bad-");
+    const fakeSecret = `sk-${"A".repeat(24)}`;
+    const fakePrivatePath = "/" + "Users/example/private-output.json";
+    const files = [
+      "dist/index.js",
+      ".reference/open-design/secret.txt",
+      "tests/contract.test.ts",
+      "tests/fixtures/streams/raw.jsonl",
+      "docs/raw-real-cli-output/capture.json",
+      fakePrivatePath,
+      `docs/token-${fakeSecret}.txt`,
+      `docs/header-Bearer ${"B".repeat(20)}.txt`,
+    ];
+    const pack = [{
+      name: "agent-cli-runtime",
+      version: "0.1.0-alpha.0",
+      filename: "agent-cli-runtime-0.1.0-alpha.0.tgz",
+      files: files.map((file) => ({ path: file })),
+    }];
+    await writeFile(path.join(dir, "npm-pack.json"), JSON.stringify(pack), "utf8");
+    await writeFile(path.join(dir, "package-files.txt"), `${files.join("\n")}\n`, "utf8");
+    await writeFile(path.join(dir, pack[0].filename), "fake tarball", "utf8");
+
+    const failure = await execCliFailureViaNode([releaseVerifier, "--dir", dir]);
+    const verification = JSON.parse(failure.stdout) as { ok: boolean; diagnostics: Array<{ code: string }> };
+    const text = failure.stdout + failure.stderr;
+    const codes = verification.diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(failure.code).toBe(1);
+    expect(verification.ok).toBe(false);
+    expect(codes).toEqual(expect.arrayContaining([
+      "reference_material",
+      "tests",
+      "fixture_material",
+      "raw_real_cli_output",
+      "unsafe_package_path",
+      "private_user_path",
+      "openai_style_secret",
+      "bearer_value",
+    ]));
+    expect(text).toContain("[REDACTED]");
+    expect(text).not.toContain(fakeSecret);
+    expect(text).not.toContain(fakePrivatePath);
+    expect(text).not.toContain("Bearer " + "B".repeat(20));
+  });
+
+  it("keeps the release candidate creator as a local npm pack wrapper without publishing", async () => {
+    const script = await readFile(releaseCandidateCreator, "utf8");
+
+    expect(script).toContain("npm");
+    expect(script).toContain("pack");
+    expect(script).toContain("--pack-destination");
+    expect(script).toContain("verify-release-artifacts.mjs");
+    expect(script).not.toMatch(/\bnpm publish\b/u);
+    expect(script).not.toContain("NODE_AUTH_TOKEN");
+    expect(script).not.toContain("--allow-real-run");
+  });
+
   it("keeps remote CI and release-candidate workflows audit-only and artifact-focused", async () => {
     const ci = await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
     const releaseCandidate = await readFile(path.join(root, ".github", "workflows", "release-candidate.yml"), "utf8");
@@ -1484,12 +1625,15 @@ setInterval(() => {}, 1000);
     expect(releaseCandidate).toContain("npm pack --json");
     expect(releaseCandidate).toContain("release-candidate/npm-pack.json");
     expect(releaseCandidate).toContain("release-candidate/package-files.txt");
-    expect(releaseCandidate).toContain("Validate package file list");
+    expect(releaseCandidate).toContain("npm run release:verify -- --dir release-candidate --output release-candidate/release-verification.json");
+    expect(releaseCandidate).toContain("release-candidate/release-verification.json");
     expect(releaseCandidate).toContain("actions/upload-artifact@v4");
     expect(releaseCandidate).toContain("agent-cli-runtime-tarball");
     expect(releaseCandidate).toContain("agent-cli-runtime-pack-metadata");
     expect(releaseCandidate).toContain("agent-cli-runtime-package-files");
+    expect(releaseCandidate).toContain("agent-cli-runtime-release-verification");
     expect(releaseCandidate).toContain("retention-days: 14");
+    expect(releaseCandidate).not.toMatch(/const disallowed|disallowed package artifact path/u);
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
     expect(releaseCandidate).not.toContain("--allow-real-run");

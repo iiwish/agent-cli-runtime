@@ -1,13 +1,13 @@
-# Release Report: 0.1.0-alpha.0 P2-10
+# Release Report: 0.1.0-alpha.0 P2-11
 
-Status: P2-10 Release Candidate Artifact & Remote CI Audit
+Status: P2-11 Release Candidate Artifact Verification & Remote Evidence Intake
 Last updated: 2026-06-20
 
 This report records release-candidate evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview release candidate audit, not an npm publication record.
 
 ## Verdict
 
-The release candidate is ready for local and manually triggered remote audit. It is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+The release candidate is ready for local artifact generation, local artifact verification, and manually triggered remote audit. It is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
 
 ## Local Verification Commands
 
@@ -21,6 +21,8 @@ npm run build
 npm run package:check
 npm run dogfood
 npm run prepublish:check
+npm run release:candidate -- --out-dir release-candidate
+npm run release:verify -- --dir release-candidate
 npm pack --dry-run
 npm publish --dry-run --ignore-scripts --tag alpha
 node ./dist/cli/main.js conformance --mode real --agent all --json
@@ -35,7 +37,7 @@ Expected remote evidence:
 - `.github/workflows/ci.yml` runs typecheck, lint, tests, build, production dependency audit, package boundary check, and `npm pack --dry-run` on Node.js 20/22/24.
 - The CI dogfood job runs once on Node.js 22 and executes `npm run dogfood` without passing `--allow-real-run`.
 - `.github/workflows/release-candidate.yml` is manual `workflow_dispatch` only.
-- The release-candidate workflow runs `npm ci`, `npm run ci`, `npm run dogfood`, creates npm pack metadata, validates the generated file list, and uploads artifacts.
+- The release-candidate workflow runs `npm ci`, `npm run ci`, `npm run dogfood`, creates npm pack metadata, verifies the generated artifacts through `npm run release:verify`, and uploads artifacts.
 - No workflow runs `npm publish`, sets `NODE_AUTH_TOKEN`, or requires an npm token.
 
 Remote GitHub Actions are expected evidence until manually triggered and reviewed. Do not mark remote CI as passed without an actual workflow run.
@@ -47,8 +49,27 @@ The manual release-candidate workflow uploads:
 - `agent-cli-runtime-tarball`: the packed `agent-cli-runtime-0.1.0-alpha.0.tgz` tarball.
 - `agent-cli-runtime-pack-metadata`: `release-candidate/npm-pack.json` from `npm pack --json`.
 - `agent-cli-runtime-package-files`: `release-candidate/package-files.txt`, one packed package path per line.
+- `agent-cli-runtime-release-verification`: `release-candidate/release-verification.json` from `npm run release:verify`.
 
 Artifacts are retained for 14 days to keep the audit window explicit while avoiding long-lived stale release-candidate evidence.
+
+## Local Artifact Generation And Verification
+
+Generate the same artifact shape locally without publishing:
+
+```bash
+npm run release:candidate -- --out-dir release-candidate
+```
+
+The command writes `npm-pack.json`, `package-files.txt`, the tarball, and `release-verification.json` to the chosen directory. It does not run `npm publish` and should not leave a tarball in the repository root.
+
+Verify a local or downloaded artifact directory:
+
+```bash
+npm run release:verify -- --dir release-candidate
+```
+
+The verification JSON uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"` and reports `ok`, `checkedFiles`, `tarball`, `diagnostics`, `artifactNames`, `packageName`, and `version`. Paths and secret-looking values in diagnostics are redacted. Remote GitHub Actions evidence remains manual/pending until the workflow is actually triggered and reviewed.
 
 ## Artifact Review Checklist
 
@@ -68,6 +89,8 @@ Review the uploaded package file list and pack metadata before treating the cand
 ## Package Boundary
 
 `npm run package:check` is the local package boundary gate. It checks npm pack file paths and scans committed docs/examples/scripts for private paths and token-looking content. The release report itself is included in the package so consumers can inspect the candidate evidence and non-goals.
+
+`npm run release:verify` is the release artifact gate for generated or downloaded artifacts. It validates npm pack JSON, package file list parity, tarball filename/path/existence, disallowed package paths, private paths, and token-looking values, then emits stable redacted JSON.
 
 ## Real CLI Evidence Boundary
 

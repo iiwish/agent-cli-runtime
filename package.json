@@ -41,6 +41,8 @@
     "package:check": "node ./scripts/check-package-boundary.mjs",
     "prepublish:check": "npm run typecheck && npm run lint && npm test && npm run build && npm run dogfood && npm audit --omit=dev && npm run package:check && npm pack --dry-run",
     "prepack": "npm run build",
+    "release:candidate": "node ./scripts/create-release-candidate.mjs",
+    "release:verify": "node ./scripts/verify-release-artifacts.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && vitest run --reporter=verbose --no-file-parallelism --testTimeout 30000"

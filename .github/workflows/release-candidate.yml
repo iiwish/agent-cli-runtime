@@ -34,35 +34,8 @@ jobs:
           mkdir -p release-candidate
           npm pack --json --pack-destination release-candidate > release-candidate/npm-pack.json
           node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync('release-candidate/npm-pack.json', 'utf8')); for (const entry of data) { for (const file of entry.files) console.log(file.path); }" > release-candidate/package-files.txt
+          npm run release:verify -- --dir release-candidate --output release-candidate/release-verification.json
           node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync('release-candidate/npm-pack.json', 'utf8')); process.stdout.write('tarball=' + data[0].filename + '\n');" >> "$GITHUB_OUTPUT"
-
-      - name: Validate package file list
-        run: |
-          set -euo pipefail
-          node -e '
-          const fs = require("node:fs");
-          const files = fs.readFileSync("release-candidate/package-files.txt", "utf8").split(/\r?\n/u).filter(Boolean);
-          const disallowed = [
-            /^\.reference(?:\/|$)/u,
-            /^tests(?:\/|$)/u,
-            /(?:^|\/)fixtures(?:\/|$)/u,
-            /(?:^|\/)fault-fixtures(?:\/|$)/u,
-            /(?:^|\/)repair-backups(?:\/|$)/u,
-            /(?:^|\/)raw-corrupt-samples(?:\/|$)/u,
-            /(?:^|\/)raw-real-cli-output(?:\/|$)/u,
-            /\/Users\//u,
-            /\/home\/[^/\s]+/u,
-            /[A-Z]:\\Users\\/u,
-            /sk-[A-Za-z0-9_-]{20,}/u,
-            /\bBearer\b/u,
-          ];
-          for (const file of files) {
-            for (const pattern of disallowed) {
-              if (pattern.test(file)) throw new Error(`disallowed package artifact path: ${file}`);
-            }
-          }
-          console.log(`package file list ok: ${files.length} files`);
-          '
 
       - name: Upload tarball
         uses: actions/upload-artifact@v4
@@ -85,5 +58,13 @@ jobs:
         with:
           name: agent-cli-runtime-package-files
           path: release-candidate/package-files.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload release verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-cli-runtime-release-verification
+          path: release-candidate/release-verification.json
           if-no-files-found: error
           retention-days: 14

@@ -1,6 +1,6 @@
 # Release Checklist (pre-alpha / developer preview)
 
-## P2-10 release candidate gate
+## P2-11 release candidate gate
 
 - [ ] `npm ci`
 - [ ] `npm run typecheck`
@@ -10,6 +10,8 @@
 - [ ] `npm run ci`
 - [ ] `npm run dogfood`
 - [ ] `npm run prepublish:check`
+- [ ] `npm run release:candidate -- --out-dir release-candidate`
+- [ ] `npm run release:verify -- --dir release-candidate`
 - [ ] `node ./dist/cli/main.js conformance --mode fixtures --json`
 - [ ] `node ./dist/cli/main.js conformance --mode fake --json`
 - [ ] `node ./dist/cli/main.js conformance --mode real --agent all --json`
@@ -43,17 +45,21 @@
 - [ ] Confirm the workflow runs `npm ci`, `npm run ci`, and `npm run dogfood`.
 - [ ] Confirm dogfood output is limited to fixtures, fake CLIs, and real local detection/profile certification without `--allow-real-run`.
 - [ ] Confirm `npm pack --json` creates a tarball artifact but no `npm publish` step exists.
-- [ ] Confirm the workflow validates `release-candidate/package-files.txt` before artifact upload.
+- [ ] Confirm the workflow runs `npm run release:verify -- --dir release-candidate --output release-candidate/release-verification.json` before artifact upload.
 - [ ] Download and review the uploaded artifacts:
   - `agent-cli-runtime-tarball`
   - `agent-cli-runtime-pack-metadata`
   - `agent-cli-runtime-package-files`
+  - `agent-cli-runtime-release-verification`
+- [ ] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir <downloaded-artifact-dir>`.
+- [ ] Confirm `release-verification.json` uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, has `ok: true`, and contains only redacted paths/diagnostics.
 - [ ] Confirm no npm token, npm provenance publish, or registry credential is required.
 - [ ] Confirm artifacts use the documented 14-day retention window.
 
 ## Package boundary verification
 
 - [ ] `npm run package:check`.
+- [ ] `npm run release:verify -- --dir <release-candidate-or-downloaded-artifact-dir>`.
 - [ ] `npm pack --json` and confirm package files do not include:
   - `.reference/`
   - `tests/`
@@ -104,7 +110,7 @@
 - [ ] `README.md` and `README.zh-CN.md` explain Codex / Claude / OpenCode configuration without token values.
 - [ ] Claude Anthropic-compatible provider docs list environment variable names/placeholders only; no real token values.
 - [ ] `docs/compatibility.md` is refreshed with the 2026-06-20 local real conformance detection/preflight evidence and does not describe skipped/auth-missing runs as real-run success.
-- [ ] `README.md`, `README.zh-CN.md`, `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-10 status.
+- [ ] `README.md`, `README.zh-CN.md`, `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-11 status.
 - [ ] `docs/release-report.md` records local commands, remote workflow evidence expectations, artifact checklist, package boundary, real CLI evidence boundary, known risks, and explicit non-goals.
 - [ ] `docs/production-readiness.md` names remaining known risks rather than treating skipped/preflight evidence as real run success.
 
