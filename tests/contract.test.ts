@@ -4,6 +4,11 @@ import { promisify } from "node:util";
 import { chmod, mkdir, readFile, readdir, writeFile, lstat } from "node:fs/promises";
 import path, { delimiter } from "node:path";
 import { createAgentRuntime } from "../src/index.js";
+import {
+  CLI_SCHEMA_INVENTORY,
+  EVENT_TERMINAL_REASONS,
+  SMOKE_CONFORMANCE_CLASSIFICATIONS,
+} from "../src/core/schema-contract.js";
 import type {
   AgentAdapterDef,
   AgentEvent,
@@ -238,6 +243,73 @@ describe("public contract", () => {
     }
   });
 
+  it("keeps API schema contract docs aligned with runtime schema inventory", async () => {
+    const apiContract = await readFile(path.join(root, "docs", "api-schema-contract.md"), "utf8");
+    const daemonContract = await readFile(path.join(root, "docs", "daemon-ready-contract.md"), "utf8");
+    const productionReadiness = await readFile(path.join(root, "docs", "production-readiness.md"), "utf8");
+    const releaseReport = await readFile(path.join(root, "docs", "release-report.md"), "utf8");
+    const releaseChecklist = await readFile(path.join(root, "docs", "release-checklist.md"), "utf8");
+    const releaseVerifierText = await readFile(releaseVerifier, "utf8");
+    const releaseCandidateCreatorText = await readFile(releaseCandidateCreator, "utf8");
+    const packageManifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as { files: string[] };
+
+    expect(packageManifest.files).toContain("docs/api-schema-contract.md");
+    expect(apiContract).toContain("createAgentRuntime");
+    expect(apiContract).toContain("Internal but packaged files under `dist/**`");
+    expect(apiContract).toContain("Adding optional fields is allowed within the same schema version");
+    expect(apiContract).toContain("Removing a field, renaming a field, changing a field type, or changing field semantics requires a schema version bump");
+    expect(apiContract).toContain("Changing terminal reason or classification vocabulary requires docs, tests, and a migration note");
+
+    for (const contract of CLI_SCHEMA_INVENTORY) {
+      expect(apiContract).toContain(contract.schemaVersion);
+      expect(daemonContract).toContain(contract.schemaVersion);
+      for (const field of contract.requiredTopLevelFields) {
+        expect(apiContract).toContain(field);
+      }
+      for (const field of contract.classificationFields) {
+        expect(apiContract).toContain(field);
+      }
+    }
+
+    for (const reason of EVENT_TERMINAL_REASONS) {
+      expect(apiContract).toContain(`\`${reason}\``);
+      expect(daemonContract).toContain(`\`${reason}\``);
+    }
+    for (const classification of SMOKE_CONFORMANCE_CLASSIFICATIONS) {
+      expect(apiContract).toContain(`\`${classification}\``);
+      expect(releaseChecklist).toContain(`\`${classification}\``);
+    }
+
+    expect(apiContract).toContain("`skipped` is not `success`");
+    expect(apiContract).toContain("`auth_missing` is not `unavailable`");
+    expect(apiContract).toContain("`needs_verification` must not be guessed");
+    expect(productionReadiness).toContain("docs/api-schema-contract.md");
+    expect(releaseReport).toContain("docs/api-schema-contract.md");
+    expect(releaseVerifierText).toContain("agent-cli-runtime.releaseVerification.v1");
+    expect(releaseVerifierText).toContain("agent-cli-runtime.releaseGateEvidence.v1");
+    expect(releaseCandidateCreatorText).toContain("agent-cli-runtime.releaseGateEvidence.v1");
+  });
+
+  it("keeps public docs from over-claiming API stability or hosted daemon readiness", async () => {
+    const docs = [
+      "README.md",
+      "README.zh-CN.md",
+      "docs/api-schema-contract.md",
+      "docs/compatibility.md",
+      "docs/daemon-ready-contract.md",
+      "docs/production-readiness.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/ssot.md",
+    ];
+
+    for (const doc of docs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text).not.toContain("stable API release");
+      expect(text).not.toContain("production-ready hosted daemon");
+    }
+  });
+
   it("keeps installed-package daemon and runtime safety gates out of the default test matrix", async () => {
     const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
       scripts: Record<string, string>;
@@ -363,6 +435,7 @@ describe("public contract", () => {
       },
     });
     expect(manifest.files).toContain("docs/release-publish-runbook.md");
+    expect(manifest.files).toContain("docs/api-schema-contract.md");
     expect(manifest.keywords).toEqual(expect.arrayContaining(["agent", "cli", "codex", "claude", "opencode", "runtime"]));
   });
 
@@ -828,6 +901,49 @@ process.exit(66);
       expect.objectContaining({ mapsTo: "session" }),
       expect.objectContaining({ mapsTo: "authProbe" }),
     ]));
+  }, 30_000);
+
+  it("maps real conformance execution failures into the frozen classification vocabulary", async () => {
+    const binDir = await tempDir();
+    await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("codex-cli conformance-failure"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-test", display_name: "GPT Test" }] })); process.exit(0); }
+process.stdin.resume();
+process.stdin.on("end", () => {
+  console.error("synthetic conformance failure");
+  process.exit(7);
+});
+`);
+    const conformance = await execCliJson<{
+      agents: Array<{
+        runClassification: string;
+        failureReason: string | null;
+        diagnostics: Array<{ code: string }>;
+      }>;
+    }>([
+      "conformance",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
+    });
+    const summary = conformance.agents[0]!;
+    const frozen = new Set(SMOKE_CONFORMANCE_CLASSIFICATIONS);
+
+    expect(summary).toMatchObject({
+      runClassification: "failed",
+      failureReason: "failed",
+      diagnostics: expect.arrayContaining([expect.objectContaining({ code: "AGENT_EXECUTION_FAILED" })]),
+    });
+    expect(frozen.has(summary.runClassification)).toBe(true);
+    expect(summary.failureReason === null || frozen.has(summary.failureReason)).toBe(true);
+    expect(summary.runClassification).not.toBe("AGENT_EXECUTION_FAILED");
+    expect(summary.failureReason).not.toBe("AGENT_EXECUTION_FAILED");
   }, 30_000);
 
   it("classifies real smoke profile drift as needs_verification without launching", async () => {
@@ -1393,6 +1509,52 @@ process.exit(66);
     expect(smoke.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "not_installed" })]));
   }, 30_000);
 
+  it("maps real smoke execution failures into the frozen classification vocabulary", async () => {
+    const binDir = await tempDir();
+    await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("codex-cli execution-failure"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-test", display_name: "GPT Test" }] })); process.exit(0); }
+process.stdin.resume();
+process.stdin.on("end", () => {
+  console.error("synthetic execution failure");
+  process.exit(7);
+});
+`);
+    const smoke = await execCliJson<{
+      schemaVersion: string;
+      ok: boolean;
+      adapter: string;
+      runClassification: string;
+      failureReason: string | null;
+      diagnostics: Array<{ code: string }>;
+    }>([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
+    });
+    const frozen = new Set(SMOKE_CONFORMANCE_CLASSIFICATIONS);
+
+    expect(smoke).toMatchObject({
+      schemaVersion: "agent-runtime.realSmoke.v1",
+      ok: false,
+      adapter: "codex",
+      runClassification: "failed",
+      failureReason: "failed",
+      diagnostics: expect.arrayContaining([expect.objectContaining({ code: "AGENT_EXECUTION_FAILED" })]),
+    });
+    expect(frozen.has(smoke.runClassification)).toBe(true);
+    expect(smoke.failureReason === null || frozen.has(smoke.failureReason)).toBe(true);
+    expect(smoke.runClassification).not.toBe("AGENT_EXECUTION_FAILED");
+    expect(smoke.failureReason).not.toBe("AGENT_EXECUTION_FAILED");
+  }, 30_000);
+
   it("keeps Claude auth missing as a doctor diagnostic without failing doctor", async () => {
     const binDir = await tempDir();
     await writeShellExecutable(binDir, "claude", `
@@ -1802,6 +1964,7 @@ setInterval(() => {}, 1000);
     expect(files).toContain("docs/production-readiness.md");
     expect(files).toContain("docs/release-report.md");
     expect(files).toContain("docs/release-publish-runbook.md");
+    expect(files).toContain("docs/api-schema-contract.md");
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\//u));
@@ -1917,6 +2080,34 @@ setInterval(() => {}, 1000);
     ]);
     expect([...verification.artifactNames].sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
     expect(stdout).not.toContain(dir);
+  });
+
+  it("keeps release verification error envelopes aligned with the documented schema", async () => {
+    const failure = await execCliFailureViaNode([releaseVerifier, "--unknown"]);
+    const verification = JSON.parse(failure.stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      checkedFiles: Record<string, unknown>;
+      tarball: null;
+      diagnostics: Array<{ code: string; message: string }>;
+      artifactNames: string[];
+      gateEvidence: null;
+      packageName: null;
+      version: null;
+    };
+
+    expect(failure.code).toBe(1);
+    expect(verification).toMatchObject({
+      schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+      ok: false,
+      checkedFiles: {},
+      tarball: null,
+      diagnostics: [expect.objectContaining({ code: "usage_error" })],
+      artifactNames: expect.arrayContaining(expectedReleaseCandidateArtifacts),
+      gateEvidence: null,
+      packageName: null,
+      version: null,
+    });
   });
 
   it("rejects release artifacts without daemon-ready gate evidence", async () => {
@@ -2132,6 +2323,7 @@ setInterval(() => {}, 1000);
     const docs = [
       "README.md",
       "README.zh-CN.md",
+      "docs/api-schema-contract.md",
       "docs/compatibility.md",
       "docs/production-readiness.md",
       "docs/release-report.md",
@@ -2154,6 +2346,7 @@ setInterval(() => {}, 1000);
     const docs = [
       "README.md",
       "README.zh-CN.md",
+      "docs/api-schema-contract.md",
       "docs/compatibility.md",
       "docs/production-readiness.md",
       "docs/release-checklist.md",
@@ -2198,6 +2391,7 @@ setInterval(() => {}, 1000);
       "CHANGELOG.md",
       "README.md",
       "README.zh-CN.md",
+      "docs/api-schema-contract.md",
       "docs/compatibility.md",
       "docs/production-readiness.md",
       "docs/release-checklist.md",

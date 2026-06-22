@@ -27,6 +27,7 @@ import {
   replayStoredRunEvents,
 } from "../storage/store-inspection.js";
 import type { AgentAdapterDef, DetectedAgent, RuntimeDiagnostic, RunRecord } from "../index.js";
+import type { SmokeConformanceClassification } from "../core/schema-contract.js";
 
 const DEFAULT_OBSERVED_TEXT_TAIL_BYTES = 2_048;
 const MAX_CWD_SCAN_ENTRIES = 1_000;
@@ -78,7 +79,7 @@ interface ConformanceAdapterSummary {
   } | null;
   promptTransport: string | null;
   parserMode: string | null;
-  runClassification: string;
+  runClassification: SmokeConformanceClassification;
   expectedTextMatched: boolean | null;
   observedTextTail: string | null;
   cwdMutationChecked: boolean;
@@ -86,7 +87,7 @@ interface ConformanceAdapterSummary {
   diagnosticsCount: number;
   diagnostics: Array<Pick<RuntimeDiagnostic, "code" | "message" | "probe" | "actionableHints">>;
   skippedReason: string | null;
-  failureReason: string | null;
+  failureReason: SmokeConformanceClassification | null;
 }
 
 interface RealSmokeSummary {
@@ -98,7 +99,7 @@ interface RealSmokeSummary {
   version: string | null;
   auth: DetectedAgent["authStatus"] | "unknown";
   modelsSource: DetectedAgent["modelsSource"] | "none";
-  runClassification: string;
+  runClassification: SmokeConformanceClassification;
   expectedTextRequired: boolean;
   expectedTextMatched: boolean | null;
   observedTextDeltaCount: number;
@@ -112,7 +113,7 @@ interface RealSmokeSummary {
   diagnosticsCount: number;
   diagnostics: Array<Pick<RuntimeDiagnostic, "code" | "message" | "probe" | "actionableHints">>;
   skippedReason: string | null;
-  failureReason: string | null;
+  failureReason: SmokeConformanceClassification | null;
 }
 
 interface ConformanceReport {
@@ -406,7 +407,7 @@ function fixtureConformanceSummary(agent: "codex" | "claude" | "opencode"): Conf
     argvProfile: adapterArgvProfile(adapter),
     promptTransport: adapterPromptTransport(adapter),
     parserMode: adapter?.compatibility?.streamFormat ?? null,
-    runClassification: ok ? "success" : "parser_fixture_failed",
+    runClassification: ok ? "success" : "failed",
     expectedTextMatched: null,
     observedTextTail: null,
     cwdMutationChecked: false,
@@ -420,7 +421,7 @@ function fixtureConformanceSummary(agent: "codex" | "claude" | "opencode"): Conf
         actionableHints: ["Inspect parser fixture expectations before updating the adapter stream profile."],
       })),
     skippedReason: null,
-    failureReason: ok ? null : "parser_fixture_failed",
+    failureReason: ok ? null : "failed",
   };
 }
 
@@ -515,7 +516,7 @@ function conformancePreflight(
 
 function skippedConformance(
   agent: string,
-  classification: string,
+  classification: SmokeConformanceClassification,
   reason: string,
   diagnosticsCount: number,
   detected?: DetectedAgent,
@@ -695,7 +696,7 @@ function realSmokePreflight(
 
 function skippedRealSmoke(
   agent: string,
-  classification: string,
+  classification: SmokeConformanceClassification,
   reason: string,
   diagnosticsCount: number,
   detected?: DetectedAgent,
@@ -909,8 +910,8 @@ function classifyRealSmokeRun(
     expectedTextRequired: boolean;
     cwdMutated: boolean;
   },
-): string {
-  if (!run) return "missing_run_record";
+): SmokeConformanceClassification {
+  if (!run) return "failed";
   if (run.status === "succeeded") {
     if (evidence?.cwdMutated) return "cwd_mutated";
     if (!evidence?.hasObservedText) return "unexpected_output";
@@ -922,7 +923,7 @@ function classifyRealSmokeRun(
   if (run.diagnostics.some((diagnostic) => diagnostic.code === "unsupported_flag")) return "unsupported_flag";
   if (run.diagnostics.some((diagnostic) => diagnostic.code === "needs_verification")) return "needs_verification";
   if (run.diagnostics.some((diagnostic) => diagnostic.code === "auth_missing" || diagnostic.code === "AGENT_AUTH_REQUIRED")) return "auth_missing";
-  return run.errorCode ?? "failed";
+  return "failed";
 }
 
 async function snapshotCwd(cwd: string): Promise<CwdSnapshot> {

@@ -1,13 +1,38 @@
-# Release Report: 0.1.0-alpha.0 P3-6 real CLI opt-in smoke evidence
+# Release Report: 0.1.0-alpha.0 P3-7 API / CLI schema freeze
 
-Status: P3-6 Real CLI Opt-In Smoke Evidence
+Status: P3-7 API / CLI Schema Freeze
 Last updated: 2026-06-22
 
-This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, and P3-6 real CLI opt-in smoke evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
+This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, and P3-7 API / CLI schema freeze evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
 
 ## Verdict
 
-P3-6 adds a machine-reviewable opt-in real smoke evidence path while preserving the release boundary: default conformance/smoke real mode performs detection/profile certification only, and CI, dogfood, prepublish, and release-candidate gates still do not pass `--allow-real-run`. The release candidate also retains GitHub Actions release-candidate evidence from P3-5 for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; workflow run `27932628093` completed successfully, uploaded all five release-candidate artifacts, and the downloaded artifacts passed local `npm run release:verify` after normalization. This remote evidence proves the workflow head SHA, not later P3-6 local edits. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, version bump policy, and failure taxonomy in [docs/api-schema-contract.md](./api-schema-contract.md), with drift tests tying the docs to source-level schema/failure vocabularies. It preserves the release boundary: no npm publish, no trusted publishing setup, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. The release candidate also retains GitHub Actions release-candidate evidence from P3-5 for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; workflow run `27932628093` completed successfully, uploaded all five release-candidate artifacts, and the downloaded artifacts passed local `npm run release:verify` after normalization. This remote evidence proves the workflow head SHA, not later P3-6 or P3-7 local edits. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+
+## P3-7 API / CLI Schema Freeze
+
+P3-7 changes documentation and drift protection for existing public/CLI contracts:
+
+- Added [docs/api-schema-contract.md](./api-schema-contract.md) as the schema inventory and versioning policy entrypoint.
+- Public root value export remains `createAgentRuntime`; public type exports remain source-compatible package-root imports for the runtime facade, run/goal records, replay/event envelopes, diagnostics/store shapes, and adapter-authoring types.
+- Internal `dist/**` files may exist in the package, but subpath imports into storage/parser/adapter implementation are not documented API.
+- Frozen schema inventory: `agent-runtime.event.v1`, `agent-runtime.diagnostics.v1`, `agent-runtime.conformance.v1`, `agent-runtime.realSmoke.v1`, `agent-runtime.storeHealth.v1`, `agent-runtime.storeRepair.v1`, `agent-runtime.cliError.v1`, `agent-cli-runtime.releaseVerification.v1`, and `agent-cli-runtime.releaseGateEvidence.v1`.
+- Version bump policy: optional additive fields may stay in-schema; field removal/rename/type or semantic changes require a schema version bump; terminal reason/classification vocabulary changes require docs, tests, and a migration note.
+- Failure taxonomy remains explicit: skipped evidence is not success, `auth_missing` is not unavailable, and `needs_verification` is not guessed into flag support.
+- Default gates still do not pass `--allow-real-run`.
+
+P3-7 local validation evidence on 2026-06-22:
+
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed with 196 tests and 1 skipped installed-package smoke.
+- `npm run build`: passed.
+- `npm run package:check`: passed with `package boundary ok: 151 files checked`.
+- `node ./dist/cli/main.js agents --json`: passed; Codex and OpenCode available, Claude Code available with `auth_missing`.
+- `node ./dist/cli/main.js doctor --json`: passed with `ok: true`; Claude Code remains `auth_missing`.
+- `node ./dist/cli/main.js conformance --mode real --agent all --json`: passed without `--allow-real-run`; Codex and OpenCode reported `real_run_skipped`, Claude Code reported `auth_missing`.
+- `node ./dist/cli/main.js smoke --mode real --agent codex --json`: passed as safe preflight and reported `real_run_skipped`.
+- `git diff --check`: passed.
 
 ## P3-6 Real CLI Opt-In Smoke Evidence
 

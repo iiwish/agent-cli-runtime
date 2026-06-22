@@ -1,9 +1,9 @@
 # Agent CLI Compatibility Matrix
 
-Status: P3-6 Real CLI Opt-In Smoke Evidence
+Status: P3-7 API / CLI Schema Freeze
 Last updated: 2026-06-22
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-6 adds a reviewable opt-in real smoke evidence path while keeping default release gates on detection/profile certification only. It does not publish npm, configure trusted publishing, implement a daemon/API server, or add authenticated real agent runs to CI, dogfood, prepublish, or release-candidate gates. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-6 added a reviewable opt-in real smoke evidence path while keeping default release gates on detection/profile certification only. P3-7 freezes the API / CLI schema inventory and versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md). It does not publish npm, configure trusted publishing, implement a daemon/API server, or add authenticated real agent runs to CI, dogfood, prepublish, or release-candidate gates. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 

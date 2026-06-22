@@ -72,6 +72,7 @@ const requiredFiles = [
   "docs/release-checklist.md",
   "docs/release-report.md",
   "docs/release-publish-runbook.md",
+  "docs/api-schema-contract.md",
   "docs/daemon-ready-contract.md",
   "docs/production-readiness.md",
   "docs/compatibility.md",

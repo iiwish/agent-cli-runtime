@@ -1,9 +1,9 @@
 # Daemon-Ready Execution Kernel Contract
 
-Status: P3-3 long-lived runtime resource safety gate
+Status: P3-7 API / CLI schema freeze
 Last updated: 2026-06-22
 
-This document freezes the contract that a desktop product shell, local daemon, or other embedding process can rely on when using Agent CLI Runtime as a local-first execution kernel. P3-2 added an executable offline stability gate for that contract; P3-3 adds a long-lived runtime resource safety gate for repeated embedding, event consumption, cancellation churn, shutdown, and reopen behavior. It is not a daemon implementation and does not add a hosted control plane API.
+This document freezes the contract that a desktop product shell, local daemon, or other embedding process can rely on when using Agent CLI Runtime as a local-first execution kernel. P3-2 added an executable offline stability gate for that contract; P3-3 added a long-lived runtime resource safety gate for repeated embedding, event consumption, cancellation churn, shutdown, and reopen behavior; P3-7 centralizes the API and CLI schema versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md). It is not a daemon implementation and does not add a hosted control plane API.
 
 ## Positioning
 
@@ -172,9 +172,12 @@ Stable daemon-facing schemas:
 | Event envelope | `agent-runtime.event.v1` | `schemaVersion`, `id`, `sequence`, `timestamp`, `scope`, `event`, optional `terminal` |
 | Diagnostics bundle | `agent-runtime.diagnostics.v1` | `schemaVersion`, `exportedAt`, `storageDir`, `subject`, `manifest`, `events`, `diagnostics`, `storageDiagnostics`, `consistencyWarnings`, optional `attemptEvidence`, `supervisorSummary`, `adapterSummary` |
 | Conformance report | `agent-runtime.conformance.v1` | `schemaVersion`, `ok`, `mode`, `agents` |
+| Real smoke summary | `agent-runtime.realSmoke.v1` | `schemaVersion`, `type`, `ok`, `mode`, `adapter`, `version`, `auth`, `modelsSource`, `runClassification`, `expectedTextRequired`, `expectedTextMatched`, `observedTextDeltaCount`, `observedTextTail`, `cwdMutationChecked`, `cwdMutated`, `diagnosticsCount`, `diagnostics`, `skippedReason`, `failureReason` |
 | Store health | `agent-runtime.storeHealth.v1` | `schemaVersion`, `ok`, `storageDir`, `checkedAt`, `lock`, `totals`, `corruptManifests`, `corruptEventLogs`, `partialTails`, `activeRecords`, `activeInterrupted`, `warnings`, `storageDiagnostics`, `diagnostics` |
 | Store repair | `agent-runtime.storeRepair.v1` | `schemaVersion`, `storageDir`, `checkedAt`, `dryRun`, `applied`, `ok`, optional `blockedReason`, `actions`, `diagnostics` |
 | CLI JSON error | `agent-runtime.cliError.v1` | `schemaVersion`, `ok`, `error` |
+| Release verification | `agent-cli-runtime.releaseVerification.v1` | `schemaVersion`, `ok`, `checkedFiles`, `tarball`, `diagnostics`, `artifactNames`, `gateEvidence`, `packageName`, `version` |
+| Release gate evidence | `agent-cli-runtime.releaseGateEvidence.v1` | `schemaVersion`, `generatedAt`, `gates`, `noAuthenticatedRealRun`, `noNpmPublish`, `noNpmToken` |
 
 Compatibility rules:
 
@@ -182,6 +185,8 @@ Compatibility rules:
 - removing, renaming, changing type, or changing semantics of a stable field requires a schema bump;
 - daemon callers should ignore unknown fields and branch on `schemaVersion`;
 - redaction guarantees are part of the schema semantics and must not regress without a schema bump and release note.
+
+The complete schema inventory, redaction rules, and classification fields are maintained in [docs/api-schema-contract.md](./api-schema-contract.md).
 
 ## Failure Taxonomy
 

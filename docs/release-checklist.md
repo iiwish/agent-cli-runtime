@@ -1,5 +1,16 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P3-7 API / CLI schema freeze
+
+- [x] `docs/api-schema-contract.md` records the public root boundary and package-root value export remains `createAgentRuntime`.
+- [x] `docs/api-schema-contract.md` records schema versioning policy for optional additive fields, breaking field changes, terminal/failure vocabulary changes, and CLI command/flag semantic changes.
+- [x] Schema inventory covers `agent-runtime.event.v1`, `agent-runtime.diagnostics.v1`, `agent-runtime.conformance.v1`, `agent-runtime.realSmoke.v1`, `agent-runtime.storeHealth.v1`, `agent-runtime.storeRepair.v1`, `agent-runtime.cliError.v1`, `agent-cli-runtime.releaseVerification.v1`, and `agent-cli-runtime.releaseGateEvidence.v1`.
+- [x] Failure taxonomy keeps `success`, `failed`, `timeout`, `canceled`, `interrupted`, `validation_failed`, `execution_failed`, `unavailable`, `auth_missing`, and `task_graph_invalid` as event terminal reasons.
+- [x] Smoke/conformance classifications keep `success`, `real_run_skipped`, `auth_missing`, `unavailable_executable`, `unsupported_flag`, `needs_verification`, `unexpected_output`, `cwd_mutated`, `timeout`, and `failed`.
+- [x] Docs state that skipped evidence is not success, `auth_missing` is not unavailable, and `needs_verification` must not be guessed into a flag mapping.
+- [x] Drift tests protect package root value exports, built declaration boundaries, schema inventory, failure taxonomy, release artifact schemas, redaction boundaries, and over-claiming language.
+- [x] P3-7 does not publish npm, configure tokens/trusted publishing, add daemon/API server/database/WAL/remote worker/UI/telemetry, or add authenticated real runs to default gates.
+
 ## P3-6 real CLI opt-in smoke evidence
 
 - [x] `smoke --mode real --agent <id> --json` performs detection/profile certification only and does not launch a real run without `--allow-real-run`.

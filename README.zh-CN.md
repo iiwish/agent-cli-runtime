@@ -23,12 +23,12 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 本仓库目前处于 **pre-alpha / developer preview**。
 
 发布边界说明：
-- 这是 P3-5 remote release evidence closure 阶段，不承诺稳定 API，也不是 npm 发布记录。
+- 这是 P3-7 API / CLI schema freeze 阶段，不承诺稳定 API，也不是 npm 发布记录。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、API server、WAL、database 或 remote runtime 模式承诺。
 - 运行时定位是可嵌入 daemon/product shell 的 local-first execution kernel，不替代托管平台服务。
 
-Daemon-ready 嵌入契约在 [docs/daemon-ready-contract.md](./docs/daemon-ready-contract.md)，SSOT 在 [docs/ssot.md](./docs/ssot.md)，release-candidate 证据入口在 [docs/release-report.md](./docs/release-report.md)，未来 alpha 发布 runbook 在 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。当前实现是 contract-hardening 的 library-first Node.js/TypeScript 版本，默认 memory-only run / goal 调度，可选 durable local replay storage 及 crash/recovery health reporting，并补充 fault-injected consistency coverage、package-root API contract tests、tarball TypeScript consumer smoke 和 installed-package daemon embedding verification；包含内置 CLI compatibility profiles、强化后的 planner/task-graph validation、版本化 event/diagnostics/conformance/store/CLI-error 契约、parser fixtures、本地/远端 release artifact verification、remote CI/artifact audit checks、alpha publish readiness docs，以及本地 smoke/query 薄 CLI。
+API 与 CLI schema 契约在 [docs/api-schema-contract.md](./docs/api-schema-contract.md)，daemon-ready 嵌入契约在 [docs/daemon-ready-contract.md](./docs/daemon-ready-contract.md)，SSOT 在 [docs/ssot.md](./docs/ssot.md)，release-candidate 证据入口在 [docs/release-report.md](./docs/release-report.md)，未来 alpha 发布 runbook 在 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。当前实现是 contract-hardening 的 library-first Node.js/TypeScript 版本，默认 memory-only run / goal 调度，可选 durable local replay storage 及 crash/recovery health reporting，并补充 fault-injected consistency coverage、package-root API contract tests、tarball TypeScript consumer smoke 和 installed-package daemon embedding verification；包含内置 CLI compatibility profiles、强化后的 planner/task-graph validation、版本化 event/diagnostics/conformance/real-smoke/store/release-artifact 契约、parser fixtures、本地/远端 release artifact verification、remote CI/artifact audit checks、alpha publish readiness docs，以及本地 smoke/query 薄 CLI。
 
 ## 为什么需要它
 
@@ -216,6 +216,7 @@ Pre-alpha release 的 package root 会刻意保持小。它只导出 `createAgen
 - 本阶段不承诺稳定 API 契约。
 - 包根仅承诺运行时 facade 的稳定入口，内部 adapter / parser / store 实现不对外承诺。
 - 本阶段不提供 daemon、WAL、remote runtime 等稳定化能力。
+- CLI JSON schemas 与 failure taxonomy 遵循 [docs/api-schema-contract.md](./docs/api-schema-contract.md) 中的 pre-alpha versioning policy。
 
 ## 安装
 
@@ -416,6 +417,8 @@ node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --ex
 ```
 
 Real smoke JSON 使用 `schemaVersion: "agent-runtime.realSmoke.v1"`，输出 redacted `real_smoke_summary`，字段包括 `adapter`、`version`、`auth`、`modelsSource`、`runClassification`、`expectedTextMatched`、截断脱敏的 `observedTextTail`、`cwdMutationChecked`、`cwdMutated`、`diagnosticsCount`、`skippedReason` 和 `failureReason`。它不包含 prompt text、token value、私有 cwd、raw stdout/stderr 或最终 run record。失败和跳过分类包括 `auth_missing`、`unavailable_executable`、`unsupported_flag`、`unexpected_output`、`cwd_mutated`、`needs_verification` 和 `real_run_skipped`。
+
+完整 schema inventory 和 version bump policy，包括 event envelopes、diagnostics、conformance、real smoke、store health/repair、CLI errors、release verification 与 release gate evidence，统一维护在 [docs/api-schema-contract.md](./docs/api-schema-contract.md)。
 
 磁盘布局保持简单、方便人工检查和 `tail`：
 

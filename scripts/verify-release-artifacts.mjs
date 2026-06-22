@@ -419,6 +419,7 @@ function main() {
       tarball: null,
       diagnostics: [{ code: "usage_error", message: redact(error instanceof Error ? error.message : String(error)) }],
       artifactNames: DEFAULT_ARTIFACT_NAMES,
+      gateEvidence: null,
       packageName: null,
       version: null,
     };
@@ -442,6 +443,7 @@ function main() {
       tarball: null,
       diagnostics: [{ code: "verification_error", message: redact(error instanceof Error ? error.message : String(error)) }],
       artifactNames: DEFAULT_ARTIFACT_NAMES,
+      gateEvidence: null,
       packageName: null,
       version: null,
     };

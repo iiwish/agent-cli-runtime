@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P3-6 real CLI opt-in smoke evidence
+Status: P3-7 API / CLI schema freeze
 Last updated: 2026-06-22
 
-This project is still **pre-alpha / developer preview**. P2-11 through P2-13 established release-candidate artifact verification, remote evidence closure, and alpha publish-readiness docs without publishing npm. P3-1 froze daemon-ready execution-kernel contracts for embedders in [docs/daemon-ready-contract.md](./daemon-ready-contract.md); P3-2 added an executable daemon embedding stability gate for the installed-package fake-CLI path; P3-3 added an installed-package long-lived runtime resource safety gate; P3-4 aligned CI and release-candidate artifacts so those gates are represented in remote release artifacts; P3-5 verified the workflow head SHA through a successful remote release-candidate workflow and downloaded artifact re-verification; P3-6 adds a redacted opt-in real smoke evidence format for Codex, Claude Code, and OpenCode while keeping default release gates on detection/profile certification only. It still does not publish npm, configure trusted publishing, claim provenance, or add daemon/API server/database/WAL/remote-worker/UI/telemetry/artifact layers.
+This project is still **pre-alpha / developer preview**. P2-11 through P2-13 established release-candidate artifact verification, remote evidence closure, and alpha publish-readiness docs without publishing npm. P3-1 froze daemon-ready execution-kernel contracts for embedders in [docs/daemon-ready-contract.md](./daemon-ready-contract.md); P3-2 added an executable daemon embedding stability gate for the installed-package fake-CLI path; P3-3 added an installed-package long-lived runtime resource safety gate; P3-4 aligned CI and release-candidate artifacts so those gates are represented in remote release artifacts; P3-5 verified the workflow head SHA through a successful remote release-candidate workflow and downloaded artifact re-verification; P3-6 added a redacted opt-in real smoke evidence format for Codex, Claude Code, and OpenCode while keeping default release gates on detection/profile certification only; P3-7 freezes the API / CLI schema inventory and versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md). It still does not publish npm, configure trusted publishing, claim provenance, or add daemon/API server/database/WAL/remote-worker/UI/telemetry/artifact layers.
 
 ## Local-First Production Definition
 
@@ -26,6 +26,7 @@ For this repository, "production-ready local runtime" means:
 - `npm run runtime:safety` packs and installs the package into a temporary consumer, then verifies repeated run/goal execution, slow event consumption, cancel/timeout churn, bounded redacted diagnostics, repeated shutdown, lease close, and reopen behavior using fake CLIs only;
 - real CLI conformance and smoke default to detection/profile certification only; authenticated real agent runs require explicit `--allow-real-run`;
 - real smoke evidence uses `schemaVersion: "agent-runtime.realSmoke.v1"`, requires expected text for success, checks cwd mutation, and omits prompts, raw stdout/stderr, private cwd, tokens, and final run records;
+- release artifact verification uses `agent-cli-runtime.releaseVerification.v1`, release gate evidence uses `agent-cli-runtime.releaseGateEvidence.v1`, and both are covered by the schema versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md);
 - `npm run dogfood` is the default release-candidate gate and does not launch authenticated real agent runs;
 - `npm run dogfood` also installs the packed tarball into a temporary TypeScript consumer, runs `tsc --noEmit`, and executes fake-CLI library run/goal/replay/diagnostics smoke;
 - `npm run prepublish:check` is the local prepublish guard, includes `npm run daemon:verify` and `npm run runtime:safety`, and also avoids authenticated real agent runs;

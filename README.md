@@ -23,12 +23,12 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P3-5 remote release evidence closure track, not a stable API release or npm publication record.
+- This is a P3-7 API / CLI schema freeze track, not a stable-contract or npm publication record.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no API server, no WAL, no database, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended as a local-first execution kernel for embedding in a daemon or product shell, not as a hosted control plane.
 
-The daemon-ready embedding contract is [docs/daemon-ready-contract.md](./docs/daemon-ready-contract.md), the SSOT is [docs/ssot.md](./docs/ssot.md), the release-candidate evidence entrypoint is [docs/release-report.md](./docs/release-report.md), and the future alpha publish runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). The current implementation is a contract-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, package-root API contract tests, tarball TypeScript consumer smoke, installed-package daemon embedding verification, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance/store/CLI-error contracts, redacted diagnostics, parser fixtures, local/remote release artifact verification, remote CI/artifact audit checks, alpha publish readiness docs, and thin local smoke/query CLI commands.
+The API and CLI schema contract is [docs/api-schema-contract.md](./docs/api-schema-contract.md), the daemon-ready embedding contract is [docs/daemon-ready-contract.md](./docs/daemon-ready-contract.md), the SSOT is [docs/ssot.md](./docs/ssot.md), the release-candidate evidence entrypoint is [docs/release-report.md](./docs/release-report.md), and the future alpha publish runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). The current implementation is a contract-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, package-root API contract tests, tarball TypeScript consumer smoke, installed-package daemon embedding verification, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance/real-smoke/store/release-artifact contracts, redacted diagnostics, parser fixtures, local/remote release artifact verification, remote CI/artifact audit checks, alpha publish readiness docs, and thin local smoke/query CLI commands.
 
 ## Why
 
@@ -218,6 +218,7 @@ This release candidate is explicitly scoped:
 - No stable API contract is guaranteed yet.
 - Internal adapters/parsers/helpers are intentionally not exported from package root.
 - No production promises around daemon APIs, WAL-backed storage, remote runtime mode, or distributed storage.
+- CLI JSON schemas and failure taxonomy follow the pre-alpha versioning policy in [docs/api-schema-contract.md](./docs/api-schema-contract.md).
 
 ## Installation
 
@@ -418,6 +419,8 @@ node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --ex
 ```
 
 Real smoke JSON uses `schemaVersion: "agent-runtime.realSmoke.v1"` and a redacted `real_smoke_summary` with `adapter`, `version`, `auth`, `modelsSource`, `runClassification`, `expectedTextMatched`, truncated/redacted `observedTextTail`, `cwdMutationChecked`, `cwdMutated`, `diagnosticsCount`, `skippedReason`, and `failureReason`. It does not include prompt text, token values, private cwd, raw stdout/stderr, or the final run record. Failure and skip classifications include `auth_missing`, `unavailable_executable`, `unsupported_flag`, `unexpected_output`, `cwd_mutated`, `needs_verification`, and `real_run_skipped`.
+
+The complete schema inventory and version bump policy for event envelopes, diagnostics, conformance, real smoke, store health/repair, CLI errors, release verification, and release gate evidence is maintained in [docs/api-schema-contract.md](./docs/api-schema-contract.md).
 
 Disk storage layout is intentionally simple and tail-friendly:
 
