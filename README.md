@@ -23,7 +23,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P3-3 long-lived runtime resource safety gate track, not a stable API release or npm publication record.
+- This is a P3-4 CI / release gate alignment track, not a stable API release or npm publication record.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no API server, no WAL, no database, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended as a local-first execution kernel for embedding in a daemon or product shell, not as a hosted control plane.
@@ -341,9 +341,9 @@ node ./dist/cli/main.js conformance --mode real --agent all --json
 
 `conformance --mode real` without `--allow-real-run` performs real local detection/profile certification only. It does not launch an authenticated agent run. A real run requires `--allow-real-run`; without `--cwd`, the runtime uses an isolated temporary cwd and requests read-only behavior. Treat `--allow-real-run` as an explicit local-account/network boundary.
 
-CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node dogfood job runs `npm run dogfood` so the full matrix does not launch redundant install smokes. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
+CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node release-gates job runs `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` so the full matrix does not launch redundant installed-package gates. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
 
-For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, daemon embedding verification, runtime safety verification, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates and uploads the npm tarball, pack metadata, package file list, and `release-verification.json`. It does not publish and does not require an npm token.
+For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, daemon embedding verification, runtime safety verification, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`; the generated artifact set includes the npm tarball, pack metadata, package file list, `gate-evidence.json`, and `release-verification.json`. It does not publish and does not require an npm token.
 
 To create a local release-candidate artifact set without publishing, run:
 
@@ -352,7 +352,7 @@ npm run release:candidate -- --out-dir release-candidate
 npm run release:verify -- --dir release-candidate
 ```
 
-`release:candidate` writes `npm-pack.json`, `package-files.txt`, the tarball, and `release-verification.json` to the output directory. `release:verify` can also validate the same files after downloading GitHub Actions artifacts.
+`release:candidate` writes `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, the tarball, and `release-verification.json` to the output directory. `release:verify` can also validate the same files after downloading GitHub Actions artifacts, including proof that `daemon:verify` and `runtime:safety` were recorded for the candidate.
 
 The release evidence summary is [docs/release-report.md](./docs/release-report.md). The alpha publish decision runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate.
 

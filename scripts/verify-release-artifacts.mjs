@@ -7,7 +7,23 @@ const DEFAULT_ARTIFACT_NAMES = [
   "agent-cli-runtime-tarball",
   "agent-cli-runtime-pack-metadata",
   "agent-cli-runtime-package-files",
+  "agent-cli-runtime-gate-evidence",
   "agent-cli-runtime-release-verification",
+];
+const GATE_EVIDENCE_SCHEMA_VERSION = "agent-cli-runtime.releaseGateEvidence.v1";
+const REQUIRED_GATE_EVIDENCE = [
+  {
+    name: "daemon-ready",
+    script: "daemon:verify",
+    command: "npm run daemon:verify",
+    outputSchemaVersion: "agent-runtime.daemonVerification.v1",
+  },
+  {
+    name: "runtime-safety",
+    script: "runtime:safety",
+    command: "npm run runtime:safety",
+    outputSchemaVersion: "agent-runtime.runtimeSafety.v1",
+  },
 ];
 
 const disallowedPathPatterns = [
@@ -29,6 +45,7 @@ const secretPatterns = [
     pattern:
       /\b(?:ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY|OPENAI_API_KEY|OPENAI_AUTH_TOKEN|CLAUDE_AUTH_TOKEN|CODEX_AUTH_TOKEN|OPENCODE_AUTH_TOKEN)\s*=\s*(?!<|\$|\$\{|\[REDACTED\]|redacted\b)[^\s#'"]{4,}/iu,
   },
+  { code: "npm_token_reference", pattern: /\b(?:NODE_AUTH_TOKEN|NPM_TOKEN)\b/u },
 ];
 
 function parseArgs(argv) {
@@ -36,6 +53,7 @@ function parseArgs(argv) {
     dir: "release-candidate",
     packJson: undefined,
     packageFiles: undefined,
+    gateEvidence: undefined,
     output: undefined,
     artifactNames: [...DEFAULT_ARTIFACT_NAMES],
   };
@@ -48,6 +66,8 @@ function parseArgs(argv) {
       options.packJson = argv[++i];
     } else if (arg === "--package-files") {
       options.packageFiles = argv[++i];
+    } else if (arg === "--gate-evidence") {
+      options.gateEvidence = argv[++i];
     } else if (arg === "--output") {
       options.output = argv[++i];
     } else if (arg === "--artifact-name") {
@@ -64,6 +84,7 @@ function parseArgs(argv) {
     ["--dir", options.dir],
     ["--pack-json", options.packJson],
     ["--package-files", options.packageFiles],
+    ["--gate-evidence", options.gateEvidence],
     ["--output", options.output],
   ]) {
     if (value === undefined && argv.includes(name)) throw new Error(`Missing value for ${name}`);
@@ -81,6 +102,7 @@ Options:
   --dir <path>             Directory containing npm-pack.json, package-files.txt, and tarball.
   --pack-json <path>       Override pack metadata path.
   --package-files <path>   Override package file list path.
+  --gate-evidence <path>   Override daemon-ready gate evidence path.
   --output <path>          Write stable verification JSON to a file.
   --artifact-name <name>   Add an expected artifact name to the JSON summary.
 `);
@@ -95,9 +117,10 @@ function redact(value) {
     .replace(/sk-[A-Za-z0-9_-]{20,}/gu, "[REDACTED]")
     .replace(/\bBearer\s+(?!<)[A-Za-z0-9+/_=-]{10,}\b/gu, "Bearer [REDACTED]")
     .replace(
-      /\b(?:ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY|OPENAI_API_KEY|OPENAI_AUTH_TOKEN|CLAUDE_AUTH_TOKEN|CODEX_AUTH_TOKEN|OPENCODE_AUTH_TOKEN)\s*=\s*(?!<|\$|\$\{|\[REDACTED\]|redacted\b)[^\s#'"]{4,}/giu,
+      /\b(?:ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY|OPENAI_API_KEY|OPENAI_AUTH_TOKEN|CLAUDE_AUTH_TOKEN|CODEX_AUTH_TOKEN|OPENCODE_AUTH_TOKEN|NODE_AUTH_TOKEN|NPM_TOKEN)\s*=\s*(?!<|\$|\$\{|\[REDACTED\]|redacted\b)[^\s#'"]{4,}/giu,
       "[REDACTED_ENV]=[REDACTED]",
     )
+    .replace(/\b(?:NODE_AUTH_TOKEN|NPM_TOKEN)\b/gu, "[REDACTED_NPM_TOKEN_REF]")
     .replace(/\/Users\/[^/\s]+/gu, redactedUsersPath)
     .replace(/\/home\/[^/\s]+/gu, redactedHomePath)
     .replace(/[A-Z]:\\Users\\[^\\\s]+/gu, redactedWindowsUsersPath);
@@ -121,7 +144,8 @@ function readText(file, baseDir, diagnostics, label) {
   try {
     return readFileSync(file, "utf8");
   } catch (error) {
-    addDiagnostic(diagnostics, "missing_artifact", `Missing ${label}: ${file}`, { path: safeRelative(baseDir, file) });
+    const relative = safeRelative(baseDir, file);
+    addDiagnostic(diagnostics, "missing_artifact", `Missing ${label}: ${relative}`, { path: relative });
     return undefined;
   }
 }
@@ -197,16 +221,119 @@ function compareLists(expected, actual, diagnostics) {
   }
 }
 
+function parseJsonArtifact(text, diagnostics, label) {
+  if (text === undefined) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `${label} is not valid JSON.`);
+    return null;
+  }
+}
+
+function validateGateEvidence(gateEvidenceText, baseDir, gateEvidencePath, diagnostics) {
+  if (gateEvidenceText !== undefined) inspectString(gateEvidenceText, diagnostics, "release gate evidence");
+  const evidence = parseJsonArtifact(gateEvidenceText, diagnostics, "Release gate evidence");
+  if (evidence === null) {
+    return {
+      path: safeRelative(baseDir, gateEvidencePath),
+      schemaVersion: null,
+      gates: [],
+      commands: [],
+    };
+  }
+
+  if (evidence.schemaVersion !== GATE_EVIDENCE_SCHEMA_VERSION) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", "Release gate evidence schema version is missing or unsupported.", {
+      expected: GATE_EVIDENCE_SCHEMA_VERSION,
+      actual: typeof evidence.schemaVersion === "string" ? evidence.schemaVersion : null,
+    });
+  }
+
+  const gates = Array.isArray(evidence.gates) ? evidence.gates : [];
+  if (!Array.isArray(evidence.gates)) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", "Release gate evidence must contain a gates array.");
+  }
+
+  if (evidence.noAuthenticatedRealRun !== true) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", "Release gate evidence must explicitly avoid authenticated real runs.");
+  }
+  if (evidence.noNpmPublish !== true) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", "Release gate evidence must explicitly avoid npm publish.");
+  }
+  if (evidence.noNpmToken !== true) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", "Release gate evidence must explicitly avoid npm token requirements.");
+  }
+
+  for (const required of REQUIRED_GATE_EVIDENCE) {
+    const gate = gates.find((candidate) => candidate?.script === required.script || candidate?.name === required.name);
+    if (!gate) {
+      addDiagnostic(diagnostics, "missing_gate_evidence", `Missing release gate evidence for ${required.script}.`, {
+        script: required.script,
+      });
+      continue;
+    }
+    if (gate.name !== required.name) {
+      addDiagnostic(diagnostics, "invalid_gate_evidence", `Unexpected gate evidence name for ${required.script}.`, {
+        expected: required.name,
+        actual: typeof gate.name === "string" ? gate.name : null,
+      });
+    }
+    if (gate.command !== required.command) {
+      addDiagnostic(diagnostics, "invalid_gate_evidence", `Unexpected command for ${required.script}.`, {
+        expected: required.command,
+        actual: typeof gate.command === "string" ? gate.command : null,
+      });
+    }
+    if (gate.ok !== true) {
+      addDiagnostic(diagnostics, "missing_gate_evidence", `Gate ${required.script} did not record ok: true.`, {
+        script: required.script,
+      });
+    }
+    if (gate.outputSchemaVersion !== required.outputSchemaVersion) {
+      addDiagnostic(diagnostics, "invalid_gate_evidence", `Unexpected output schema for ${required.script}.`, {
+        expected: required.outputSchemaVersion,
+        actual: typeof gate.outputSchemaVersion === "string" ? gate.outputSchemaVersion : null,
+      });
+    }
+    if (gate.packageSource !== "installed-tarball") {
+      addDiagnostic(diagnostics, "invalid_gate_evidence", `Gate ${required.script} must verify the installed tarball path.`, {
+        script: required.script,
+      });
+    }
+  }
+
+  return {
+    path: safeRelative(baseDir, gateEvidencePath),
+    schemaVersion: typeof evidence.schemaVersion === "string" ? evidence.schemaVersion : null,
+    gates: gates.map((gate) => ({
+      name: typeof gate?.name === "string" ? redact(gate.name) : null,
+      script: typeof gate?.script === "string" ? redact(gate.script) : null,
+      command: typeof gate?.command === "string" ? redact(gate.command) : null,
+      ok: gate?.ok === true,
+      outputSchemaVersion: typeof gate?.outputSchemaVersion === "string" ? redact(gate.outputSchemaVersion) : null,
+      packageSource: typeof gate?.packageSource === "string" ? redact(gate.packageSource) : null,
+    })),
+    commands: gates.map((gate) => typeof gate?.command === "string" ? redact(gate.command) : null).filter(Boolean),
+    noAuthenticatedRealRun: evidence.noAuthenticatedRealRun === true,
+    noNpmPublish: evidence.noNpmPublish === true,
+    noNpmToken: evidence.noNpmToken === true,
+  };
+}
+
 function validate(options) {
   const diagnostics = [];
   const baseDir = path.resolve(options.dir);
   const packJsonPath = path.resolve(options.packJson ?? path.join(baseDir, "npm-pack.json"));
   const packageFilesPath = path.resolve(options.packageFiles ?? path.join(baseDir, "package-files.txt"));
+  const gateEvidencePath = path.resolve(options.gateEvidence ?? path.join(baseDir, "gate-evidence.json"));
   const packText = readText(packJsonPath, baseDir, diagnostics, "npm pack metadata");
   const packageFilesText = readText(packageFilesPath, baseDir, diagnostics, "package file list");
+  const gateEvidenceText = readText(gateEvidencePath, baseDir, diagnostics, "release gate evidence");
 
   if (packText !== undefined) inspectString(packText, diagnostics, "npm pack metadata");
   if (packageFilesText !== undefined) inspectString(packageFilesText, diagnostics, "package file list");
+  const gateEvidence = validateGateEvidence(gateEvidenceText, baseDir, gateEvidencePath, diagnostics);
 
   const packEntries = parsePackMetadata(packText, diagnostics);
   const packageFiles = normalizePackageFileList(packageFilesText);
@@ -247,7 +374,8 @@ function validate(options) {
   if (tarballPath !== null) {
     tarballExists = existsSync(tarballPath);
     if (!tarballExists) {
-      addDiagnostic(diagnostics, "missing_artifact", `Missing tarball: ${tarballPath}`, { path: safeRelative(baseDir, tarballPath) });
+      const relativeTarballPath = safeRelative(baseDir, tarballPath);
+      addDiagnostic(diagnostics, "missing_artifact", `Missing tarball: ${relativeTarballPath}`, { path: relativeTarballPath });
     } else {
       tarballSizeBytes = statSync(tarballPath).size;
     }
@@ -256,6 +384,7 @@ function validate(options) {
   const checkedFiles = {
     packMetadata: safeRelative(baseDir, packJsonPath),
     packageFileList: safeRelative(baseDir, packageFilesPath),
+    gateEvidence: safeRelative(baseDir, gateEvidencePath),
     packageFiles: packedFiles.length,
   };
   const tarball = {
@@ -272,6 +401,7 @@ function validate(options) {
     tarball,
     diagnostics,
     artifactNames: [...new Set(options.artifactNames)],
+    gateEvidence,
     packageName,
     version,
   };

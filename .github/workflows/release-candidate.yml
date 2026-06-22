@@ -27,14 +27,11 @@ jobs:
       - name: Run dogfood gate without authenticated real runs
         run: npm run dogfood
 
-      - name: Create npm pack artifact without publishing
+      - name: Create npm pack artifact and gate evidence without publishing
         id: pack
         run: |
           set -euo pipefail
-          mkdir -p release-candidate
-          npm pack --json --pack-destination release-candidate > release-candidate/npm-pack.json
-          node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync('release-candidate/npm-pack.json', 'utf8')); for (const entry of data) { for (const file of entry.files) console.log(file.path); }" > release-candidate/package-files.txt
-          npm run release:verify -- --dir release-candidate --output release-candidate/release-verification.json
+          npm run release:candidate -- --out-dir release-candidate
           node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync('release-candidate/npm-pack.json', 'utf8')); process.stdout.write('tarball=' + data[0].filename + '\n');" >> "$GITHUB_OUTPUT"
 
       - name: Upload tarball
@@ -58,6 +55,14 @@ jobs:
         with:
           name: agent-cli-runtime-package-files
           path: release-candidate/package-files.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload daemon-ready gate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-cli-runtime-gate-evidence
+          path: release-candidate/gate-evidence.json
           if-no-files-found: error
           retention-days: 14
 

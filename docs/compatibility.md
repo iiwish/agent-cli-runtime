@@ -1,23 +1,24 @@
 # Agent CLI Compatibility Matrix
 
-Status: P3-1 Daemon-Ready Contract Freeze
+Status: P3-4 CI / Release Gate Alignment
 Last updated: 2026-06-22
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-1 adds daemon-ready execution-kernel contract freeze docs and schema locks on top of the P2 release-candidate and alpha publish-readiness evidence. It does not publish npm, configure trusted publishing, implement a daemon/API server, or change adapter compatibility behavior. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-4 keeps the P3-1 daemon-ready contract freeze and P3-2/P3-3 installed-package gates, then aligns CI and release-candidate evidence so those gates are represented in artifacts. It does not publish npm, configure trusted publishing, implement a daemon/API server, or change adapter compatibility behavior. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P3-1 pre-alpha daemon-ready contract evidence, which is intended to be the default interpretation for this matrix.
+Current status is P3-4 pre-alpha CI / release gate alignment evidence, which is intended to be the default interpretation for this matrix.
 
-- Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and TypeScript consumer install-smoke checks.
+- Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and single-Node TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
-- `npm test` uses Vitest's verbose reporter to keep long contract/install-smoke files chatty enough for CI and local watchdogs.
-- `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, dogfood, production audit, package boundary checks, and pack dry-run.
-- `npm run release:candidate` creates local release-candidate artifacts, and `npm run release:verify -- --dir <path>` validates local or downloaded artifacts with stable redacted JSON.
+- `npm test` uses Vitest's verbose reporter for contract coverage; slower installed-package gates and install smokes stay out of the Node.js matrix and run through single-Node release gates or explicit opt-in checks.
+- `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, `daemon:verify`, `runtime:safety`, dogfood, production audit, package boundary checks, and pack dry-run.
+- `npm run release:candidate` creates local release-candidate artifacts including `gate-evidence.json`, and `npm run release:verify -- --dir <path>` validates local or downloaded artifacts with stable redacted JSON.
 - `npm publish --dry-run --ignore-scripts --tag alpha` is a documented manual local dry-run check; it is not a remote CI gate.
 - `docs/release-publish-runbook.md` documents the future human alpha publish path, dist-tag verification, rollback/deprecation/unpublish boundary, 2FA, trusted publishing, provenance, and token strategy; no real publish is performed in P2-13.
 - `docs/daemon-ready-contract.md` documents embedding semantics for daemon/product shell callers without adding a hosted daemon surface.
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
+- CI runs `daemon:verify`, `runtime:safety`, and dogfood once in a single Node.js 22 release-gates job; the Node.js 20/22/24 matrix does not repeat installed-package gates.
 - Remote GitHub Actions release-candidate evidence is run `27869580048` on commit `2f8832119b4ebdb8393077052560589a398ebf56`; do not reuse it for later commits.
 - Evidence modes are intentionally separate:
   - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
@@ -54,6 +55,17 @@ P2-13 does not change adapter compatibility. It keeps the pre-alpha runtime beha
 - `npm publish --dry-run --ignore-scripts --tag alpha` is the only publish simulation for P2-13;
 - `.github/workflows/ci.yml` and `.github/workflows/release-candidate.yml` remain artifact/check workflows and do not publish npm or require registry credentials;
 - trusted publishing and provenance are future choices, not configured evidence for P2-13.
+
+## P3-4 CI / Release Gate Alignment
+
+P3-4 does not change adapter invocation compatibility. It changes release evidence handling:
+
+- `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for normal checks and moves `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` into one Node.js 22 release-gates job.
+- `.github/workflows/release-candidate.yml` remains `workflow_dispatch` only and uploads five artifacts for current P3-4 candidates: `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`.
+- `gate-evidence.json` uses `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and records `npm run daemon:verify` plus `npm run runtime:safety` with installed-package output schema versions.
+- `npm run release:verify` rejects missing or incomplete gate evidence while keeping package boundary and secret/private-path checks.
+- P3-4 remote evidence is pending until a fresh release-candidate workflow run is triggered for the current commit and the five downloaded artifacts pass local `release:verify`.
+- P3-4 does not run authenticated real agent runs, publish npm, configure npm tokens, configure trusted publishing, or add daemon/API server behavior.
 
 ## P3-1 Daemon-Ready Contract Freeze
 
@@ -128,7 +140,7 @@ P2-9 release-candidate semantics:
 - CLI JSON success contracts are covered for `agents --json`, `doctor --json`, `conformance --mode fixtures --json`, `conformance --mode fake --json`, `store-health --json`, and `store-repair --dry-run --json`.
 - CLI JSON error contracts are covered for missing required parameters and mutually exclusive `store-repair --apply --dry-run`; errors return exit code `1`, a short parseable JSON object, and redacted messages.
 - `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
-- The official test script is `vitest run --reporter=verbose --no-file-parallelism --testTimeout 30000`, keeping full-suite progress visible without dropping contract/install-smoke coverage.
+- The official test script is `vitest run --reporter=verbose --no-file-parallelism --testTimeout 30000`, keeping full-suite progress visible while leaving slower installed-package gates to single-Node release checks.
 - The CI dogfood gate runs `npm run dogfood` once on Node.js 22. It does not pass `--allow-real-run`, so real mode is limited to executable/version/auth/model/profile certification and runnable adapters report `real_run_skipped`.
 - `.github/workflows/release-candidate.yml` is `workflow_dispatch` only. It runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates `npm pack --json` output and uploads the tarball, pack metadata, and package file list as artifacts.
 - No workflow step runs `npm publish`, requests an npm token, or requires real Codex/Claude/OpenCode installation.

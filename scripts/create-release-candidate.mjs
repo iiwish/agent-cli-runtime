@@ -52,6 +52,15 @@ function run(command, args, options = {}) {
   return result.stdout ?? "";
 }
 
+function runJson(command, args, options = {}) {
+  const stdout = run(command, args, options);
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    throw new Error(`command did not produce JSON: ${command} ${args.map((arg) => redact(arg)).join(" ")}`);
+  }
+}
+
 function displayPath(file) {
   const relative = path.relative(process.cwd(), file);
   if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
@@ -67,9 +76,44 @@ function main() {
 
   const packJsonPath = path.join(outDir, "npm-pack.json");
   const packageFilesPath = path.join(outDir, "package-files.txt");
+  const gateEvidencePath = path.join(outDir, "gate-evidence.json");
   const verificationPath = path.join(outDir, "release-verification.json");
 
   try {
+    const gateCommands = [
+      {
+        name: "daemon-ready",
+        script: "daemon:verify",
+        command: "npm run daemon:verify",
+        args: ["run", "--silent", "daemon:verify"],
+      },
+      {
+        name: "runtime-safety",
+        script: "runtime:safety",
+        command: "npm run runtime:safety",
+        args: ["run", "--silent", "runtime:safety"],
+      },
+    ];
+    const gates = gateCommands.map((gate) => {
+      const summary = runJson("npm", gate.args);
+      return {
+        name: gate.name,
+        script: gate.script,
+        command: gate.command,
+        ok: summary.ok === true,
+        outputSchemaVersion: typeof summary.schemaVersion === "string" ? summary.schemaVersion : null,
+        packageSource: typeof summary.packageSource === "string" ? summary.packageSource : null,
+      };
+    });
+    writeFileSync(gateEvidencePath, `${JSON.stringify({
+      schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
+      generatedAt: new Date().toISOString(),
+      gates,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    }, null, 2)}\n`, "utf8");
+
     const packJson = run("npm", ["pack", "--json", "--pack-destination", outDir]);
     writeFileSync(packJsonPath, packJson, "utf8");
     const packEntries = JSON.parse(packJson);
@@ -91,6 +135,7 @@ function main() {
       ok: true,
       outDir: displayPath(outDir),
       tarball: verification.tarball,
+      gateEvidence: path.basename(gateEvidencePath),
       verification: path.basename(verificationPath),
     }, null, 2)}\n`);
   } catch (error) {

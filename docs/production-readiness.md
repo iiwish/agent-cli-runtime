@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P3-3 long-lived runtime resource safety gate
+Status: P3-4 CI / release gate alignment
 Last updated: 2026-06-22
 
-This project is still **pre-alpha / developer preview**. P2-11 through P2-13 established release-candidate artifact verification, remote evidence closure, and alpha publish-readiness docs without publishing npm. P3-1 froze daemon-ready execution-kernel contracts for embedders in [docs/daemon-ready-contract.md](./daemon-ready-contract.md); P3-2 added an executable daemon embedding stability gate for the installed-package fake-CLI path; P3-3 adds an installed-package long-lived runtime resource safety gate. It still does not publish npm, configure trusted publishing, claim provenance, or add daemon/API server/database/WAL/remote-worker/UI/telemetry/artifact layers.
+This project is still **pre-alpha / developer preview**. P2-11 through P2-13 established release-candidate artifact verification, remote evidence closure, and alpha publish-readiness docs without publishing npm. P3-1 froze daemon-ready execution-kernel contracts for embedders in [docs/daemon-ready-contract.md](./daemon-ready-contract.md); P3-2 added an executable daemon embedding stability gate for the installed-package fake-CLI path; P3-3 added an installed-package long-lived runtime resource safety gate; P3-4 aligns CI and release-candidate evidence so those gates are represented in remote release artifacts. It still does not publish npm, configure trusted publishing, claim provenance, or add daemon/API server/database/WAL/remote-worker/UI/telemetry/artifact layers.
 
 ## Local-First Production Definition
 
@@ -32,9 +32,9 @@ For this repository, "production-ready local runtime" means:
 - `npm run release:verify` validates local or downloaded release artifacts and emits stable redacted JSON;
 - `docs/release-publish-runbook.md` records the future alpha publish command path, 2FA/trusted publishing/provenance decisions, dist-tag checks, and rollback boundaries without configuring real publishing;
 - CLI JSON success and error contracts are parseable, redacted, and covered for core release-facing commands;
-- `npm test` uses Vitest verbose output so long contract/install-smoke coverage does not look idle to CI or local watchdogs;
-- GitHub Actions CI runs Node.js 20/22/24 matrix checks plus one single-Node dogfood job;
-- the manual release-candidate workflow uploaded the packed tarball, pack metadata, package file list, and verification JSON with explicit artifact retention for run `27869580048`;
+- `npm test` uses Vitest verbose output for default contract coverage; slower installed-package gates and install smokes run through single-Node release gates or explicit opt-in checks rather than every Node matrix entry;
+- GitHub Actions CI runs Node.js 20/22/24 matrix checks plus one single-Node release-gates job for `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood`;
+- the manual release-candidate workflow is configured to upload the packed tarball, pack metadata, package file list, gate evidence JSON, and verification JSON with explicit artifact retention;
 - the release report records local commands, remote workflow evidence, downloaded artifact verification, package boundary, real CLI evidence boundaries, known risks, and non-goals;
 - validation evidence is replayable through goal manifests and diagnostics export.
 
@@ -70,8 +70,8 @@ npm publish --dry-run --ignore-scripts --tag alpha
 
 Remote CI gates:
 
-- `.github/workflows/ci.yml`: Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run; single Node.js 22 dogfood job for `npm run dogfood`.
-- `.github/workflows/release-candidate.yml`: manual `workflow_dispatch` gate that runs `npm ci`, `npm run ci`, `npm run dogfood`, creates `npm pack --json` output, runs `npm run release:verify`, and uploads the tarball, pack metadata, package file list, and verification JSON. Run `27869580048` completed successfully for commit `2f8832119b4ebdb8393077052560589a398ebf56`. It did not publish and did not require an npm token.
+- `.github/workflows/ci.yml`: Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run; single Node.js 22 release-gates job for `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood`.
+- `.github/workflows/release-candidate.yml`: manual `workflow_dispatch` gate that runs `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`; it uploads the tarball, pack metadata, package file list, gate evidence JSON, and verification JSON. Historical run `27869580048` completed successfully for commit `2f8832119b4ebdb8393077052560589a398ebf56`, before P3-4 added gate evidence artifacts. A fresh P3-4 remote run is pending for current-commit evidence. The workflow does not publish and does not require an npm token.
 
 `npm publish --dry-run --ignore-scripts --tag alpha` is a manual local dry-run check. The explicit `--tag alpha` keeps dry-run output aligned with the pre-alpha release intent even when npm does not apply `publishConfig.tag` in dry-run output. It is intentionally documented but not required as a remote CI gate because npm dry-run output can vary by npm version and registry context.
 
@@ -94,7 +94,7 @@ package_file="$(printf '%s' "$pack_info" | node -e "const data = JSON.parse(requ
 )
 ```
 
-The checked-in automated version of this smoke is `npm run dogfood`; it creates the temporary `consumer.ts`, `consumer.mjs`, fake adapter binary, and fake CLI environment itself.
+The checked-in automated version of this smoke is `npm run dogfood`; it creates the temporary `consumer.ts`, `consumer.mjs`, fake adapter binary, and fake CLI environment itself. `daemon:verify` and `runtime:safety` run in the single-Node CI release-gates job and in `release:candidate`, not in every Node matrix entry.
 
 Manual real CLI run gate, only on a machine where the selected CLI is installed, authorized, and safe to run:
 
@@ -189,7 +189,7 @@ Excluded artifacts:
 - Real conformance preflight can classify a local CLI as unavailable/auth-missing because of machine-specific executable, auth, network, or proxy state. That skip is useful compatibility evidence but is not a successful real run.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume mappings remain in `needsVerification`.
 - Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment.
-- P3-3 does not implement scheduler expansion, daemon/API server, database, WAL, remote workers, web UI, telemetry, npm publish, trusted publishing configuration, provenance publishing, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
+- P3-4 aligns local daemon-ready gates with CI and release-candidate evidence, but does not implement scheduler expansion, daemon/API server, database, WAL, remote workers, web UI, telemetry, npm publish, trusted publishing configuration, provenance publishing, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
 
 ## Durable Supervisor Contract
 

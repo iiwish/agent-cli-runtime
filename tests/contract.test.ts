@@ -40,6 +40,7 @@ const releaseVerifier = path.join(root, "scripts", "verify-release-artifacts.mjs
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
+const runInstalledPackageContractTests = process.env.AGENT_RUNTIME_RUN_INSTALLED_PACKAGE_TESTS === "1";
 
 function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -230,84 +231,36 @@ describe("public contract", () => {
     }
   });
 
-  it("runs the installed-package daemon verification path with fake CLIs", async () => {
-    const { stdout } = await execFileP(process.execPath, [daemonVerifier], { cwd: root });
-    const summary = JSON.parse(stdout) as {
-      schemaVersion: string;
-      ok: boolean;
-      packageSource: string;
-      run: { status: string; replayEvents: number };
-      goal: { status: string; replayEvents: number };
-      diagnostics: { runSchemaVersion: string; goalSchemaVersion: string };
-      reopened: { runStatus: string; goalStatus: string };
+  it("keeps installed-package daemon and runtime safety gates out of the default test matrix", async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
     };
-    const text = JSON.stringify(summary);
+    const daemonScript = await readFile(daemonVerifier, "utf8");
+    const runtimeSafetyScript = await readFile(runtimeSafetyVerifier, "utf8");
 
-    expect(summary).toMatchObject({
-      schemaVersion: "agent-runtime.daemonVerification.v1",
-      ok: true,
-      packageSource: "installed-tarball",
-      run: { status: "succeeded" },
-      goal: { status: "succeeded" },
-      diagnostics: {
-        runSchemaVersion: "agent-runtime.diagnostics.v1",
-        goalSchemaVersion: "agent-runtime.diagnostics.v1",
-      },
-      reopened: { runStatus: "succeeded", goalStatus: "succeeded" },
-    });
-    expect(summary.run.replayEvents).toBeGreaterThan(0);
-    expect(summary.goal.replayEvents).toBeGreaterThan(0);
-    expect(text).not.toContain(root);
-    if (process.env.HOME) expect(text).not.toContain(process.env.HOME);
-    expect(text).not.toContain("Bearer ");
-    expect(text).not.toContain("ANTHROPIC_AUTH_TOKEN");
-  }, 60_000);
+    expect(manifest.scripts.test).not.toContain("daemon:verify");
+    expect(manifest.scripts.test).not.toContain("runtime:safety");
+    expect(manifest.scripts.ci).not.toContain("daemon:verify");
+    expect(manifest.scripts.ci).not.toContain("runtime:safety");
+    expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
+    expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
 
-  it("runs the installed-package runtime safety verification path with fake CLIs", async () => {
-    const { stdout } = await execFileP(process.execPath, [runtimeSafetyVerifier], { cwd: root });
-    const summary = JSON.parse(stdout) as {
-      schemaVersion: string;
-      ok: boolean;
-      packageSource: string;
-      repeatedRuns: number;
-      repeatedGoals: number;
-      slowConsumer: { terminalEvents: number; replayEvents: number };
-      cancelChurn: { terminalEvents: number[] };
-      timeoutRace: { terminalEvents: number };
-      goalCancel: { terminalEvents: number; taskStatuses: string[] };
-      diagnostics: { schemaVersion: string; stdoutTailLength: number; stderrTailLength: number; redacted: boolean };
-      activeBeforeShutdown: { runs: number; goals: number };
-      activeAfterReopen: { runs: number; goals: number };
-      repeatedShutdownStable: boolean;
-      reopened: { runStatuses: string[]; goalStatuses: string[] };
-    };
-    const text = JSON.stringify(summary);
+    expect(daemonScript).toContain("agent-runtime.daemonVerification.v1");
+    expect(daemonScript).toContain("installed-tarball");
+    expect(daemonScript).toContain("\"pack\", \"--json\", \"--ignore-scripts\"");
+    expect(daemonScript).toContain("\"conformance\", \"--mode\", \"fake\", \"--json\"");
+    expect(daemonScript).not.toContain("--allow-real-run");
+    expect(daemonScript).not.toMatch(/\bnpm publish\b/u);
+    expect(daemonScript).not.toContain("NODE_AUTH_TOKEN");
 
-    expect(summary).toMatchObject({
-      schemaVersion: "agent-runtime.runtimeSafety.v1",
-      ok: true,
-      packageSource: "installed-tarball",
-      repeatedRuns: 4,
-      repeatedGoals: 2,
-      slowConsumer: { terminalEvents: 1 },
-      timeoutRace: { terminalEvents: 1 },
-      diagnostics: { schemaVersion: "agent-runtime.diagnostics.v1", redacted: true },
-      activeBeforeShutdown: { runs: 0, goals: 0 },
-      activeAfterReopen: { runs: 0, goals: 0 },
-      repeatedShutdownStable: true,
-    });
-    expect(summary.cancelChurn.terminalEvents.every((count) => count === 1)).toBe(true);
-    expect(summary.goalCancel).toMatchObject({ terminalEvents: 1, taskStatuses: ["canceled", "canceled", "canceled"] });
-    expect(summary.diagnostics.stdoutTailLength).toBeLessThanOrEqual(4_000);
-    expect(summary.diagnostics.stderrTailLength).toBeLessThanOrEqual(4_000);
-    expect(summary.reopened.runStatuses.every((status) => status && status !== "running" && status !== "queued")).toBe(true);
-    expect(summary.reopened.goalStatuses.every((status) => status && status !== "running" && status !== "planning")).toBe(true);
-    expect(text).not.toContain(root);
-    if (process.env.HOME) expect(text).not.toContain(process.env.HOME);
-    expect(text).not.toContain("Bearer ");
-    expect(text).not.toContain("ANTHROPIC_AUTH_TOKEN");
-    expect(text).not.toContain("noisy-fail");
-  }, 60_000);
+    expect(runtimeSafetyScript).toContain("agent-runtime.runtimeSafety.v1");
+    expect(runtimeSafetyScript).toContain("installed-tarball");
+    expect(runtimeSafetyScript).toContain("\"pack\", \"--json\", \"--ignore-scripts\"");
+    expect(runtimeSafetyScript).toContain("repeatedShutdownStable");
+    expect(runtimeSafetyScript).not.toContain("--allow-real-run");
+    expect(runtimeSafetyScript).not.toMatch(/\bnpm publish\b/u);
+    expect(runtimeSafetyScript).not.toContain("NODE_AUTH_TOKEN");
+  });
 
   it("keeps the package root focused on the runtime facade and public types", async () => {
     type PublicApiSmoke = {
@@ -1707,6 +1660,31 @@ setInterval(() => {}, 1000);
     }];
     await writeFile(path.join(dir, "npm-pack.json"), JSON.stringify(pack, null, 2), "utf8");
     await writeFile(path.join(dir, "package-files.txt"), `${pack[0].files.map((file) => file.path).join("\n")}\n`, "utf8");
+    await writeFile(path.join(dir, "gate-evidence.json"), JSON.stringify({
+      schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      gates: [
+        {
+          name: "daemon-ready",
+          script: "daemon:verify",
+          command: "npm run daemon:verify",
+          ok: true,
+          outputSchemaVersion: "agent-runtime.daemonVerification.v1",
+          packageSource: "installed-tarball",
+        },
+        {
+          name: "runtime-safety",
+          script: "runtime:safety",
+          command: "npm run runtime:safety",
+          ok: true,
+          outputSchemaVersion: "agent-runtime.runtimeSafety.v1",
+          packageSource: "installed-tarball",
+        },
+      ],
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    }, null, 2), "utf8");
     await writeFile(path.join(dir, pack[0].filename), "fake tarball", "utf8");
     const output = path.join(dir, "release-verification.json");
 
@@ -1720,10 +1698,15 @@ setInterval(() => {}, 1000);
     const verification = JSON.parse(stdout) as {
       schemaVersion: string;
       ok: boolean;
-      checkedFiles: { packMetadata: string; packageFileList: string; packageFiles: number };
+      checkedFiles: { packMetadata: string; packageFileList: string; gateEvidence: string; packageFiles: number };
       tarball: { filename: string; path: string; exists: boolean; sizeBytes: number };
       diagnostics: unknown[];
       artifactNames: string[];
+      gateEvidence: {
+        schemaVersion: string;
+        gates: Array<{ script: string; command: string; ok: boolean; outputSchemaVersion: string; packageSource: string }>;
+        commands: string[];
+      };
       packageName: string;
       version: string;
     };
@@ -1733,7 +1716,7 @@ setInterval(() => {}, 1000);
     expect(verification).toMatchObject({
       schemaVersion: "agent-cli-runtime.releaseVerification.v1",
       ok: true,
-      checkedFiles: { packMetadata: "npm-pack.json", packageFileList: "package-files.txt", packageFiles: 5 },
+      checkedFiles: { packMetadata: "npm-pack.json", packageFileList: "package-files.txt", gateEvidence: "gate-evidence.json", packageFiles: 5 },
       tarball: {
         filename: "agent-cli-runtime-0.1.0-alpha.0.tgz",
         path: "agent-cli-runtime-0.1.0-alpha.0.tgz",
@@ -1745,12 +1728,101 @@ setInterval(() => {}, 1000);
         "agent-cli-runtime-tarball",
         "agent-cli-runtime-pack-metadata",
         "agent-cli-runtime-package-files",
+        "agent-cli-runtime-gate-evidence",
         "agent-cli-runtime-release-verification",
       ]),
+      gateEvidence: {
+        schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
+        commands: ["npm run daemon:verify", "npm run runtime:safety"],
+      },
       packageName: "agent-cli-runtime",
       version: "0.1.0-alpha.0",
     });
+    expect(verification.gateEvidence.gates).toEqual([
+      expect.objectContaining({
+        script: "daemon:verify",
+        command: "npm run daemon:verify",
+        ok: true,
+        outputSchemaVersion: "agent-runtime.daemonVerification.v1",
+        packageSource: "installed-tarball",
+      }),
+      expect.objectContaining({
+        script: "runtime:safety",
+        command: "npm run runtime:safety",
+        ok: true,
+        outputSchemaVersion: "agent-runtime.runtimeSafety.v1",
+        packageSource: "installed-tarball",
+      }),
+    ]);
     expect(stdout).not.toContain(dir);
+  });
+
+  it("rejects release artifacts without daemon-ready gate evidence", async () => {
+    const dir = await tempDir("agent-runtime-release-missing-gates-");
+    const pack = [{
+      name: "agent-cli-runtime",
+      version: "0.1.0-alpha.0",
+      filename: "agent-cli-runtime-0.1.0-alpha.0.tgz",
+      files: [{ path: "dist/index.js" }],
+    }];
+    await writeFile(path.join(dir, "npm-pack.json"), JSON.stringify(pack), "utf8");
+    await writeFile(path.join(dir, "package-files.txt"), "dist/index.js\n", "utf8");
+    await writeFile(path.join(dir, pack[0].filename), "fake tarball", "utf8");
+
+    const failure = await execCliFailureViaNode([releaseVerifier, "--dir", dir]);
+    const verification = JSON.parse(failure.stdout) as { ok: boolean; diagnostics: Array<{ code: string; message: string }> };
+
+    expect(failure.code).toBe(1);
+    expect(verification.ok).toBe(false);
+    expect(verification.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "missing_artifact" }),
+    ]));
+    expect(JSON.stringify(verification)).toContain("release gate evidence");
+    expect(failure.stdout).not.toContain(dir);
+  });
+
+  it("rejects and redacts unsafe daemon-ready gate evidence", async () => {
+    const dir = await tempDir("agent-runtime-release-bad-gates-");
+    const fakePrivatePath = "/" + "Users/example/gate-output.json";
+    const fakeSecret = `sk-${"A".repeat(24)}`;
+    const pack = [{
+      name: "agent-cli-runtime",
+      version: "0.1.0-alpha.0",
+      filename: "agent-cli-runtime-0.1.0-alpha.0.tgz",
+      files: [{ path: "dist/index.js" }],
+    }];
+    await writeFile(path.join(dir, "npm-pack.json"), JSON.stringify(pack), "utf8");
+    await writeFile(path.join(dir, "package-files.txt"), "dist/index.js\n", "utf8");
+    await writeFile(path.join(dir, "gate-evidence.json"), JSON.stringify({
+      schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      outputPath: fakePrivatePath,
+      note: fakeSecret,
+      gates: [
+        {
+          name: "daemon-ready",
+          script: "daemon:verify",
+          command: "npm run daemon:verify",
+          ok: true,
+          outputSchemaVersion: "agent-runtime.daemonVerification.v1",
+          packageSource: "installed-tarball",
+        },
+      ],
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    }), "utf8");
+    await writeFile(path.join(dir, pack[0].filename), "fake tarball", "utf8");
+
+    const failure = await execCliFailureViaNode([releaseVerifier, "--dir", dir]);
+    const verification = JSON.parse(failure.stdout) as { ok: boolean; diagnostics: Array<{ code: string }> };
+    const codes = verification.diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(failure.code).toBe(1);
+    expect(verification.ok).toBe(false);
+    expect(codes).toEqual(expect.arrayContaining(["private_user_path", "openai_style_secret", "missing_gate_evidence"]));
+    expect(failure.stdout).not.toContain(fakePrivatePath);
+    expect(failure.stdout).not.toContain(fakeSecret);
   });
 
   it("rejects release artifacts containing disallowed package paths and secret-looking values", async () => {
@@ -1829,8 +1901,12 @@ setInterval(() => {}, 1000);
     ]) {
       expect(ci).toContain(requiredStep);
     }
+    expect(ci).toContain("Release gates on Node.js 22.x");
+    expect(ci.match(/npm run daemon:verify/gu)).toHaveLength(1);
+    expect(ci.match(/npm run runtime:safety/gu)).toHaveLength(1);
     expect(ci.match(/npm run dogfood/gu)).toHaveLength(1);
-    expect(ci).toContain("Dogfood gate on Node.js 22.x");
+    expect(ci).not.toContain("Package install smoke");
+    expect(ci).not.toContain("agent-runtime-release-smoke");
     expect(ci).not.toContain("--allow-real-run");
     expect(ci).not.toMatch(/\bnpm publish\b/u);
     expect(ci).not.toContain("NODE_AUTH_TOKEN");
@@ -1838,21 +1914,42 @@ setInterval(() => {}, 1000);
     expect(releaseCandidate).toMatch(/on:\n\s+workflow_dispatch:/u);
     expect(releaseCandidate).toContain("npm run ci");
     expect(releaseCandidate).toContain("npm run dogfood");
-    expect(releaseCandidate).toContain("npm pack --json");
+    expect(releaseCandidate).toContain("npm run release:candidate -- --out-dir release-candidate");
     expect(releaseCandidate).toContain("release-candidate/npm-pack.json");
     expect(releaseCandidate).toContain("release-candidate/package-files.txt");
-    expect(releaseCandidate).toContain("npm run release:verify -- --dir release-candidate --output release-candidate/release-verification.json");
+    expect(releaseCandidate).toContain("release-candidate/gate-evidence.json");
     expect(releaseCandidate).toContain("release-candidate/release-verification.json");
     expect(releaseCandidate).toContain("actions/upload-artifact@v4");
     expect(releaseCandidate).toContain("agent-cli-runtime-tarball");
     expect(releaseCandidate).toContain("agent-cli-runtime-pack-metadata");
     expect(releaseCandidate).toContain("agent-cli-runtime-package-files");
+    expect(releaseCandidate).toContain("agent-cli-runtime-gate-evidence");
     expect(releaseCandidate).toContain("agent-cli-runtime-release-verification");
     expect(releaseCandidate).toContain("retention-days: 14");
     expect(releaseCandidate).not.toMatch(/const disallowed|disallowed package artifact path/u);
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
+    expect(releaseCandidate).not.toContain("NPM_TOKEN");
+    expect(releaseCandidate).not.toContain("id-token: write");
+    expect(releaseCandidate).not.toContain("registry-url:");
     expect(releaseCandidate).not.toContain("--allow-real-run");
+  });
+
+  it("keeps prepublish and release candidate gates aligned with daemon-ready scripts", async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    const creator = await readFile(releaseCandidateCreator, "utf8");
+
+    expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
+    expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
+    expect(creator).toContain("agent-cli-runtime.releaseGateEvidence.v1");
+    expect(creator).toContain("npm run daemon:verify");
+    expect(creator).toContain("npm run runtime:safety");
+    expect(creator).toContain("gate-evidence.json");
+    expect(creator).not.toMatch(/\bnpm publish\b/u);
+    expect(creator).not.toContain("NODE_AUTH_TOKEN");
+    expect(creator).not.toContain("--allow-real-run");
   });
 
   it("documents publish dry-run with the alpha dist-tag instead of latest", async () => {
@@ -1916,7 +2013,7 @@ setInterval(() => {}, 1000);
     expect(goal.tasks).toEqual([expect.objectContaining({ id: "T001", status: "succeeded", attempts: 1 })]);
   }, 60_000);
 
-  it("supports package install smoke from npm pack tarball", async () => {
+  it.skipIf(!runInstalledPackageContractTests)("supports package install smoke from npm pack tarball", async () => {
     const tempProject = await tempDir("agent-runtime-install-smoke-");
     const packInfoText = (await execFileP("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", tempProject], { cwd: root }))
       .stdout.trim();

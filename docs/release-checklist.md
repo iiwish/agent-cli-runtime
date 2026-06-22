@@ -1,5 +1,16 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P3-4 CI / release gate alignment
+
+- [x] `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
+- [x] CI runs `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` in one single-Node release-gates job instead of repeating installed-package gates across the matrix.
+- [x] `.github/workflows/release-candidate.yml` remains manual `workflow_dispatch`, runs `npm ci`, `npm run ci`, `npm run dogfood`, and delegates artifact creation to `npm run release:candidate -- --out-dir release-candidate`.
+- [x] `release:candidate` writes `gate-evidence.json` with `agent-cli-runtime.releaseGateEvidence.v1`, `npm run daemon:verify`, `npm run runtime:safety`, and the installed-package output schema versions.
+- [x] `release:verify` requires `gate-evidence.json`, rejects missing or incomplete daemon-ready gate evidence, and still checks `.reference/`, tests/fixtures, private paths, token-looking values, Bearer values, and auth env assignments.
+- [x] `npm run prepublish:check` includes both `npm run daemon:verify` and `npm run runtime:safety`.
+- [x] Workflows still contain no `npm publish`, no `NODE_AUTH_TOKEN` / `NPM_TOKEN`, no trusted-publishing credential setup, and no `--allow-real-run`.
+- [ ] Trigger a fresh remote `.github/workflows/release-candidate.yml` run for the P3-4 commit and download/re-verify all five artifacts, including `agent-cli-runtime-gate-evidence`.
+
 ## P3-3 long-lived runtime resource safety gate
 
 - [x] `npm run runtime:safety` exists and emits `schemaVersion: "agent-runtime.runtimeSafety.v1"` JSON.
@@ -83,24 +94,25 @@
 
 `npm publish --dry-run --ignore-scripts --tag alpha` is a manual local safety check only. It must show `tag alpha`, must not publish, and must not require an npm token. Keep it out of required CI unless the output is proven stable enough for this repository.
 
-`npm test` uses Vitest's verbose reporter so long contract/install-smoke files keep emitting progress in CI and outer runners instead of appearing idle.
+`npm test` uses Vitest's verbose reporter for default contract coverage. Slower installed-package gates and install smokes are kept out of the Node.js matrix and run through single-Node release gates, `dogfood`, `prepublish:check`, or explicit opt-in checks.
 
 ## GitHub Actions release candidate
 
-P2-12 remote evidence, observed on 2026-06-20: `gh workflow run release-candidate.yml --ref main` created run `27869580048` for commit `2f8832119b4ebdb8393077052560589a398ebf56`; the run completed with conclusion `success` and uploaded all expected artifacts.
+P2-12 remote evidence, observed on 2026-06-20, remains historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`. P3-4 changes the artifact set by adding `gate-evidence.json`, so current-commit remote evidence is pending until a fresh `workflow_dispatch` run is triggered and reviewed.
 
-- [x] Trigger `.github/workflows/release-candidate.yml` manually with `workflow_dispatch`.
-- [x] Confirm the workflow runs `npm ci`, `npm run ci`, and `npm run dogfood`.
+- [ ] Trigger `.github/workflows/release-candidate.yml` manually with `workflow_dispatch` for the P3-4 commit.
+- [x] Confirm the workflow is configured to run `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`.
 - [x] Confirm dogfood output is limited to fixtures, fake CLIs, and real local detection/profile certification without `--allow-real-run`.
-- [x] Confirm `npm pack --json` creates a tarball artifact but no `npm publish` step exists.
-- [x] Confirm the workflow runs `npm run release:verify -- --dir release-candidate --output release-candidate/release-verification.json` before artifact upload.
-- [x] Download and review the uploaded artifacts:
+- [x] Confirm `npm run release:candidate` is configured to create a tarball artifact, gate evidence, and release verification JSON but no `npm publish` step exists.
+- [ ] Download and review the uploaded artifacts:
   - `agent-cli-runtime-tarball`
   - `agent-cli-runtime-pack-metadata`
   - `agent-cli-runtime-package-files`
+  - `agent-cli-runtime-gate-evidence`
   - `agent-cli-runtime-release-verification`
-- [x] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir <downloaded-artifact-dir>`.
-- [x] Confirm `release-verification.json` uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, has `ok: true`, and contains only redacted paths/diagnostics.
+- [ ] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir <downloaded-artifact-dir>`.
+- [ ] Confirm `release-verification.json` uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, has `ok: true`, and contains only redacted paths/diagnostics.
+- [ ] Confirm `gate-evidence.json` uses `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and records `daemon:verify` plus `runtime:safety`.
 - [x] Confirm no npm token, npm provenance publish, or registry credential is required.
 - [x] Confirm artifacts use the documented 14-day retention window.
 
@@ -171,6 +183,6 @@ P2-12 remote evidence, observed on 2026-06-20: `gh workflow run release-candidat
 - [ ] Confirm `conformance --mode real --agent all --json` without `--allow-real-run` does not launch real agent runs.
 - [ ] Confirm optional real run docs use isolated cwd by default and make `--allow-real-run` the explicit account/network boundary.
 - [ ] Confirm status-only exit `0` real smoke remains `unexpected_output`, not success.
-- [ ] Confirm package install smoke is added/updated in `tests/contract.test.ts`.
+- [ ] Confirm package install smoke is covered by `npm run dogfood` and remains available as the explicit `AGENT_RUNTIME_RUN_INSTALLED_PACKAGE_TESTS=1` contract test path.
 - [ ] Confirm `store-repair --apply` remains opt-in, holds the local store lease while writing, creates atomic backups, refuses live owners, records redacted repair success/failure diagnostics, leaves original logs untouched on backup/rewrite failure, is idempotent, and does not claim WAL/database/daemon resume semantics.
 - [ ] Confirm crash consistency tests cover manifest rename failure, JSONL append failure, repair backup/rewrite failure, fsync/fdatasync fallback, lock takeover/close behavior, corrupt lock read-only CLI inspection, and diagnostics redaction.

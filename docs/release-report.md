@@ -1,13 +1,30 @@
-# Release Report: 0.1.0-alpha.0 P2-13 plus P3-1 contract hardening
+# Release Report: 0.1.0-alpha.0 P2-13 plus P3-4 gate alignment
 
-Status: P3-1 Daemon-Ready Contract Hardening
+Status: P3-4 CI / Release Gate Alignment
 Last updated: 2026-06-22
 
 This report records release-candidate and alpha publish-readiness evidence for `agent-cli-runtime@0.1.0-alpha.0`, plus post-P2-13 daemon-ready contract hardening notes. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
 
 ## Verdict
 
-The release candidate has real GitHub Actions release-candidate evidence from P2-12: the manual workflow ran successfully, uploaded the expected artifacts, and the downloaded artifacts passed local machine verification. P2-13 adds package metadata review, an alpha publish runbook, and a manual npm dry-run gate. P3-1 records daemon-ready execution-kernel contracts for embedders without implementing a daemon. It is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+The release candidate has historical GitHub Actions release-candidate evidence from P2-12 for commit `2f8832119b4ebdb8393077052560589a398ebf56`. P3-4 updates CI and release-candidate artifacts so the P3-2 `daemon:verify` gate and P3-3 `runtime:safety` gate are represented in candidate evidence through `gate-evidence.json` and verified by `release:verify`. A fresh remote P3-4 workflow run is still pending for the current commit. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+
+## P3-4 CI / Release Gate Alignment
+
+P3-4 is local-first release gate alignment, not a new runtime feature and not an npm publication:
+
+- CI matrix: `.github/workflows/ci.yml` keeps Node.js 20/22/24 for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
+- Single-Node release gates: CI now runs `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` once on Node.js 22 to avoid repeating installed-package gates across the matrix.
+- Release-candidate workflow: `.github/workflows/release-candidate.yml` remains manual `workflow_dispatch`, runs `npm ci`, `npm run ci`, `npm run dogfood`, then runs `npm run release:candidate -- --out-dir release-candidate`.
+- Candidate artifacts: `release:candidate` writes `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, the tarball, and `release-verification.json`.
+- Gate evidence schema: `gate-evidence.json` uses `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and records `npm run daemon:verify` plus `npm run runtime:safety` with installed-package output schema versions.
+- Verifier: `release:verify` requires `gate-evidence.json`; missing or incomplete daemon-ready gate evidence fails verification while package boundary, private path, token-looking value, Bearer, and auth env checks remain active.
+- Boundary: workflows still contain no `npm publish`, no `NODE_AUTH_TOKEN` / `NPM_TOKEN`, no trusted-publishing credential setup, and no `--allow-real-run`.
+
+Remote P3-4 evidence status:
+
+- `remote_evidence`: pending.
+- Required next step: after the P3-4 commit is pushed, run `gh workflow run release-candidate.yml --ref <branch-or-sha>`, wait for the run to complete, download all five artifacts, normalize the artifact directory if needed, and run `npm run release:verify -- --dir <downloaded-artifact-dir>`.
 
 ## P3-1 Daemon-Ready Contract Hardening
 
@@ -111,9 +128,9 @@ P2-12 remote audit evidence on 2026-06-20:
 Expected remote evidence:
 
 - `.github/workflows/ci.yml` runs typecheck, lint, tests, build, production dependency audit, package boundary check, and `npm pack --dry-run` on Node.js 20/22/24.
-- The CI dogfood job runs once on Node.js 22 and executes `npm run dogfood` without passing `--allow-real-run`.
+- The CI release-gates job runs once on Node.js 22 and executes `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` without passing `--allow-real-run`.
 - `.github/workflows/release-candidate.yml` is manual `workflow_dispatch` only.
-- The release-candidate workflow runs `npm ci`, `npm run ci`, `npm run dogfood`, creates npm pack metadata, verifies the generated artifacts through `npm run release:verify`, and uploads artifacts.
+- The release-candidate workflow runs `npm ci`, `npm run ci`, `npm run dogfood`, creates npm pack metadata and daemon-ready gate evidence through `npm run release:candidate`, verifies the generated artifacts through `npm run release:verify`, and uploads artifacts.
 - No workflow runs `npm publish`, sets `NODE_AUTH_TOKEN`, or requires an npm token.
 P2-13 keeps those workflow guarantees and does not add a publish workflow.
 
@@ -126,9 +143,12 @@ The manual release-candidate workflow uploads:
 - `agent-cli-runtime-tarball`: the packed `agent-cli-runtime-0.1.0-alpha.0.tgz` tarball.
 - `agent-cli-runtime-pack-metadata`: `release-candidate/npm-pack.json` from `npm pack --json`.
 - `agent-cli-runtime-package-files`: `release-candidate/package-files.txt`, one packed package path per line.
+- `agent-cli-runtime-gate-evidence`: `release-candidate/gate-evidence.json` from `npm run release:candidate`.
 - `agent-cli-runtime-release-verification`: `release-candidate/release-verification.json` from `npm run release:verify`.
 
 Artifacts are retained for 14 days to keep the audit window explicit while avoiding long-lived stale release-candidate evidence.
+
+The P3-4 artifact set has five artifacts. The P2-12 downloaded artifact table below is retained as historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`; it predates `agent-cli-runtime-gate-evidence` and must not be reused as current P3-4 evidence.
 
 Downloaded artifact evidence from run `27869580048`:
 
@@ -166,7 +186,7 @@ Generate the same artifact shape locally without publishing:
 npm run release:candidate -- --out-dir release-candidate
 ```
 
-The command writes `npm-pack.json`, `package-files.txt`, the tarball, and `release-verification.json` to the chosen directory. It does not run `npm publish` and should not leave a tarball in the repository root.
+The command writes `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, the tarball, and `release-verification.json` to the chosen directory. It does not run `npm publish` and should not leave a tarball in the repository root.
 
 Verify a local or downloaded artifact directory:
 
@@ -197,7 +217,7 @@ Review the uploaded package file list and pack metadata before treating the cand
 
 `npm run package:check` is the local package boundary gate. It checks npm pack file paths and scans committed docs/examples/scripts for private paths and token-looking content. The release report itself is included in the package so consumers can inspect the candidate evidence and non-goals.
 
-`npm run release:verify` is the release artifact gate for generated or downloaded artifacts. It validates npm pack JSON, package file list parity, tarball filename/path/existence, disallowed package paths, private paths, and token-looking values, then emits stable redacted JSON.
+`npm run release:verify` is the release artifact gate for generated or downloaded artifacts. It validates npm pack JSON, package file list parity, daemon-ready gate evidence, tarball filename/path/existence, disallowed package paths, private paths, and token-looking values, then emits stable redacted JSON.
 
 ## Real CLI Evidence Boundary
 
@@ -208,6 +228,7 @@ Authenticated real runs require explicit `--allow-real-run` and remain local/man
 ## Known Risks
 
 - Remote GitHub Actions evidence is commit-specific; run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`.
+- P3-4 remote release-candidate evidence is pending until a fresh workflow run uploads and verifies `agent-cli-runtime-gate-evidence`.
 - Real CLI behavior, auth state, model lists, and flags can drift after this dated evidence.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume remain in `needsVerification`.
 - Claude Code authenticated run smoke depends on local auth or a correctly configured provider environment.
