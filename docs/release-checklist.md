@@ -1,23 +1,23 @@
 # Release Checklist (pre-alpha / developer preview)
 
-## P2-11 release candidate gate
+## P2-12 release candidate gate
 
-- [ ] `npm ci`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] `npm test`
-- [ ] `npm run build`
-- [ ] `npm run ci`
-- [ ] `npm run dogfood`
-- [ ] `npm run prepublish:check`
-- [ ] `npm run release:candidate -- --out-dir release-candidate`
-- [ ] `npm run release:verify -- --dir release-candidate`
+- [x] `npm ci` — passed in remote release-candidate run `27869580048`.
+- [x] `npm run typecheck` — passed locally on 2026-06-20.
+- [x] `npm run lint` — passed locally on 2026-06-20.
+- [x] `npm test` — passed locally on 2026-06-20 with 170 tests.
+- [x] `npm run build` — passed locally on 2026-06-20.
+- [x] `npm run ci` — passed in remote release-candidate run `27869580048`.
+- [x] `npm run dogfood` — passed locally and in remote release-candidate run `27869580048`.
+- [x] `npm run prepublish:check` — passed locally on 2026-06-20.
+- [x] `npm run release:candidate -- --out-dir <temp-dir>` — passed locally on 2026-06-20.
+- [x] `npm run release:verify -- --dir <temp-dir>` — passed locally and against downloaded remote artifacts.
 - [ ] `node ./dist/cli/main.js conformance --mode fixtures --json`
 - [ ] `node ./dist/cli/main.js conformance --mode fake --json`
-- [ ] `node ./dist/cli/main.js conformance --mode real --agent all --json`
+- [x] `node ./dist/cli/main.js conformance --mode real --agent all --json` — passed locally without `--allow-real-run`.
 - [ ] `node ./dist/cli/main.js smoke --mode fixtures --json`
-- [ ] `node ./dist/cli/main.js agents --json`
-- [ ] `node ./dist/cli/main.js doctor --json`
+- [x] `node ./dist/cli/main.js agents --json` — passed locally on 2026-06-20.
+- [x] `node ./dist/cli/main.js doctor --json` — passed locally on 2026-06-20.
 - [ ] `node ./dist/cli/main.js store-health --storage-dir <empty-temp-dir> --json`
 - [ ] `node ./dist/cli/main.js store-repair --storage-dir <empty-temp-dir> --dry-run --json`
 - [ ] Error contract: `node ./dist/cli/main.js run --json` exits `1` and prints parseable redacted JSON.
@@ -26,10 +26,10 @@
 - [ ] `node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --dry-run --json`
 - [ ] `node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --apply --json`
 - [ ] `node ./dist/cli/main.js store-health --storage-dir <corrupt-fixture-temp-dir> --json`
-- [ ] `npm audit --omit=dev`
-- [ ] `npm run package:check`
-- [ ] `npm pack --dry-run`
-- [ ] `npm publish --dry-run --ignore-scripts --tag alpha`
+- [x] `npm audit --omit=dev` — passed inside `npm run prepublish:check`.
+- [x] `npm run package:check` — passed locally on 2026-06-20.
+- [x] `npm pack --dry-run` — passed locally and inside `npm run prepublish:check`.
+- [x] `npm publish --dry-run --ignore-scripts --tag alpha` — passed locally as dry-run with `tag alpha`.
 
 `npm run dogfood` is the default publish-readiness bundle. It rebuilds, runs offline fixtures/fake conformance, runs real local detection/profile conformance without `--allow-real-run`, executes fake-CLI examples, performs a pack dry-run, and installs the packed tarball into a temporary project for package-root import, TypeScript `tsc --noEmit`, fake library run/goal/replay/diagnostics, and installed CLI smoke.
 
@@ -41,25 +41,27 @@
 
 ## GitHub Actions release candidate
 
-- [ ] Trigger `.github/workflows/release-candidate.yml` manually with `workflow_dispatch`.
-- [ ] Confirm the workflow runs `npm ci`, `npm run ci`, and `npm run dogfood`.
-- [ ] Confirm dogfood output is limited to fixtures, fake CLIs, and real local detection/profile certification without `--allow-real-run`.
-- [ ] Confirm `npm pack --json` creates a tarball artifact but no `npm publish` step exists.
-- [ ] Confirm the workflow runs `npm run release:verify -- --dir release-candidate --output release-candidate/release-verification.json` before artifact upload.
-- [ ] Download and review the uploaded artifacts:
+P2-12 remote evidence, observed on 2026-06-20: `gh workflow run release-candidate.yml --ref main` created run `27869580048` for commit `2f8832119b4ebdb8393077052560589a398ebf56`; the run completed with conclusion `success` and uploaded all expected artifacts.
+
+- [x] Trigger `.github/workflows/release-candidate.yml` manually with `workflow_dispatch`.
+- [x] Confirm the workflow runs `npm ci`, `npm run ci`, and `npm run dogfood`.
+- [x] Confirm dogfood output is limited to fixtures, fake CLIs, and real local detection/profile certification without `--allow-real-run`.
+- [x] Confirm `npm pack --json` creates a tarball artifact but no `npm publish` step exists.
+- [x] Confirm the workflow runs `npm run release:verify -- --dir release-candidate --output release-candidate/release-verification.json` before artifact upload.
+- [x] Download and review the uploaded artifacts:
   - `agent-cli-runtime-tarball`
   - `agent-cli-runtime-pack-metadata`
   - `agent-cli-runtime-package-files`
   - `agent-cli-runtime-release-verification`
-- [ ] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir <downloaded-artifact-dir>`.
-- [ ] Confirm `release-verification.json` uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, has `ok: true`, and contains only redacted paths/diagnostics.
-- [ ] Confirm no npm token, npm provenance publish, or registry credential is required.
-- [ ] Confirm artifacts use the documented 14-day retention window.
+- [x] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir <downloaded-artifact-dir>`.
+- [x] Confirm `release-verification.json` uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, has `ok: true`, and contains only redacted paths/diagnostics.
+- [x] Confirm no npm token, npm provenance publish, or registry credential is required.
+- [x] Confirm artifacts use the documented 14-day retention window.
 
 ## Package boundary verification
 
-- [ ] `npm run package:check`.
-- [ ] `npm run release:verify -- --dir <release-candidate-or-downloaded-artifact-dir>`.
+- [x] `npm run package:check`.
+- [x] `npm run release:verify -- --dir <release-candidate-or-downloaded-artifact-dir>`.
 - [ ] `npm pack --json` and confirm package files do not include:
   - `.reference/`
   - `tests/`
@@ -110,9 +112,9 @@
 - [ ] `README.md` and `README.zh-CN.md` explain Codex / Claude / OpenCode configuration without token values.
 - [ ] Claude Anthropic-compatible provider docs list environment variable names/placeholders only; no real token values.
 - [ ] `docs/compatibility.md` is refreshed with the 2026-06-20 local real conformance detection/preflight evidence and does not describe skipped/auth-missing runs as real-run success.
-- [ ] `README.md`, `README.zh-CN.md`, `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-11 status.
-- [ ] `docs/release-report.md` records local commands, remote workflow evidence expectations, artifact checklist, package boundary, real CLI evidence boundary, known risks, and explicit non-goals.
-- [ ] `docs/production-readiness.md` names remaining known risks rather than treating skipped/preflight evidence as real run success.
+- [x] `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-12 status.
+- [x] `docs/release-report.md` records local commands, remote workflow evidence, artifact checklist, package boundary, real CLI evidence boundary, known risks, and explicit non-goals.
+- [x] `docs/production-readiness.md` names remaining known risks rather than treating skipped/preflight evidence as real run success.
 
 ## Final review notes
 

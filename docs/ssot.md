@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P2-11 Release Candidate Artifact Verification & Remote Evidence Intake
+状态：P2-12 Remote Release Candidate Evidence Closure
 负责人：local project
 最后更新：2026-06-20
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -1098,8 +1098,17 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - 新增 `scripts/create-release-candidate.mjs` 和 `npm run release:candidate`，本地生成 release-candidate 目录：运行 `npm pack --json --pack-destination <out-dir>`，写入 `npm-pack.json`、`package-files.txt`、tarball 和 `release-verification.json`；不执行 `npm publish`，默认不在仓库根目录留下 tarball。
 - `.github/workflows/release-candidate.yml` 继续只允许 manual `workflow_dispatch`，继续运行 `npm ci`、`npm run ci`、`npm run dogfood`，但 artifact 校验改为复用 `npm run release:verify`；上传 tarball、pack metadata、package file list 和 release verification JSON，retention 仍为 14 天。
 - Contract tests 覆盖合法 release artifact verification、`.reference/`、tests、fixtures、raw real CLI output、private paths、token-looking/Bearer values 的拒绝、verification JSON schema/redaction、workflow 不包含 `npm publish`、`NODE_AUTH_TOKEN` 或 `--allow-real-run`，以及 `npm publish --dry-run --ignore-scripts --tag alpha` 文档约束。
-- 文档只把远端 GitHub Actions 视为 manual/pending evidence；未实际触发并审查 workflow 前，不声明远端 release-candidate workflow 已通过。
+- P2-11 当时只把远端 GitHub Actions 视为 manual/pending evidence；P2-12 已用真实 run 和下载 artifact 复验闭环，后续 commit 仍需重新触发并审查 workflow。
 - P2-11 仍不发布 npm，不要求 npm token，不执行 authenticated real agent run，不新增 daemon、database、WAL、remote worker、web UI、telemetry 或 package root value API；`createAgentRuntime` 仍是唯一 root value export。
+
+### P2-12：Remote Release Candidate Evidence Closure
+
+- P2-12 不新增 runtime API；目标是把 P2-11 的本地可复现 artifact verification 推进到真实 GitHub Actions `workflow_dispatch` run、artifact 下载、本地机器复验和文档证据闭环。
+- 2026-06-20 remote audit 触发了 `.github/workflows/release-candidate.yml` 的真实 `workflow_dispatch` run：run id `27869580048`，URL `https://github.com/iiwish/agent-cli-runtime/actions/runs/27869580048`，commit `2f8832119b4ebdb8393077052560589a398ebf56`，branch `main`，status/conclusion 为 `completed` / `success`。
+- 该 run 的 job `Build release candidate artifacts` 执行并通过 `npm ci`、`npm run ci`、`npm run dogfood`、`npm pack --json`、`npm run release:verify` 和四个 artifact upload step；workflow 没有执行 `npm publish`，没有要求 npm token，也没有传 `--allow-real-run`。
+- 下载并复验 artifacts：`agent-cli-runtime-tarball`、`agent-cli-runtime-pack-metadata`、`agent-cli-runtime-package-files`、`agent-cli-runtime-release-verification`。GitHub 下载目录按 artifact name 分层，因此临时归一化到同层 review dir 后执行 `npm run release:verify -- --dir /tmp/agent-runtime-p2-12-remote-5P5MSc/normalized`。
+- 下载 artifact 复验结果为 `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`、`ok: true`、package file count `145`、tarball `agent-cli-runtime-0.1.0-alpha.0.tgz`、tarball size `187378` bytes、tarball sha256 `3701bd6355651bbc200d5c017a9b01c3dd7136140b64dee0781e6eb601a7a657`、diagnostics empty。
+- P2-12 仍不发布 npm，不要求 npm token，不执行 authenticated real agent run，不新增 daemon、database、WAL、remote worker、web UI、telemetry 或 package root value API；remote evidence 只证明 commit `2f8832119b4ebdb8393077052560589a398ebf56`，不能自动外推到后续提交。
 
 ## 19. 待定问题
 

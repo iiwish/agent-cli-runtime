@@ -23,7 +23,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P2-11 release-candidate artifact verification and remote evidence intake track, not a stable API release.
+- This is a P2-12 remote release-candidate evidence closure track, not a stable API release.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no WAL, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended for local adapter orchestration on the user machine, not a hosted control plane.
@@ -333,7 +333,7 @@ node ./dist/cli/main.js conformance --mode real --agent all --json
 
 CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node dogfood job runs `npm run dogfood` so the full matrix does not launch redundant install smokes. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
 
-For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates and uploads the npm tarball plus pack metadata and package file list. It does not publish and does not require an npm token.
+For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates and uploads the npm tarball, pack metadata, package file list, and `release-verification.json`. It does not publish and does not require an npm token.
 
 To create a local release-candidate artifact set without publishing, run:
 

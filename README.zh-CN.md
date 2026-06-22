@@ -23,7 +23,7 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 本仓库目前处于 **pre-alpha / developer preview**。
 
 发布边界说明：
-- 这是 P2-11 release-candidate artifact verification 与 remote evidence intake 阶段，不承诺稳定 API。
+- 这是 P2-12 remote release-candidate evidence closure 阶段，不承诺稳定 API。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、WAL 或 remote runtime 模式承诺。
 - 运行时仍以本机本地编排为目标，不替代托管平台服务。
@@ -331,7 +331,7 @@ node ./dist/cli/main.js conformance --mode real --agent all --json
 
 CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、production dependency audit、package boundary check 和 `npm pack --dry-run`。`npm run dogfood` 放在单 Node 版本 job 中执行，避免 matrix 重复跑完整安装 smoke。dogfood、CI 和 prepublish 的默认边界一致：允许 fixtures、fake CLIs、真实本地 detection/profile certification；不带 `--allow-real-run` 时不启动 authenticated real agent run。
 
-本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood`，随后生成并上传 npm tarball、pack metadata 和 package file list。它不执行 publish，也不需要 npm token。
+本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood`，随后生成并上传 npm tarball、pack metadata、package file list 和 `release-verification.json`。它不执行 publish，也不需要 npm token。
 
 如需在本地生成可审查的 release-candidate artifact set：
 

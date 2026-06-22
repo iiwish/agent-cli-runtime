@@ -1,13 +1,13 @@
-# Release Report: 0.1.0-alpha.0 P2-11
+# Release Report: 0.1.0-alpha.0 P2-12
 
-Status: P2-11 Release Candidate Artifact Verification & Remote Evidence Intake
+Status: P2-12 Remote Release Candidate Evidence Closure
 Last updated: 2026-06-20
 
 This report records release-candidate evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview release candidate audit, not an npm publication record.
 
 ## Verdict
 
-The release candidate is ready for local artifact generation, local artifact verification, and manually triggered remote audit. It is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+The release candidate has real GitHub Actions release-candidate evidence: the manual workflow ran successfully, uploaded the expected artifacts, and the downloaded artifacts passed local machine verification. It is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
 
 ## Local Verification Commands
 
@@ -32,6 +32,23 @@ node ./dist/cli/main.js conformance --mode real --agent all --json
 
 ## Remote CI Evidence
 
+P2-12 remote audit evidence on 2026-06-20:
+
+- Local branch: `main`.
+- Remote branch: `main`.
+- Commit SHA: `2f8832119b4ebdb8393077052560589a398ebf56`.
+- `gh auth status` succeeded with workflow-capable GitHub CLI credentials.
+- `gh workflow run release-candidate.yml --ref main` created run `27869580048`.
+- Run URL: `https://github.com/iiwish/agent-cli-runtime/actions/runs/27869580048`.
+- Event: `workflow_dispatch`.
+- Workflow: `Release Candidate`.
+- Run status/conclusion: `completed` / `success`.
+- Run created: `2026-06-20T11:19:33Z`.
+- Run updated: `2026-06-20T11:20:40Z`.
+- Job `Build release candidate artifacts` started at `2026-06-20T11:19:37Z`, completed at `2026-06-20T11:20:39Z`, and concluded `success`.
+- The workflow steps `Install dependencies`, `Run CI gate`, `Run dogfood gate without authenticated real runs`, `Create npm pack artifact without publishing`, and all four artifact upload steps concluded `success`.
+- GitHub emitted a non-blocking annotation that the referenced actions still target deprecated Node.js 20 internals while the runner forces Node.js 24 for those actions.
+
 Expected remote evidence:
 
 - `.github/workflows/ci.yml` runs typecheck, lint, tests, build, production dependency audit, package boundary check, and `npm pack --dry-run` on Node.js 20/22/24.
@@ -40,7 +57,7 @@ Expected remote evidence:
 - The release-candidate workflow runs `npm ci`, `npm run ci`, `npm run dogfood`, creates npm pack metadata, verifies the generated artifacts through `npm run release:verify`, and uploads artifacts.
 - No workflow runs `npm publish`, sets `NODE_AUTH_TOKEN`, or requires an npm token.
 
-Remote GitHub Actions are expected evidence until manually triggered and reviewed. Do not mark remote CI as passed without an actual workflow run.
+Remote GitHub Actions evidence for this candidate is run `27869580048`. Do not reuse it as evidence for later commits.
 
 ## Release-Candidate Artifacts
 
@@ -52,6 +69,34 @@ The manual release-candidate workflow uploads:
 - `agent-cli-runtime-release-verification`: `release-candidate/release-verification.json` from `npm run release:verify`.
 
 Artifacts are retained for 14 days to keep the audit window explicit while avoiding long-lived stale release-candidate evidence.
+
+Downloaded artifact evidence from run `27869580048`:
+
+| Artifact | GitHub artifact id | Archive size | Digest | Expires |
+| --- | ---: | ---: | --- | --- |
+| `agent-cli-runtime-tarball` | `7764861497` | `187609` bytes | `sha256:db669f9ccf34873ec1619c9d7fe1669a2bdc49a4de64a7e183c1d8fe5f1a4aea` | `2026-07-04T11:20:35Z` |
+| `agent-cli-runtime-pack-metadata` | `7764861577` | `1921` bytes | `sha256:0b02f459bd8bdf87c1787ecc43b2a748e27841bd59092b2e72b405970503250f` | `2026-07-04T11:20:36Z` |
+| `agent-cli-runtime-package-files` | `7764861640` | `924` bytes | `sha256:9b3d5b591520d5c86723e6cb47c1bf24d11723b85d17251b4cc2095115608c52` | `2026-07-04T11:20:37Z` |
+| `agent-cli-runtime-release-verification` | `7764861710` | `444` bytes | `sha256:56cb8a125a27b88b816762b6cc9ed5320da66fcc26040c4fa4fec39faec2cf99` | `2026-07-04T11:20:37Z` |
+
+`gh run download 27869580048` downloaded artifacts into one subdirectory per artifact name. The downloaded files were copied into a temporary normalized review directory so the verifier could inspect `npm-pack.json`, `package-files.txt`, `release-verification.json`, and the tarball together.
+
+Downloaded artifact re-verification:
+
+```bash
+npm run release:verify -- --dir /tmp/agent-runtime-p2-12-remote-5P5MSc/normalized
+```
+
+Result:
+
+- `schemaVersion`: `agent-cli-runtime.releaseVerification.v1`
+- `ok`: `true`
+- package file count: `145`
+- tarball: `agent-cli-runtime-0.1.0-alpha.0.tgz`
+- tarball size: `187378` bytes
+- tarball sha256: `3701bd6355651bbc200d5c017a9b01c3dd7136140b64dee0781e6eb601a7a657`
+- package name/version: `agent-cli-runtime@0.1.0-alpha.0`
+- diagnostics: empty
 
 ## Local Artifact Generation And Verification
 
@@ -69,7 +114,7 @@ Verify a local or downloaded artifact directory:
 npm run release:verify -- --dir release-candidate
 ```
 
-The verification JSON uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"` and reports `ok`, `checkedFiles`, `tarball`, `diagnostics`, `artifactNames`, `packageName`, and `version`. Paths and secret-looking values in diagnostics are redacted. Remote GitHub Actions evidence remains manual/pending until the workflow is actually triggered and reviewed.
+The verification JSON uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"` and reports `ok`, `checkedFiles`, `tarball`, `diagnostics`, `artifactNames`, `packageName`, and `version`. Paths and secret-looking values in diagnostics are redacted.
 
 ## Artifact Review Checklist
 
@@ -100,7 +145,7 @@ Authenticated real runs require explicit `--allow-real-run` and remain local/man
 
 ## Known Risks
 
-- Remote GitHub Actions evidence must be manually triggered and reviewed; local files alone do not prove remote CI passed.
+- Remote GitHub Actions evidence is commit-specific; run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`.
 - Real CLI behavior, auth state, model lists, and flags can drift after this dated evidence.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume remain in `needsVerification`.
 - Claude Code authenticated run smoke depends on local auth or a correctly configured provider environment.

@@ -1,13 +1,13 @@
 # Agent CLI Compatibility Matrix
 
-Status: P2-11 Release Candidate Artifact Verification & Remote Evidence Intake
+Status: P2-12 Remote Release Candidate Evidence Closure
 Last updated: 2026-06-20
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P2-11 adds reusable release-candidate artifact verification and remote evidence intake on top of the P2-10 artifact workflow shape and P2-9 package-root API/consumer compatibility gate. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P2-11 adds reusable release-candidate artifact verification and remote evidence intake on top of the P2-10 artifact workflow shape and P2-9 package-root API/consumer compatibility gate. P2-12 closes the real GitHub Actions evidence loop for commit `2f8832119b4ebdb8393077052560589a398ebf56`: the manual release-candidate workflow completed successfully, uploaded artifacts, and the downloaded artifacts passed local machine verification. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P2-11 pre-alpha release-candidate evidence, which is intended to be the default interpretation for this matrix.
+Current status is P2-12 pre-alpha release-candidate evidence, which is intended to be the default interpretation for this matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
@@ -16,6 +16,7 @@ Current status is P2-11 pre-alpha release-candidate evidence, which is intended 
 - `npm run release:candidate` creates local release-candidate artifacts, and `npm run release:verify -- --dir <path>` validates local or downloaded artifacts with stable redacted JSON.
 - `npm publish --dry-run --ignore-scripts --tag alpha` is a documented manual local dry-run check; it is not a remote CI gate.
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
+- Remote GitHub Actions release-candidate evidence is run `27869580048` on commit `2f8832119b4ebdb8393077052560589a398ebf56`; do not reuse it for later commits.
 - Evidence modes are intentionally separate:
   - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
   - `fake`: temporary local fake CLIs through the real adapter argv/stdin/parser path; no network or real account is used.
@@ -24,6 +25,22 @@ Current status is P2-11 pre-alpha release-candidate evidence, which is intended 
 - P1-6 and earlier notes in this file are historical references for parser fixtures, timeout/reconnect evidence, and compatibility context; they are not equivalent to current "latest expected" contract assumptions.
 - When using this file as runtime contract input, prioritize the `Status` section, explicit "Runtime notes" in each adapter, and the most recent command evidence.
 - For changed behavior, add a new evidence row at the top of the section rather than keeping the old row as authoritative.
+
+## P2-12 Remote Release Candidate Evidence Closure
+
+P2-12 remote audit evidence on 2026-06-20:
+
+- Commit: `2f8832119b4ebdb8393077052560589a398ebf56`.
+- Run id: `27869580048`.
+- Run URL: `https://github.com/iiwish/agent-cli-runtime/actions/runs/27869580048`.
+- Run event: `workflow_dispatch`.
+- Run status/conclusion: `completed` / `success`.
+- Run created/updated: `2026-06-20T11:19:33Z` / `2026-06-20T11:20:40Z`.
+- Uploaded artifacts: `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-release-verification`.
+- Downloaded artifact re-verification: `npm run release:verify -- --dir /tmp/agent-runtime-p2-12-remote-5P5MSc/normalized`.
+- Verification result: `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `145`, tarball `agent-cli-runtime-0.1.0-alpha.0.tgz`, tarball size `187378` bytes, tarball sha256 `3701bd6355651bbc200d5c017a9b01c3dd7136140b64dee0781e6eb601a7a657`, empty diagnostics.
+
+The GitHub download layout used one directory per artifact name; the downloaded files were copied into a temporary normalized review directory before local verification.
 
 ## P2-11 Release Candidate Artifact Verification And Remote Evidence Intake
 
