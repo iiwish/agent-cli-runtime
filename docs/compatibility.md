@@ -1,13 +1,13 @@
 # Agent CLI Compatibility Matrix
 
-Status: P2-12 Remote Release Candidate Evidence Closure
-Last updated: 2026-06-20
+Status: P2-13 Alpha Publish Readiness Decision
+Last updated: 2026-06-22
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P2-11 adds reusable release-candidate artifact verification and remote evidence intake on top of the P2-10 artifact workflow shape and P2-9 package-root API/consumer compatibility gate. P2-12 closes the real GitHub Actions evidence loop for commit `2f8832119b4ebdb8393077052560589a398ebf56`: the manual release-candidate workflow completed successfully, uploaded artifacts, and the downloaded artifacts passed local machine verification. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P2-11 adds reusable release-candidate artifact verification and remote evidence intake on top of the P2-10 artifact workflow shape and P2-9 package-root API/consumer compatibility gate. P2-12 closes the real GitHub Actions evidence loop for commit `2f8832119b4ebdb8393077052560589a398ebf56`: the manual release-candidate workflow completed successfully, uploaded artifacts, and the downloaded artifacts passed local machine verification. P2-13 adds alpha publish readiness docs and npm metadata/dry-run gates only; it does not publish npm, configure trusted publishing, or change runtime compatibility behavior. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P2-12 pre-alpha release-candidate evidence, which is intended to be the default interpretation for this matrix.
+Current status is P2-13 pre-alpha alpha-publish-readiness evidence, which is intended to be the default interpretation for this matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
@@ -15,6 +15,7 @@ Current status is P2-12 pre-alpha release-candidate evidence, which is intended 
 - `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, dogfood, production audit, package boundary checks, and pack dry-run.
 - `npm run release:candidate` creates local release-candidate artifacts, and `npm run release:verify -- --dir <path>` validates local or downloaded artifacts with stable redacted JSON.
 - `npm publish --dry-run --ignore-scripts --tag alpha` is a documented manual local dry-run check; it is not a remote CI gate.
+- `docs/release-publish-runbook.md` documents the future human alpha publish path, dist-tag verification, rollback/deprecation/unpublish boundary, 2FA, trusted publishing, provenance, and token strategy; no real publish is performed in P2-13.
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
 - Remote GitHub Actions release-candidate evidence is run `27869580048` on commit `2f8832119b4ebdb8393077052560589a398ebf56`; do not reuse it for later commits.
 - Evidence modes are intentionally separate:
@@ -41,6 +42,17 @@ P2-12 remote audit evidence on 2026-06-20:
 - Verification result: `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `145`, tarball `agent-cli-runtime-0.1.0-alpha.0.tgz`, tarball size `187378` bytes, tarball sha256 `3701bd6355651bbc200d5c017a9b01c3dd7136140b64dee0781e6eb601a7a657`, empty diagnostics.
 
 The GitHub download layout used one directory per artifact name; the downloaded files were copied into a temporary normalized review directory before local verification.
+
+## P2-13 Alpha Publish Readiness Decision
+
+P2-13 does not change adapter compatibility. It keeps the pre-alpha runtime behavior and adds only publish-readiness evidence:
+
+- package metadata includes repository, homepage, bugs, keywords, Node engine, `publishConfig.tag: "alpha"`, package root `exports`, CLI `bin`, and the existing `files` boundary;
+- the package root value export remains `createAgentRuntime` only;
+- `docs/release-publish-runbook.md` records future real publish commands without executing them in this stage;
+- `npm publish --dry-run --ignore-scripts --tag alpha` is the only publish simulation for P2-13;
+- `.github/workflows/ci.yml` and `.github/workflows/release-candidate.yml` remain artifact/check workflows and do not publish npm or require registry credentials;
+- trusted publishing and provenance are future choices, not configured evidence for P2-13.
 
 ## P2-11 Release Candidate Artifact Verification And Remote Evidence Intake
 

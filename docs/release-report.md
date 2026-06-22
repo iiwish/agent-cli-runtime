@@ -1,13 +1,41 @@
-# Release Report: 0.1.0-alpha.0 P2-12
+# Release Report: 0.1.0-alpha.0 P2-13
 
-Status: P2-12 Remote Release Candidate Evidence Closure
-Last updated: 2026-06-20
+Status: P2-13 Alpha Publish Readiness Decision
+Last updated: 2026-06-22
 
-This report records release-candidate evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview release candidate audit, not an npm publication record.
+This report records release-candidate and alpha publish-readiness evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview release audit and decision package, not an npm publication record.
 
 ## Verdict
 
-The release candidate has real GitHub Actions release-candidate evidence: the manual workflow ran successfully, uploaded the expected artifacts, and the downloaded artifacts passed local machine verification. It is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+The release candidate has real GitHub Actions release-candidate evidence from P2-12: the manual workflow ran successfully, uploaded the expected artifacts, and the downloaded artifacts passed local machine verification. P2-13 adds package metadata review, an alpha publish runbook, and a manual npm dry-run gate. It is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+
+## P2-13 Alpha Publish Readiness
+
+Decision state:
+
+- npm publication: not performed.
+- Package metadata: `repository`, `homepage`, and `bugs` are present alongside the existing package entrypoint, files, engines, keywords, and `publishConfig.tag: "alpha"`.
+- Public API boundary: package root value export remains `createAgentRuntime` only; public types remain declaration/type surface.
+- Publish runbook: [docs/release-publish-runbook.md](./release-publish-runbook.md) records dry-run, real publish commands, human confirmation points, dist-tag checks, rollback/deprecation/unpublish boundaries, 2FA, trusted publishing, provenance, and token strategy.
+- Workflow strategy: `.github/workflows/ci.yml` and `.github/workflows/release-candidate.yml` remain artifact/check workflows only. They do not run `npm publish`, do not configure registry credentials, and do not require npm tokens.
+- Token/provenance/2FA decision: prefer future trusted publishing through a dedicated publish workflow and npm-side trusted publisher configuration; for a first manual alpha, use interactive maintainer publish with npm 2FA and no committed tokens. Trusted publishing is not configured in P2-13, and local manual publish must not claim GitHub Actions provenance.
+- Dist-tag decision: future real publish must use `--tag alpha`; `latest` must not move for this pre-alpha package.
+- Rollback decision: wrong dist-tags are fixed with `npm dist-tag`; unsafe package content requires a new version, deprecation, or npm-policy-eligible unpublish. The same `name@version` cannot be overwritten.
+
+P2-13 local validation on 2026-06-22:
+
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed with 172 tests across 9 files.
+- `npm run build`: passed.
+- `npm run package:check`: passed with `package boundary ok: 146 files checked`.
+- `npm run release:candidate -- --out-dir <tmp-dir>`: passed, producing `agent-cli-runtime-0.1.0-alpha.0.tgz`.
+- `npm run release:verify -- --dir <tmp-dir>`: passed with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `146`, and empty diagnostics.
+- `npm pack --dry-run`: passed with total files `146` and `docs/release-publish-runbook.md` included.
+- `npm publish --dry-run --ignore-scripts --tag alpha`: passed as a dry-run. npm reported `Publishing to https://registry.npmjs.org/ with tag alpha and default access (dry-run)` and did not publish.
+- `node ./dist/cli/main.js agents --json`: passed.
+- `node ./dist/cli/main.js doctor --json`: passed with `ok: true`; Claude Code remains `auth_missing`, which is expected local auth evidence rather than real-run success.
+- `git diff --check`: passed.
 
 ## Local Verification Commands
 
@@ -25,6 +53,9 @@ npm run release:candidate -- --out-dir release-candidate
 npm run release:verify -- --dir release-candidate
 npm pack --dry-run
 npm publish --dry-run --ignore-scripts --tag alpha
+node ./dist/cli/main.js agents --json
+node ./dist/cli/main.js doctor --json
+git diff --check
 node ./dist/cli/main.js conformance --mode real --agent all --json
 ```
 
@@ -56,6 +87,7 @@ Expected remote evidence:
 - `.github/workflows/release-candidate.yml` is manual `workflow_dispatch` only.
 - The release-candidate workflow runs `npm ci`, `npm run ci`, `npm run dogfood`, creates npm pack metadata, verifies the generated artifacts through `npm run release:verify`, and uploads artifacts.
 - No workflow runs `npm publish`, sets `NODE_AUTH_TOKEN`, or requires an npm token.
+P2-13 keeps those workflow guarantees and does not add a publish workflow.
 
 Remote GitHub Actions evidence for this candidate is run `27869580048`. Do not reuse it as evidence for later commits.
 
@@ -129,6 +161,7 @@ Review the uploaded package file list and pack metadata before treating the cand
 - No real private paths.
 - No token-looking values, Bearer values, or auth env assignment values.
 - Includes `dist/`, README files, LICENSE, docs, examples, `scripts/dogfood.mjs`, and release docs.
+- Includes `docs/release-publish-runbook.md`.
 - Package root value API remains limited to `createAgentRuntime`; public TypeScript types remain type exports.
 
 ## Package Boundary
@@ -150,11 +183,13 @@ Authenticated real runs require explicit `--allow-real-run` and remain local/man
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume remain in `needsVerification`.
 - Claude Code authenticated run smoke depends on local auth or a correctly configured provider environment.
 - npm dry-run output can vary by npm version and registry context, so it remains a manual/local gate rather than a flaky CI requirement.
+- Trusted publishing and provenance are not configured in P2-13. Any future provenance claim must match the actual publish path.
 
 ## Explicit Non-Goals
 
 - Do not publish npm.
 - Do not require npm token or registry credentials.
+- Do not configure trusted publishing or npm provenance.
 - Do not claim stable API.
 - Do not claim OpenDesign daemon parity.
 - Do not add daemon, database, WAL, remote worker, web UI, telemetry, or scheduler expansion.

@@ -23,12 +23,12 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 本仓库目前处于 **pre-alpha / developer preview**。
 
 发布边界说明：
-- 这是 P2-12 remote release-candidate evidence closure 阶段，不承诺稳定 API。
+- 这是 P2-13 alpha publish readiness decision 阶段，不承诺稳定 API，也不是 npm 发布记录。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、WAL 或 remote runtime 模式承诺。
 - 运行时仍以本机本地编排为目标，不替代托管平台服务。
 
-SSOT 在 [docs/ssot.md](./docs/ssot.md)，release-candidate 证据入口在 [docs/release-report.md](./docs/release-report.md)。当前实现是 release-candidate-hardening 的 library-first Node.js/TypeScript 版本，默认 memory-only run / goal 调度，可选 durable local replay storage 及 crash/recovery health reporting，并补充 fault-injected consistency coverage、package-root API contract tests 和 tarball TypeScript consumer smoke；包含内置 CLI compatibility profiles、强化后的 planner/task-graph validation、版本化 event/diagnostics/conformance 契约、parser fixtures、本地/远端 release artifact verification、remote CI/artifact audit checks，以及本地 smoke/query 薄 CLI。
+SSOT 在 [docs/ssot.md](./docs/ssot.md)，release-candidate 证据入口在 [docs/release-report.md](./docs/release-report.md)，未来 alpha 发布 runbook 在 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。当前实现是 release-candidate-hardening 的 library-first Node.js/TypeScript 版本，默认 memory-only run / goal 调度，可选 durable local replay storage 及 crash/recovery health reporting，并补充 fault-injected consistency coverage、package-root API contract tests 和 tarball TypeScript consumer smoke；包含内置 CLI compatibility profiles、强化后的 planner/task-graph validation、版本化 event/diagnostics/conformance 契约、parser fixtures、本地/远端 release artifact verification、remote CI/artifact audit checks、alpha publish readiness docs，以及本地 smoke/query 薄 CLI。
 
 ## 为什么需要它
 
@@ -342,7 +342,7 @@ npm run release:verify -- --dir release-candidate
 
 `release:candidate` 会在输出目录写入 `npm-pack.json`、`package-files.txt`、tarball 和 `release-verification.json`。`release:verify` 也可用于下载 GitHub Actions artifacts 后复核同一组文件。
 
-Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在该文档中；它不得真的 publish，也不作为远端 CI 必选 gate。
+Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。
 
 可运行示例见 [examples/library-run.js](./examples/library-run.js)、[examples/library-goal.js](./examples/library-goal.js) 和 [examples/cli-dogfood.md](./examples/cli-dogfood.md)。两个 JavaScript 示例会创建本地 fake CLI，不需要真实 provider secret。
 

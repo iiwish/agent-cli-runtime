@@ -1,8 +1,8 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P2-12 Remote Release Candidate Evidence Closure
+状态：P2-13 Alpha Publish Readiness Decision
 负责人：local project
-最后更新：2026-06-20
+最后更新：2026-06-22
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
 
 本页同时记录了当前边界与历史里程碑；凡未以“当前”或“P2-1”明确标注者，均作为历史证据归档，不代表当前承诺 API。
@@ -1109,6 +1109,17 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - 下载并复验 artifacts：`agent-cli-runtime-tarball`、`agent-cli-runtime-pack-metadata`、`agent-cli-runtime-package-files`、`agent-cli-runtime-release-verification`。GitHub 下载目录按 artifact name 分层，因此临时归一化到同层 review dir 后执行 `npm run release:verify -- --dir /tmp/agent-runtime-p2-12-remote-5P5MSc/normalized`。
 - 下载 artifact 复验结果为 `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`、`ok: true`、package file count `145`、tarball `agent-cli-runtime-0.1.0-alpha.0.tgz`、tarball size `187378` bytes、tarball sha256 `3701bd6355651bbc200d5c017a9b01c3dd7136140b64dee0781e6eb601a7a657`、diagnostics empty。
 - P2-12 仍不发布 npm，不要求 npm token，不执行 authenticated real agent run，不新增 daemon、database、WAL、remote worker、web UI、telemetry 或 package root value API；remote evidence 只证明 commit `2f8832119b4ebdb8393077052560589a398ebf56`，不能自动外推到后续提交。
+
+### P2-13：Alpha Publish Readiness Decision
+
+- P2-13 不新增 runtime API；目标是把 alpha 发布前的 package metadata、npm dry-run、2FA/token/provenance/trusted-publishing 策略、dist-tag、rollback 和 runbook 做成可审查的决策包。
+- 本阶段不执行真实 `npm publish`，不创建 npm token，不配置 npm trusted publishing，不发布 GitHub release，不执行 authenticated real agent run。
+- `package.json` 发布 metadata 补齐到 npm 用户可用的最小完整集合：`repository`、`homepage`、`bugs` 与既有 `name`、`version`、`description`、`license`、`type`、`bin`、`main`、`types`、`exports`、`files`、`engines`、`keywords`、`publishConfig.tag: "alpha"` 一起接受 contract test 覆盖。
+- Package root value export 继续只承诺 `createAgentRuntime`；public types 仍通过 package root declarations 暴露，不扩大 runtime value API。
+- 新增 `docs/release-publish-runbook.md`，记录 `npm publish --dry-run --ignore-scripts --tag alpha`、未来真人确认后的 `npm publish --tag alpha`、2FA、trusted publishing/provenance、token 策略、dist-tag 检查、rollback/deprecation/unpublish 边界，以及版本不可覆盖规则。
+- `.github/workflows/ci.yml` 和 `.github/workflows/release-candidate.yml` 继续 artifact/check-only：不包含 `npm publish`，不配置 registry credential env，不要求 npm token，不传 `--allow-real-run`。
+- `docs/release-report.md`、`docs/release-checklist.md`、`docs/production-readiness.md` 和 `docs/compatibility.md` 更新为 P2-13 alpha publish readiness 口径，同时保持 pre-alpha / developer preview，不宣称 production-ready 或 stable API。
+- P2-13 的推荐进入下一步条件是：本地完整验证通过、dry-run 明确 `tag alpha`、package boundary 继续排除 `.reference/`、tests、fixtures、raw real CLI output、真实私有路径和 token-looking values，然后由 human maintainer 决定是否配置 trusted publishing 或执行一次手动 alpha publish。
 
 ## 19. 待定问题
 

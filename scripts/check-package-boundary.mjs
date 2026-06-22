@@ -71,6 +71,7 @@ const requiredFiles = [
   "LICENSE",
   "docs/release-checklist.md",
   "docs/release-report.md",
+  "docs/release-publish-runbook.md",
   "docs/production-readiness.md",
   "docs/compatibility.md",
   "examples/cli-dogfood.md",

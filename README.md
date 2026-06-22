@@ -23,12 +23,12 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P2-12 remote release-candidate evidence closure track, not a stable API release.
+- This is a P2-13 alpha publish readiness decision track, not a stable API release or npm publication record.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no WAL, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended for local adapter orchestration on the user machine, not a hosted control plane.
 
-The SSOT is available in [docs/ssot.md](./docs/ssot.md), and the release-candidate evidence entrypoint is [docs/release-report.md](./docs/release-report.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, package-root API contract tests, tarball TypeScript consumer smoke, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance contracts, redacted diagnostics, parser fixtures, local/remote release artifact verification, remote CI/artifact audit checks, and thin local smoke/query CLI commands.
+The SSOT is available in [docs/ssot.md](./docs/ssot.md), the release-candidate evidence entrypoint is [docs/release-report.md](./docs/release-report.md), and the future alpha publish runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). The current implementation is a release-candidate-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, package-root API contract tests, tarball TypeScript consumer smoke, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance contracts, redacted diagnostics, parser fixtures, local/remote release artifact verification, remote CI/artifact audit checks, alpha publish readiness docs, and thin local smoke/query CLI commands.
 
 ## Why
 
@@ -344,7 +344,7 @@ npm run release:verify -- --dir release-candidate
 
 `release:candidate` writes `npm-pack.json`, `package-files.txt`, the tarball, and `release-verification.json` to the output directory. `release:verify` can also validate the same files after downloading GitHub Actions artifacts.
 
-The release evidence summary is [docs/release-report.md](./docs/release-report.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate.
+The release evidence summary is [docs/release-report.md](./docs/release-report.md). The alpha publish decision runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate.
 
 Runnable examples are in [examples/library-run.js](./examples/library-run.js), [examples/library-goal.js](./examples/library-goal.js), and [examples/cli-dogfood.md](./examples/cli-dogfood.md). The JavaScript examples create local fake CLIs and do not require real provider secrets.
 

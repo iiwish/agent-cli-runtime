@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P2-12 remote release candidate evidence closure
-Last updated: 2026-06-20
+Status: P2-13 alpha publish readiness decision
+Last updated: 2026-06-22
 
-This project is still **pre-alpha / developer preview**. P2-11 turned the P2-10 release-candidate artifact shape into a locally reproducible and machine-verifiable evidence loop without publishing npm: local generation creates a tarball, pack metadata, package file list, and verification JSON; the manual release-candidate workflow reuses the same verifier and uploads the verification artifact. P2-12 closes the remote evidence loop for commit `2f8832119b4ebdb8393077052560589a398ebf56`: GitHub Actions run `27869580048` completed successfully, uploaded the expected artifacts, and the downloaded artifacts passed local `npm run release:verify`. [docs/release-report.md](./release-report.md) records the evidence. P2-12 keeps the P2-9 API/consumer compatibility work and P2-8 crash-consistency/repair safety work, but it is still not OpenDesign daemon-level production: it does not add daemon/web/db/WAL/telemetry/artifact layers.
+This project is still **pre-alpha / developer preview**. P2-11 turned the P2-10 release-candidate artifact shape into a locally reproducible and machine-verifiable evidence loop without publishing npm: local generation creates a tarball, pack metadata, package file list, and verification JSON; the manual release-candidate workflow reuses the same verifier and uploads the verification artifact. P2-12 closes the remote evidence loop for commit `2f8832119b4ebdb8393077052560589a398ebf56`: GitHub Actions run `27869580048` completed successfully, uploaded the expected artifacts, and the downloaded artifacts passed local `npm run release:verify`. P2-13 adds alpha publish readiness only: package metadata review, npm dry-run evidence, and [docs/release-publish-runbook.md](./release-publish-runbook.md). It still does not publish npm, configure trusted publishing, claim provenance, or add daemon/web/db/WAL/telemetry/artifact layers.
 
 ## Local-First Production Definition
 
@@ -26,6 +26,7 @@ For this repository, "production-ready local runtime" means:
 - `npm run prepublish:check` is the local prepublish guard and also avoids authenticated real agent runs;
 - `npm run release:candidate` creates local release-candidate artifacts without publishing npm;
 - `npm run release:verify` validates local or downloaded release artifacts and emits stable redacted JSON;
+- `docs/release-publish-runbook.md` records the future alpha publish command path, 2FA/trusted publishing/provenance decisions, dist-tag checks, and rollback boundaries without configuring real publishing;
 - CLI JSON success and error contracts are parseable, redacted, and covered for core release-facing commands;
 - `npm test` uses Vitest verbose output so long contract/install-smoke coverage does not look idle to CI or local watchdogs;
 - GitHub Actions CI runs Node.js 20/22/24 matrix checks plus one single-Node dogfood job;
@@ -139,6 +140,7 @@ Included release-candidate artifacts:
 - `docs/production-readiness.md`
 - `docs/release-checklist.md`
 - `docs/release-report.md`
+- `docs/release-publish-runbook.md`
 - `examples/library-run.js`
 - `examples/library-goal.js`
 - `examples/cli-dogfood.md`
@@ -175,7 +177,7 @@ Excluded artifacts:
 - Real conformance preflight can classify a local CLI as unavailable/auth-missing because of machine-specific executable, auth, network, or proxy state. That skip is useful compatibility evidence but is not a successful real run.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume mappings remain in `needsVerification`.
 - Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment.
-- P2-12 does not implement scheduler expansion, daemon, database, WAL, remote workers, web UI, telemetry, npm publish, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
+- P2-13 does not implement scheduler expansion, daemon, database, WAL, remote workers, web UI, telemetry, npm publish, trusted publishing configuration, provenance publishing, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
 
 ## Durable Supervisor Contract
 

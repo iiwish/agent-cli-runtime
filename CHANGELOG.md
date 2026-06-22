@@ -2,6 +2,11 @@
 
 ## 0.1.0-alpha.0 — pre-alpha developer preview (release-candidate hardening)
 
+- P2-13 alpha publish readiness decision:
+  - completed npm metadata review by adding repository, homepage, and bugs entries while keeping `publishConfig.tag: "alpha"`;
+  - added `docs/release-publish-runbook.md` for dry-run, future real publish commands, human confirmation points, dist-tag checks, rollback/deprecation/unpublish boundaries, 2FA, trusted publishing, provenance, and token strategy;
+  - kept the workflows artifact-only and token-free, with contract coverage for no `npm publish` steps and no registry credential requirements;
+  - kept package root value exports limited to `createAgentRuntime` and did not publish npm.
 - P2-10 release candidate artifact and remote CI audit:
   - added `docs/release-report.md` for local verification, remote workflow evidence expectations, artifact review, package boundary, real CLI evidence boundaries, known risks, and explicit non-goals;
   - hardened the manual release-candidate workflow with package file-list validation and explicit artifact retention while keeping it `workflow_dispatch` only;

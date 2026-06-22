@@ -4,6 +4,14 @@
   "description": "Local-first TypeScript runtime for scheduling Codex CLI, Claude Code, OpenCode, and compatible coding-agent CLIs.",
   "type": "module",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iiwish/agent-cli-runtime.git"
+  },
+  "homepage": "https://github.com/iiwish/agent-cli-runtime#readme",
+  "bugs": {
+    "url": "https://github.com/iiwish/agent-cli-runtime/issues"
+  },
   "bin": {
     "agent-runtime": "dist/cli/main.js"
   },
@@ -29,6 +37,7 @@
     "examples",
     "docs/release-checklist.md",
     "docs/release-report.md",
+    "docs/release-publish-runbook.md",
     "docs/ssot.md",
     "docs/compatibility.md",
     "docs/production-readiness.md",

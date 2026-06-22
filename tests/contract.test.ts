@@ -193,6 +193,54 @@ describe("public contract", () => {
     expect(declaration).not.toContain("./adapters/registry");
   });
 
+  it("keeps npm package metadata complete without widening the public entrypoint", async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
+      name: string;
+      version: string;
+      description: string;
+      license: string;
+      type: string;
+      bin: Record<string, string>;
+      main: string;
+      types: string;
+      exports: Record<string, { import: string; types: string }>;
+      files: string[];
+      engines: Record<string, string>;
+      repository: { type: string; url: string };
+      homepage: string;
+      bugs: { url: string };
+      keywords: string[];
+      publishConfig: { tag: string };
+    };
+
+    expect(manifest).toMatchObject({
+      name: "agent-cli-runtime",
+      version: "0.1.0-alpha.0",
+      license: "Apache-2.0",
+      type: "module",
+      bin: { "agent-runtime": "dist/cli/main.js" },
+      main: "./dist/index.js",
+      types: "./dist/index.d.ts",
+      repository: {
+        type: "git",
+        url: "git+https://github.com/iiwish/agent-cli-runtime.git",
+      },
+      homepage: "https://github.com/iiwish/agent-cli-runtime#readme",
+      bugs: { url: "https://github.com/iiwish/agent-cli-runtime/issues" },
+      engines: { node: ">=20" },
+      publishConfig: { tag: "alpha" },
+    });
+    expect(manifest.description).toContain("Local-first TypeScript runtime");
+    expect(manifest.exports).toEqual({
+      ".": {
+        types: "./dist/index.d.ts",
+        import: "./dist/index.js",
+      },
+    });
+    expect(manifest.files).toContain("docs/release-publish-runbook.md");
+    expect(manifest.keywords).toEqual(expect.arrayContaining(["agent", "cli", "codex", "claude", "opencode", "runtime"]));
+  });
+
   it("prints CLI help with all frozen commands and key flags", async () => {
     const { stdout } = await execFileP(process.execPath, [cli, "help"]);
     for (const word of [
@@ -1466,6 +1514,7 @@ setInterval(() => {}, 1000);
     expect(files).toContain("examples/cli-dogfood.md");
     expect(files).toContain("docs/production-readiness.md");
     expect(files).toContain("docs/release-report.md");
+    expect(files).toContain("docs/release-publish-runbook.md");
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\//u));
@@ -1648,6 +1697,7 @@ setInterval(() => {}, 1000);
       "docs/production-readiness.md",
       "docs/release-checklist.md",
       "docs/release-report.md",
+      "docs/release-publish-runbook.md",
       "docs/ssot.md",
     ];
 
@@ -1655,6 +1705,27 @@ setInterval(() => {}, 1000);
       const text = await readFile(path.join(root, doc), "utf8");
       expect(text).not.toMatch(/npm publish --dry-run --ignore-scripts(?! --tag alpha)/u);
     }
+  });
+
+  it("documents the alpha publish decision without adding workflow publish credentials", async () => {
+    const runbook = await readFile(path.join(root, "docs", "release-publish-runbook.md"), "utf8");
+    const releaseCandidate = await readFile(path.join(root, ".github", "workflows", "release-candidate.yml"), "utf8");
+    const ci = await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
+
+    expect(runbook).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
+    expect(runbook).toContain("npm publish --tag alpha");
+    expect(runbook).toContain("npm dist-tag ls agent-cli-runtime");
+    expect(runbook).toContain("npm dist-tag add agent-cli-runtime@0.1.0-alpha.0 alpha");
+    expect(runbook).toContain("npm unpublish agent-cli-runtime@0.1.0-alpha.0");
+    expect(runbook).toContain("2FA");
+    expect(runbook).toContain("trusted publishing");
+    expect(runbook).toContain("provenance");
+    expect(runbook).toContain("not configured");
+    expect(runbook).toContain("P2-13 does not publish npm");
+    expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
+    expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
+    expect(ci).not.toMatch(/\bnpm publish\b/u);
+    expect(ci).not.toContain("NODE_AUTH_TOKEN");
   });
 
   it("runs the shipped library examples without real agent credentials", async () => {

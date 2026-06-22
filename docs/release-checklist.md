@@ -1,5 +1,15 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P2-13 alpha publish readiness gate
+
+- [x] `package.json` metadata includes `name`, `version`, `description`, `license`, `type`, `bin`, `main`, `types`, `exports`, `files`, `engines`, `repository`, `homepage`, `bugs`, `keywords`, and `publishConfig.tag`.
+- [x] Package root value exports remain limited to `createAgentRuntime`; public types remain type exports only.
+- [x] `docs/release-publish-runbook.md` records dry-run, real publish commands, human confirmation points, dist-tag checks, rollback/deprecation/unpublish boundaries, npm 2FA, trusted publishing, provenance, and token strategy.
+- [x] `npm publish --dry-run --ignore-scripts --tag alpha` passed locally on 2026-06-22 and reported `Publishing to https://registry.npmjs.org/ with tag alpha ... (dry-run)`.
+- [x] `npm pack --dry-run` includes release docs, including `docs/release-publish-runbook.md`, and excludes `.reference/`, tests, fixtures, raw real CLI output, private paths, and token-looking values.
+- [x] `.github/workflows/ci.yml` and `.github/workflows/release-candidate.yml` still contain no `npm publish`, no npm token setup, and no registry credential requirement.
+- [x] P2-13 records publish readiness only; it does not publish npm, create npm tokens, configure trusted publishing, publish a GitHub release, or launch authenticated real agent runs.
+
 ## P2-12 release candidate gate
 
 - [x] `npm ci` — passed in remote release-candidate run `27869580048`.
@@ -112,7 +122,7 @@ P2-12 remote evidence, observed on 2026-06-20: `gh workflow run release-candidat
 - [ ] `README.md` and `README.zh-CN.md` explain Codex / Claude / OpenCode configuration without token values.
 - [ ] Claude Anthropic-compatible provider docs list environment variable names/placeholders only; no real token values.
 - [ ] `docs/compatibility.md` is refreshed with the 2026-06-20 local real conformance detection/preflight evidence and does not describe skipped/auth-missing runs as real-run success.
-- [x] `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current P2-12 status.
+- [x] `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current release-readiness status.
 - [x] `docs/release-report.md` records local commands, remote workflow evidence, artifact checklist, package boundary, real CLI evidence boundary, known risks, and explicit non-goals.
 - [x] `docs/production-readiness.md` names remaining known risks rather than treating skipped/preflight evidence as real run success.
 
