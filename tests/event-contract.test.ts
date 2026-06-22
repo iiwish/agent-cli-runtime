@@ -7,6 +7,7 @@ import { createAgentRuntime } from "../src/index.js";
 import {
   envelopeReplayEvent,
   envelopeStreamEvent,
+  terminalReasonFromDiagnosticCode,
   terminalContractFromEvent,
 } from "../src/core/event-contract.js";
 import { GoalStore } from "../src/goals/goal-store.js";
@@ -152,6 +153,30 @@ describe("event contract", () => {
     expect(timeout.terminal).toEqual({ result: "failed", reason: "timeout" });
     expect(canceled.terminal).toEqual({ result: "cancelled", reason: "canceled" });
     expect(interrupted.terminal).toEqual({ result: "failed", reason: "interrupted" });
+  });
+
+  it("keeps daemon-facing terminal reason mappings stable", () => {
+    expect({
+      success: terminalContractFromEvent({ type: "run_finished", result: "success", exitCode: 0, signal: null }),
+      canceled: terminalContractFromEvent({ type: "run_finished", result: "cancelled", exitCode: null, signal: null }),
+      failed: terminalContractFromEvent({ type: "run_finished", result: "failed", exitCode: 1, signal: null }),
+      timeout: terminalReasonFromDiagnosticCode("AGENT_TIMEOUT"),
+      validationFailed: terminalReasonFromDiagnosticCode("AGENT_VALIDATION_FAILED"),
+      unavailable: terminalReasonFromDiagnosticCode("AGENT_UNAVAILABLE"),
+      authMissing: terminalReasonFromDiagnosticCode("auth_missing"),
+      interrupted: terminalReasonFromDiagnosticCode("AGENT_RUNTIME_INTERRUPTED"),
+      schedulerError: terminalContractFromEvent({ type: "scheduler_error", code: "AGENT_TASK_GRAPH_INVALID", message: "invalid graph" }),
+    }).toMatchObject({
+      success: { result: "success", reason: "success" },
+      canceled: { result: "cancelled", reason: "canceled" },
+      failed: { result: "failed", reason: "failed" },
+      timeout: "timeout",
+      validationFailed: "validation_failed",
+      unavailable: "unavailable",
+      authMissing: "auth_missing",
+      interrupted: "interrupted",
+      schedulerError: { result: "failed", reason: "task_graph_invalid" },
+    });
   });
 
   it("keeps goal replay events ordered with stable scope metadata", async () => {

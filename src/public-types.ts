@@ -66,6 +66,7 @@ export interface StoreActiveRecord {
 }
 
 export interface StoreHealth {
+  schemaVersion: "agent-runtime.storeHealth.v1";
   ok: boolean;
   storageDir?: string;
   checkedAt: number;

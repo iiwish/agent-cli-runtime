@@ -71,6 +71,7 @@ export function inspectStoreDirectory(storageDir: string): StoreHealth {
   const activeInterrupted = records.flatMap((record) => record.activeInterrupted ? [record.activeInterrupted] : []);
   const warnings = records.flatMap((record) => record.warnings);
   const health: StoreHealth = {
+    schemaVersion: "agent-runtime.storeHealth.v1",
     ok: corruptManifests.length === 0
       && corruptEventLogs.length === 0
       && warnings.length === 0

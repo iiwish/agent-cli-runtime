@@ -32,6 +32,7 @@ const DEFAULT_OBSERVED_TEXT_TAIL_BYTES = 2_048;
 const MAX_CWD_SCAN_ENTRIES = 1_000;
 const MAX_CWD_MUTATION_SAMPLE = 20;
 const SKIPPED_CWD_SCAN_DIRS = new Set([".git", "node_modules", "dist", ".agent-runtime"]);
+const CLI_ERROR_SCHEMA_VERSION = "agent-runtime.cliError.v1";
 
 interface RealSmokeExpectation {
   prompt: string;
@@ -1041,6 +1042,7 @@ main().catch((error) => {
   const message = redactText(error instanceof Error ? error.message : String(error));
   if (process.argv.slice(2).includes("--json")) {
     process.stdout.write(`${JSON.stringify({
+      schemaVersion: CLI_ERROR_SCHEMA_VERSION,
       ok: false,
       error: {
         code: "CLI_USAGE_ERROR",

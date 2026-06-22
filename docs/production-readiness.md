@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P2-13 alpha publish readiness decision
+Status: P3-1 daemon-ready execution kernel contract freeze
 Last updated: 2026-06-22
 
-This project is still **pre-alpha / developer preview**. P2-11 turned the P2-10 release-candidate artifact shape into a locally reproducible and machine-verifiable evidence loop without publishing npm: local generation creates a tarball, pack metadata, package file list, and verification JSON; the manual release-candidate workflow reuses the same verifier and uploads the verification artifact. P2-12 closes the remote evidence loop for commit `2f8832119b4ebdb8393077052560589a398ebf56`: GitHub Actions run `27869580048` completed successfully, uploaded the expected artifacts, and the downloaded artifacts passed local `npm run release:verify`. P2-13 adds alpha publish readiness only: package metadata review, npm dry-run evidence, and [docs/release-publish-runbook.md](./release-publish-runbook.md). It still does not publish npm, configure trusted publishing, claim provenance, or add daemon/web/db/WAL/telemetry/artifact layers.
+This project is still **pre-alpha / developer preview**. P2-11 through P2-13 established release-candidate artifact verification, remote evidence closure, and alpha publish-readiness docs without publishing npm. P3-1 freezes daemon-ready execution-kernel contracts for embedders in [docs/daemon-ready-contract.md](./daemon-ready-contract.md). It still does not publish npm, configure trusted publishing, claim provenance, or add daemon/API server/database/WAL/remote-worker/UI/telemetry/artifact layers.
 
 ## Local-First Production Definition
 
@@ -20,6 +20,8 @@ For this repository, "production-ready local runtime" means:
 - active run/goal reload is conservative: only records owned by a missing/stale/closed owner are marked interrupted, not resumed;
 - diagnostics are auditable and redacted before storage/export;
 - CLI event JSONL is versioned as `agent-runtime.event.v1` for both live stream and replay output;
+- store health, store repair, diagnostics, conformance, and CLI JSON usage errors are versioned as `agent-runtime.storeHealth.v1`, `agent-runtime.storeRepair.v1`, `agent-runtime.diagnostics.v1`, `agent-runtime.conformance.v1`, and `agent-runtime.cliError.v1`;
+- daemon/product shell embedding semantics are documented without adding a hosted daemon surface;
 - real CLI conformance defaults to detection/profile certification only; authenticated real agent runs require explicit `--allow-real-run`;
 - `npm run dogfood` is the default release-candidate gate and does not launch authenticated real agent runs;
 - `npm run dogfood` also installs the packed tarball into a temporary TypeScript consumer, runs `tsc --noEmit`, and executes fake-CLI library run/goal/replay/diagnostics smoke;
@@ -135,6 +137,7 @@ Included release-candidate artifacts:
 - `README.md`
 - `README.zh-CN.md`
 - `LICENSE`
+- `docs/daemon-ready-contract.md`
 - `docs/ssot.md`
 - `docs/compatibility.md`
 - `docs/production-readiness.md`
@@ -177,7 +180,7 @@ Excluded artifacts:
 - Real conformance preflight can classify a local CLI as unavailable/auth-missing because of machine-specific executable, auth, network, or proxy state. That skip is useful compatibility evidence but is not a successful real run.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume mappings remain in `needsVerification`.
 - Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment.
-- P2-13 does not implement scheduler expansion, daemon, database, WAL, remote workers, web UI, telemetry, npm publish, trusted publishing configuration, provenance publishing, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
+- P3-1 does not implement scheduler expansion, daemon/API server, database, WAL, remote workers, web UI, telemetry, npm publish, trusted publishing configuration, provenance publishing, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
 
 ## Durable Supervisor Contract
 
@@ -195,6 +198,8 @@ The runtime does not resume live processes after a process restart. When `storag
 - terminal events are appended once and replay remains ordered by `sequence`;
 - `shutdown()`, `cancelRun()`, and `cancelGoal()` are idempotent around terminal events;
 - `shutdown()` releases or marks the storage lease closed.
+
+Store health uses `schemaVersion: "agent-runtime.storeHealth.v1"` and includes `ok`, `storageDir`, `checkedAt`, `lock`, `totals`, `corruptManifests`, `corruptEventLogs`, `partialTails`, `activeRecords`, `activeInterrupted`, `warnings`, `storageDiagnostics`, and `diagnostics`. Store repair uses `schemaVersion: "agent-runtime.storeRepair.v1"`. CLI JSON usage errors use `schemaVersion: "agent-runtime.cliError.v1"` with `ok: false` and a short redacted error object.
 
 Diagnostics export uses `schemaVersion: "agent-runtime.diagnostics.v1"` and includes `diagnostics`, `storageDiagnostics`, `supervisorSummary`, `adapterSummary`, and goal `attemptEvidence` when present. `supervisorSummary` includes terminal reason, terminal event count, active reload recovery, owner/lease status, and task status counts for goals. It intentionally omits env values, prompts, raw corrupt lines, raw private paths, and tokens.
 

@@ -396,6 +396,7 @@ describe("public contract", () => {
       mode: "fake",
     });
     expect(health).toMatchObject({
+      schemaVersion: "agent-runtime.storeHealth.v1",
       ok: true,
       totals: { runs: 0, goals: 0 },
       lock: { status: "missing" },
@@ -421,11 +422,12 @@ describe("public contract", () => {
     ];
 
     for (const failure of failures) {
-      const parsed = JSON.parse(failure.stdout) as { ok: false; error: { code: string; message: string } };
+      const parsed = JSON.parse(failure.stdout) as { schemaVersion: string; ok: false; error: { code: string; message: string } };
       const text = `${failure.stdout}\n${failure.stderr}`;
       expect(failure.code).toBe(1);
       expect(failure.stderr).toBe("");
       expect(parsed).toMatchObject({
+        schemaVersion: "agent-runtime.cliError.v1",
         ok: false,
         error: {
           code: "CLI_USAGE_ERROR",

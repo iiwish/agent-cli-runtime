@@ -214,6 +214,7 @@ describe("durable local store", () => {
     const health = await runtime.inspectStore();
 
     expect(health).toMatchObject({
+      schemaVersion: "agent-runtime.storeHealth.v1",
       ok: true,
       lock: { status: "live" },
       totals: { runs: 0, goals: 0 },
@@ -1325,6 +1326,7 @@ describe("durable local store", () => {
 
     expect(healthResult.stderr).toBe("");
     expect(bundleResult.stderr).toBe("");
+    expect(health).toMatchObject({ schemaVersion: "agent-runtime.storeHealth.v1" });
     expect(health.lock.status).toBe("invalid");
     expect(bundle).toMatchObject({ schemaVersion: "agent-runtime.diagnostics.v1", subject: { kind: "run", id: runId } });
     expect(text).toContain("[REDACTED]");

@@ -1,5 +1,16 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P3-1 daemon-ready contract freeze
+
+- [x] `docs/daemon-ready-contract.md` documents daemon/product shell embedding semantics without implementing a daemon.
+- [x] Public docs position the package as a local-first execution kernel, not a hosted control plane.
+- [x] Package root value exports remain limited to `createAgentRuntime`; public types remain type exports only.
+- [x] `store-health --json` uses `schemaVersion: "agent-runtime.storeHealth.v1"`.
+- [x] CLI `--json` usage errors use `schemaVersion: "agent-runtime.cliError.v1"`.
+- [x] Event, diagnostics, conformance, store-health, store-repair, and CLI-error schema compatibility rules are documented.
+- [x] Failure taxonomy preserves skipped/auth-missing/unsupported/unexpected-output/cwd-mutated states instead of converting them into success.
+- [x] P3-1 does not add daemon/API server, database, WAL, remote worker, web UI, telemetry, npm publish, publish workflow, npm token, or trusted publishing configuration.
+
 ## P2-13 alpha publish readiness gate
 
 - [x] `package.json` metadata includes `name`, `version`, `description`, `license`, `type`, `bin`, `main`, `types`, `exports`, `files`, `engines`, `repository`, `homepage`, `bugs`, `keywords`, and `publishConfig.tag`.

@@ -1,13 +1,13 @@
 # Agent CLI Compatibility Matrix
 
-Status: P2-13 Alpha Publish Readiness Decision
+Status: P3-1 Daemon-Ready Contract Freeze
 Last updated: 2026-06-22
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P2-11 adds reusable release-candidate artifact verification and remote evidence intake on top of the P2-10 artifact workflow shape and P2-9 package-root API/consumer compatibility gate. P2-12 closes the real GitHub Actions evidence loop for commit `2f8832119b4ebdb8393077052560589a398ebf56`: the manual release-candidate workflow completed successfully, uploaded artifacts, and the downloaded artifacts passed local machine verification. P2-13 adds alpha publish readiness docs and npm metadata/dry-run gates only; it does not publish npm, configure trusted publishing, or change runtime compatibility behavior. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-1 adds daemon-ready execution-kernel contract freeze docs and schema locks on top of the P2 release-candidate and alpha publish-readiness evidence. It does not publish npm, configure trusted publishing, implement a daemon/API server, or change adapter compatibility behavior. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P2-13 pre-alpha alpha-publish-readiness evidence, which is intended to be the default interpretation for this matrix.
+Current status is P3-1 pre-alpha daemon-ready contract evidence, which is intended to be the default interpretation for this matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
@@ -16,6 +16,7 @@ Current status is P2-13 pre-alpha alpha-publish-readiness evidence, which is int
 - `npm run release:candidate` creates local release-candidate artifacts, and `npm run release:verify -- --dir <path>` validates local or downloaded artifacts with stable redacted JSON.
 - `npm publish --dry-run --ignore-scripts --tag alpha` is a documented manual local dry-run check; it is not a remote CI gate.
 - `docs/release-publish-runbook.md` documents the future human alpha publish path, dist-tag verification, rollback/deprecation/unpublish boundary, 2FA, trusted publishing, provenance, and token strategy; no real publish is performed in P2-13.
+- `docs/daemon-ready-contract.md` documents embedding semantics for daemon/product shell callers without adding a hosted daemon surface.
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
 - Remote GitHub Actions release-candidate evidence is run `27869580048` on commit `2f8832119b4ebdb8393077052560589a398ebf56`; do not reuse it for later commits.
 - Evidence modes are intentionally separate:
@@ -53,6 +54,24 @@ P2-13 does not change adapter compatibility. It keeps the pre-alpha runtime beha
 - `npm publish --dry-run --ignore-scripts --tag alpha` is the only publish simulation for P2-13;
 - `.github/workflows/ci.yml` and `.github/workflows/release-candidate.yml` remain artifact/check workflows and do not publish npm or require registry credentials;
 - trusted publishing and provenance are future choices, not configured evidence for P2-13.
+
+## P3-1 Daemon-Ready Contract Freeze
+
+P3-1 does not change adapter invocation compatibility. It freezes daemon-facing runtime contracts and adds versioned store-health / CLI-error schemas:
+
+- daemon embedding contract: [docs/daemon-ready-contract.md](./daemon-ready-contract.md);
+- store health JSON: `schemaVersion: "agent-runtime.storeHealth.v1"`;
+- CLI JSON usage error: `schemaVersion: "agent-runtime.cliError.v1"`;
+- package root value export remains limited to `createAgentRuntime`;
+- no daemon/API server, database, WAL, remote worker, UI, telemetry, npm publish, publish workflow, npm token, or trusted publishing configuration is added.
+
+Current local real-CLI detection/preflight evidence from `node ./dist/cli/main.js conformance --mode real --agent all --json` on 2026-06-22:
+
+| Adapter | CLI version | Auth/model source | runClassification | skippedReason | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Codex CLI | `codex-cli 0.142.0-alpha.6` | auth `unknown`; models `live` | `real_run_skipped` | `real_run_not_allowed` | Detection/profile passed; no real run launched because `--allow-real-run` was not supplied. Session and auth probe remain `needsVerification`. |
+| Claude Code | `2.1.178 (Claude Code)` | auth `missing`; models `fallback` | `auth_missing` | `auth_missing` | Detection/profile passed; run skipped before launch because local auth is missing. `--session-id` and reasoning remain `needsVerification`. |
+| OpenCode | `1.15.6` | auth `unknown`; models `live` | `real_run_skipped` | `real_run_not_allowed` | Detection/profile passed; no real run launched because `--allow-real-run` was not supplied. Extra dirs, session, and read-only/workspace-write flags remain `needsVerification`. |
 
 ## P2-11 Release Candidate Artifact Verification And Remote Evidence Intake
 
@@ -115,7 +134,7 @@ P2-9 release-candidate semantics:
 - No workflow step runs `npm publish`, requests an npm token, or requires real Codex/Claude/OpenCode installation.
 - `scripts/check-package-boundary.mjs` checks the pack dry-run file list and scans docs/examples/scripts for real token-like values, Bearer values, auth environment assignment values, and private user paths.
 
-Current local real-CLI detection/preflight evidence from `node ./dist/cli/main.js conformance --mode real --agent all --json` on 2026-06-20:
+Historical local real-CLI detection/preflight evidence from `node ./dist/cli/main.js conformance --mode real --agent all --json` on 2026-06-20:
 
 | Adapter | CLI version | Auth/model source | runClassification | skippedReason | Notes |
 | --- | --- | --- | --- | --- | --- |
@@ -127,9 +146,9 @@ Current local real-CLI detection/preflight evidence from `node ./dist/cli/main.j
 
 | Adapter | CLI path | CLI version tested | Detection | Run smoke | Goal smoke | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Codex CLI | redacted local app path | `codex-cli 0.142.0-alpha.1` | Pass | Skipped in P2-9 default real conformance; prior opt-in Codex smoke evidence remains historical. | Not run in P2-9 | Uses `codex exec --json --skip-git-repo-check` with stdin prompt and `-C <cwd>`. Live model probe passed. P2-9 reports `real_run_skipped` without `--allow-real-run`; session and auth probe remain `needsVerification`. |
+| Codex CLI | redacted local app path | `codex-cli 0.142.0-alpha.6` | Pass | Skipped in P3-1 default real conformance; prior opt-in Codex smoke evidence remains historical. | Not run in P3-1 | Uses `codex exec --json --skip-git-repo-check` with stdin prompt and `-C <cwd>`. Live model probe passed. P3-1 reports `real_run_skipped` without `--allow-real-run`; session and auth probe remain `needsVerification`. |
 | Claude Code | redacted local app path | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P2-9 | `claude auth status` returned auth missing in the local P2-9 certification. Conformance skips before launching Claude. |
-| OpenCode | redacted local app path | `1.15.6` | Pass | Skipped in P2-9 default real conformance; prior opt-in OpenCode smoke evidence remains historical. | Not run in P2-9 | P2-9 reports `real_run_skipped` without `--allow-real-run` and live model source is available. Explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
+| OpenCode | redacted local app path | `1.15.6` | Pass | Skipped in P3-1 default real conformance; prior opt-in OpenCode smoke evidence remains historical. | Not run in P3-1 | P3-1 reports `real_run_skipped` without `--allow-real-run` and live model source is available. Explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
 
 ## Verified Invocation Shapes
 
@@ -364,8 +383,8 @@ node ./dist/cli/main.js conformance --mode real --agent all --json
 Covered behavior:
 
 - `fixtures`, `fake`, and `real local observed` conformance evidence are distinct and labeled by `mode`;
-- current local `real --agent all --json` observed: Codex detected with live models and `real_run_skipped`; Claude detected with `auth_missing`; OpenCode detected with live models and `real_run_skipped`;
-- current local opt-in `real --agent codex --allow-real-run --expect-text "agent-runtime codex smoke ok" --json` observed: `success`, expected text matched, cwd not mutated, diagnostics count 0;
+- current P3-1 local `real --agent all --json` observed: Codex `codex-cli 0.142.0-alpha.6` detected with live models and `real_run_skipped`; Claude `2.1.178` detected with `auth_missing`; OpenCode `1.15.6` detected with live models and `real_run_skipped`;
+- historical opt-in `real --agent codex --allow-real-run --expect-text "agent-runtime codex smoke ok" --json` observed: `success`, expected text matched, cwd not mutated, diagnostics count 0; P3-1 did not rerun an authenticated real agent run;
 - `real --agent all --json` performs detection/profile certification without launching real runs unless `--allow-real-run` is explicit;
 - per-adapter summaries include resolved executable, auth state, models source, capabilities, argv profile, prompt transport, parser mode, run classification, diagnostics count, compact diagnostics, and skip/fail reason;
 - one adapter being unavailable, auth-missing, unsupported, or failed does not prevent other adapter summaries from being reported;
@@ -461,6 +480,7 @@ Covered behavior:
 - `runtime.replayRunEvents()` and `runtime.replayGoalEvents()` keep the old `ReplayEvent<T>` return shape;
 - diagnostics bundles remain `agent-runtime.diagnostics.v1` and redact storage diagnostics, supervisor summaries, adapter summaries, and attempt evidence;
 - conformance JSON includes `schemaVersion: "agent-runtime.conformance.v1"` and stable per-adapter summary fields;
+- store health JSON includes `schemaVersion: "agent-runtime.storeHealth.v1"`, store repair remains `agent-runtime.storeRepair.v1`, and CLI JSON errors use `agent-runtime.cliError.v1`;
 - package root value exports remain limited to `createAgentRuntime`;
 - package dry-run excludes `.reference/`, tests, fixtures, and secret-looking values.
 

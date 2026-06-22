@@ -38,6 +38,7 @@
     "docs/release-checklist.md",
     "docs/release-report.md",
     "docs/release-publish-runbook.md",
+    "docs/daemon-ready-contract.md",
     "docs/ssot.md",
     "docs/compatibility.md",
     "docs/production-readiness.md",

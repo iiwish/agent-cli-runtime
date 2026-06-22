@@ -1,13 +1,41 @@
-# Release Report: 0.1.0-alpha.0 P2-13
+# Release Report: 0.1.0-alpha.0 P2-13 plus P3-1 contract hardening
 
-Status: P2-13 Alpha Publish Readiness Decision
+Status: P3-1 Daemon-Ready Contract Hardening
 Last updated: 2026-06-22
 
-This report records release-candidate and alpha publish-readiness evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview release audit and decision package, not an npm publication record.
+This report records release-candidate and alpha publish-readiness evidence for `agent-cli-runtime@0.1.0-alpha.0`, plus post-P2-13 daemon-ready contract hardening notes. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
 
 ## Verdict
 
-The release candidate has real GitHub Actions release-candidate evidence from P2-12: the manual workflow ran successfully, uploaded the expected artifacts, and the downloaded artifacts passed local machine verification. P2-13 adds package metadata review, an alpha publish runbook, and a manual npm dry-run gate. It is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+The release candidate has real GitHub Actions release-candidate evidence from P2-12: the manual workflow ran successfully, uploaded the expected artifacts, and the downloaded artifacts passed local machine verification. P2-13 adds package metadata review, an alpha publish runbook, and a manual npm dry-run gate. P3-1 records daemon-ready execution-kernel contracts for embedders without implementing a daemon. It is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+
+## P3-1 Daemon-Ready Contract Hardening
+
+P3-1 is a post-P2-13 contract freeze, not a new release publication:
+
+- New embedding contract: [docs/daemon-ready-contract.md](./daemon-ready-contract.md).
+- Runtime positioning: local-first execution kernel for daemon/product shell embedding, not hosted control plane.
+- Root value API boundary: still `createAgentRuntime` only.
+- Schema freeze: event envelope `agent-runtime.event.v1`, diagnostics bundle `agent-runtime.diagnostics.v1`, conformance report `agent-runtime.conformance.v1`, store health `agent-runtime.storeHealth.v1`, store repair `agent-runtime.storeRepair.v1`, and CLI JSON error `agent-runtime.cliError.v1`.
+- Compatibility rule: optional fields may be added in-schema; removing, renaming, changing type, or changing stable semantics requires a schema bump.
+- Failure taxonomy: event terminal reasons remain stable; CLI/conformance classifications such as `real_run_skipped`, `unsupported_flag`, `unexpected_output`, `cwd_mutated`, `needs_verification`, and `unavailable_executable` remain explicit evidence states rather than being converted to success.
+- Non-goals: no daemon/API server, no database/WAL, no remote worker, no UI/artifact layer, no telemetry, no npm publish, no publish workflow, no npm token/trusted publishing configuration.
+
+P3-1 local validation on 2026-06-22:
+
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed with 173 tests across 9 files.
+- `npm run build`: passed.
+- `npm run package:check`: passed with `package boundary ok: 147 files checked`.
+- `npm run release:candidate -- --out-dir /tmp/agent-runtime-p3-1-G8WgWS`: passed, producing `agent-cli-runtime-0.1.0-alpha.0.tgz`.
+- `npm run release:verify -- --dir /tmp/agent-runtime-p3-1-G8WgWS`: passed with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `147`, and empty diagnostics.
+- `npm pack --dry-run`: passed with total files `147` and `docs/daemon-ready-contract.md` included.
+- `node ./dist/cli/main.js agents --json`: passed.
+- `node ./dist/cli/main.js doctor --json`: passed with `ok: true`; Claude Code remains `auth_missing`, which is expected local auth evidence rather than real-run success.
+- `node ./dist/cli/main.js conformance --mode real --agent all --json`: passed without `--allow-real-run`; Codex `0.142.0-alpha.6` and OpenCode `1.15.6` reported `real_run_skipped`, Claude Code `2.1.178` reported `auth_missing`.
+- `git diff --check`: passed.
+- `npm publish --dry-run` was not run for P3-1 because this stage does not change publish readiness or perform publish simulation.
 
 ## P2-13 Alpha Publish Readiness
 
@@ -160,6 +188,7 @@ Review the uploaded package file list and pack metadata before treating the cand
 - No raw real CLI output.
 - No real private paths.
 - No token-looking values, Bearer values, or auth env assignment values.
+- Includes `docs/daemon-ready-contract.md`.
 - Includes `dist/`, README files, LICENSE, docs, examples, `scripts/dogfood.mjs`, and release docs.
 - Includes `docs/release-publish-runbook.md`.
 - Package root value API remains limited to `createAgentRuntime`; public TypeScript types remain type exports.
@@ -192,5 +221,5 @@ Authenticated real runs require explicit `--allow-real-run` and remain local/man
 - Do not configure trusted publishing or npm provenance.
 - Do not claim stable API.
 - Do not claim OpenDesign daemon parity.
-- Do not add daemon, database, WAL, remote worker, web UI, telemetry, or scheduler expansion.
+- Do not add daemon/API server, database, WAL, remote worker, web UI, telemetry, or scheduler expansion.
 - Do not convert `real_run_skipped`, `auth_missing`, `unsupported_flag`, or `needs_verification` into real agent run success.
