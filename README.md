@@ -337,9 +337,10 @@ npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
 node ./dist/cli/main.js conformance --mode real --agent all --json
+node ./dist/cli/main.js smoke --mode real --agent codex --json
 ```
 
-`conformance --mode real` without `--allow-real-run` performs real local detection/profile certification only. It does not launch an authenticated agent run. A real run requires `--allow-real-run`; without `--cwd`, the runtime uses an isolated temporary cwd and requests read-only behavior. Treat `--allow-real-run` as an explicit local-account/network boundary.
+`conformance --mode real` and `smoke --mode real` without `--allow-real-run` perform real local detection/profile certification only. They do not launch an authenticated agent run. A real run requires `--allow-real-run`; without `--cwd`, the runtime uses an isolated temporary cwd and requests read-only behavior. Treat `--allow-real-run` as an explicit local-account/network boundary.
 
 CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node release-gates job runs `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` so the full matrix does not launch redundant installed-package gates. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
 
@@ -365,7 +366,9 @@ agent-runtime agents
 agent-runtime conformance --mode fixtures --json
 agent-runtime conformance --mode fake --json
 agent-runtime conformance --mode real --agent all --json
-agent-runtime conformance --mode real --agent codex --allow-real-run --json
+agent-runtime smoke --mode real --agent codex --allow-real-run --expect-text <safe_text> --json
+agent-runtime smoke --mode real --agent claude --allow-real-run --expect-text <safe_text> --json
+agent-runtime smoke --mode real --agent opencode --allow-real-run --expect-text <safe_text> --json
 agent-runtime smoke --mode detection --json
 agent-runtime smoke --mode fixtures --json
 agent-runtime run --agent codex --cwd . --prompt "fix the failing test"
@@ -392,7 +395,7 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file tas
 
 The library API is primary. The CLI is a thin wrapper over the same runtime and supports `--json` plus `--stream jsonl` for run/goal event streams. For run/goal commands, `--json` prints the final run or goal record. `--stream jsonl --diagnostics` keeps the event stream and appends a redacted `run_summary` or `goal_summary` line after the terminal event.
 
-`agent-runtime conformance` is the production gate wrapper. Its JSON output is versioned with `schemaVersion: "agent-runtime.conformance.v1"` and emits a stable per-adapter summary with `adapter`, `version`, `resolvedExecutable`, `auth`, `modelsSource`, `capabilities`, `argvProfile`, `promptTransport`, `parserMode`, `runClassification`, `expectedTextMatched`, `observedTextTail`, `cwdMutated`, `diagnosticsCount`, `diagnostics`, `skippedReason`, and `failureReason`.
+`agent-runtime conformance` is the production gate wrapper. Its JSON output is versioned with `schemaVersion: "agent-runtime.conformance.v1"` and emits a stable per-adapter summary with `adapter`, `version`, `resolvedExecutable`, `auth`, `modelsSource`, `capabilities`, `argvProfile`, `promptTransport`, `parserMode`, `runClassification`, `expectedTextMatched`, `observedTextTail`, `cwdMutationChecked`, `cwdMutated`, `diagnosticsCount`, `diagnostics`, `skippedReason`, and `failureReason`.
 
 - `--mode fixtures` checks parser contracts offline.
 - `--mode fake` creates local fake CLIs and runs the real adapter argv/stdin/parser path offline.
@@ -404,7 +407,17 @@ Real conformance diagnostics are designed for drift detection: unsupported track
 
 - `--mode detection` runs local executable/model/auth detection only.
 - `--mode fixtures` dry-runs built-in parser conformance fixtures for Codex, Claude, and OpenCode without launching real CLIs.
-- `--mode real` launches one real non-mutating run with runtime-requested read-only behavior, but only when `--allow-real-run` and `--agent <id>` are both supplied. Without `--cwd`, it uses an isolated temp directory and the default prompt asks the agent to reply exactly with `agent-runtime <agent> smoke ok` without editing files. The default smoke automatically requires that expected text in aggregated `text_delta` output; `--expect-text <text>` overrides it. If `--prompt` or `--prompt-file` is supplied without `--expect-text`, the summary sets `expectedTextRequired: false` but still requires some observed `text_delta` so status-only exit `0` cannot pass. JSON and `--stream jsonl --diagnostics` output include a redacted `real_smoke_summary` with `classification`, `expectedTextMatched`, `observedTextTail`, cwd mutation evidence, the final run record, and diagnostics. A missing required text is `unexpected_output`; detected cwd writes/updates/deletes are `cwd_mutated`.
+- `--mode real` defaults to detection/profile certification and returns `runClassification: "real_run_skipped"` unless `--allow-real-run` is explicit. With `--allow-real-run`, it launches one real non-mutating run for `--agent <id>` with runtime-requested read-only behavior. Without `--cwd`, it uses an isolated temp directory. The default prompt asks the agent to reply exactly with `agent-runtime <agent> smoke ok` without editing files, and `--expect-text <text>` can provide a different safe verifier. Expected text is required for success: if `--prompt` or `--prompt-file` is supplied without `--expect-text`, exit `0` and text output still classify as `unexpected_output`.
+
+Recommended opt-in smoke evidence commands:
+
+```bash
+node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --expect-text <safe_text> --json
+node ./dist/cli/main.js smoke --mode real --agent claude --allow-real-run --expect-text <safe_text> --json
+node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --expect-text <safe_text> --json
+```
+
+Real smoke JSON uses `schemaVersion: "agent-runtime.realSmoke.v1"` and a redacted `real_smoke_summary` with `adapter`, `version`, `auth`, `modelsSource`, `runClassification`, `expectedTextMatched`, truncated/redacted `observedTextTail`, `cwdMutationChecked`, `cwdMutated`, `diagnosticsCount`, `skippedReason`, and `failureReason`. It does not include prompt text, token values, private cwd, raw stdout/stderr, or the final run record. Failure and skip classifications include `auth_missing`, `unavailable_executable`, `unsupported_flag`, `unexpected_output`, `cwd_mutated`, `needs_verification`, and `real_run_skipped`.
 
 Disk storage layout is intentionally simple and tail-friendly:
 

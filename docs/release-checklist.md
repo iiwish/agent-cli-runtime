@@ -1,5 +1,17 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P3-6 real CLI opt-in smoke evidence
+
+- [x] `smoke --mode real --agent <id> --json` performs detection/profile certification only and does not launch a real run without `--allow-real-run`.
+- [x] Opt-in real smoke commands are documented for Codex, Claude Code, and OpenCode with `--allow-real-run --expect-text <safe_text> --json`.
+- [x] Real smoke summary uses `schemaVersion: "agent-runtime.realSmoke.v1"` and includes adapter/version/auth/models/run classification, expected text match, redacted observed tail, cwd mutation evidence, diagnostics count, and skip/failure reason.
+- [x] Real smoke summary excludes prompt text, token values, private cwd, raw stdout/stderr, and final run records.
+- [x] Custom `--prompt` / `--prompt-file` without `--expect-text` cannot pass solely on exit `0`; it classifies as `unexpected_output`.
+- [x] Preflight/run classifications cover `auth_missing`, `unavailable_executable`, `unsupported_flag`, `unexpected_output`, `cwd_mutated`, `needs_verification`, and `real_run_skipped`.
+- [x] Public docs use Anthropic-compatible provider env var names and placeholders only; no real token, concrete provider URL, or private model alias is committed.
+- [x] CI, release-candidate workflow, dogfood, prepublish, and release-candidate creator do not contain `--allow-real-run`.
+- [x] Local P3-6 opt-in evidence records Codex/OpenCode as `success` with `expectedTextMatched: true` and `cwdMutated: false` when run with explicit `--timeout-ms 120000`; Claude Code remains `auth_missing`.
+
 ## P3-5 remote release evidence closure
 
 - [x] `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
@@ -167,22 +179,22 @@ P2-12 remote evidence, observed on 2026-06-20, remains historical evidence for c
 
 - [ ] `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md` are present and up to date.
 - [ ] `README.md` and `README.zh-CN.md` explain npm install, `npx`, and local checkout paths.
-- [ ] `README.md` and `README.zh-CN.md` explain Codex / Claude / OpenCode configuration without token values.
-- [ ] Claude Anthropic-compatible provider docs list environment variable names/placeholders only; no real token values.
-- [ ] `docs/compatibility.md` is refreshed with the 2026-06-20 local real conformance detection/preflight evidence and does not describe skipped/auth-missing runs as real-run success.
+- [x] `README.md` and `README.zh-CN.md` explain Codex / Claude / OpenCode configuration without token values.
+- [x] Claude Anthropic-compatible provider docs list environment variable names/placeholders only; no real token values.
+- [x] `docs/compatibility.md` is refreshed with the 2026-06-22 P3-6 real conformance detection/preflight evidence plus opt-in smoke evidence and does not describe skipped/auth-missing runs as real-run success.
 - [x] `docs/ssot.md`, `docs/compatibility.md`, and `docs/production-readiness.md` are synced to current release-readiness status.
 - [x] `docs/release-report.md` records local commands, remote workflow evidence, artifact checklist, package boundary, real CLI evidence boundary, known risks, and explicit non-goals.
 - [x] `docs/production-readiness.md` names remaining known risks rather than treating skipped/preflight evidence as real run success.
 
 ## Final review notes
 
-- [ ] No stable API guarantee language is used for this release track.
-- [ ] Confirm no daemon/WAL/remote runtime promises are made in public docs.
-- [ ] Confirm OpenDesign daemon-level gaps are named without implying parity.
-- [ ] Confirm real conformance requires `--allow-real-run` and safely skips unauthorized CLIs.
-- [ ] Confirm `conformance --mode real --agent all --json` without `--allow-real-run` does not launch real agent runs.
-- [ ] Confirm optional real run docs use isolated cwd by default and make `--allow-real-run` the explicit account/network boundary.
-- [ ] Confirm status-only exit `0` real smoke remains `unexpected_output`, not success.
+- [x] No stable API guarantee language is used for this release track.
+- [x] Confirm no daemon/WAL/remote runtime promises are made in public docs.
+- [x] Confirm OpenDesign daemon-level gaps are named without implying parity.
+- [x] Confirm authenticated real conformance runs require `--allow-real-run` and safely skip unauthorized CLIs.
+- [x] Confirm `conformance --mode real --agent all --json` without `--allow-real-run` does not launch real agent runs.
+- [x] Confirm optional real run docs use isolated cwd by default and make `--allow-real-run` the explicit account/network boundary.
+- [x] Confirm status-only exit `0` real smoke remains `unexpected_output`, not success.
 - [ ] Confirm package install smoke is covered by `npm run dogfood` and remains available as the explicit `AGENT_RUNTIME_RUN_INSTALLED_PACKAGE_TESTS=1` contract test path.
 - [ ] Confirm `store-repair --apply` remains opt-in, holds the local store lease while writing, creates atomic backups, refuses live owners, records redacted repair success/failure diagnostics, leaves original logs untouched on backup/rewrite failure, is idempotent, and does not claim WAL/database/daemon resume semantics.
 - [ ] Confirm crash consistency tests cover manifest rename failure, JSONL append failure, repair backup/rewrite failure, fsync/fdatasync fallback, lock takeover/close behavior, corrupt lock read-only CLI inspection, and diagnostics redaction.

@@ -1,13 +1,13 @@
 # Agent CLI Compatibility Matrix
 
-Status: P3-5 Remote Release Evidence Closure
+Status: P3-6 Real CLI Opt-In Smoke Evidence
 Last updated: 2026-06-22
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-5 closes workflow-head remote release evidence for the P3-4 five-artifact workflow. It does not publish npm, configure trusted publishing, implement a daemon/API server, or change adapter compatibility behavior. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-6 adds a reviewable opt-in real smoke evidence path while keeping default release gates on detection/profile certification only. It does not publish npm, configure trusted publishing, implement a daemon/API server, or add authenticated real agent runs to CI, dogfood, prepublish, or release-candidate gates. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P3-5 pre-alpha remote release evidence closure, which is intended to be the default interpretation for this matrix.
+Current status is P3-6 pre-alpha real CLI opt-in smoke evidence, which is intended to be the default interpretation for this matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and single-Node TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
@@ -28,6 +28,26 @@ Current status is P3-5 pre-alpha remote release evidence closure, which is inten
 - P1-6 and earlier notes in this file are historical references for parser fixtures, timeout/reconnect evidence, and compatibility context; they are not equivalent to current "latest expected" contract assumptions.
 - When using this file as runtime contract input, prioritize the `Status` section, explicit "Runtime notes" in each adapter, and the most recent command evidence.
 - For changed behavior, add a new evidence row at the top of the section rather than keeping the old row as authoritative.
+
+## P3-6 Real CLI Opt-In Smoke Evidence
+
+P3-6 changes the evidence path, not the adapter invocation profiles:
+
+- `smoke --mode real --agent <id> --json` performs detection/profile certification and reports `runClassification: "real_run_skipped"` unless `--allow-real-run` is explicit.
+- `smoke --mode real --agent <id> --allow-real-run --expect-text <safe_text> --json` is the recommended authenticated real-run evidence command.
+- Real smoke uses isolated temp cwd by default, requests read-only behavior, checks cwd mutation, and requires expected text for success. A custom `--prompt` or `--prompt-file` without `--expect-text` cannot pass solely because the CLI exits `0`.
+- Real smoke emits `schemaVersion: "agent-runtime.realSmoke.v1"` with `adapter`, `version`, `auth`, `modelsSource`, `runClassification`, `expectedTextMatched`, redacted/truncated `observedTextTail`, `cwdMutationChecked`, `cwdMutated`, `diagnosticsCount`, `skippedReason`, and `failureReason`.
+- Real smoke summaries do not include prompt text, token values, private cwd, raw stdout/stderr, or the final run record.
+- Explicit classifications include `auth_missing`, `unavailable_executable`, `unsupported_flag`, `unexpected_output`, `cwd_mutated`, `needs_verification`, and `real_run_skipped`.
+- CI, dogfood, prepublish, and `release:candidate` still do not pass `--allow-real-run`.
+
+Local P3-6 real-smoke evidence on 2026-06-22:
+
+| Adapter | Command shape | runClassification | expectedTextMatched | cwdMutated | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Codex CLI | `smoke --mode real --agent codex --allow-real-run --expect-text <safe_text> --timeout-ms 120000 --json` | `success` | `true` | `false` | Latest same-machine opt-in smoke matched the expected text and did not mutate the isolated cwd; a 30s default-timeout retry can still classify as `timeout`. |
+| Claude Code | `smoke --mode real --agent claude --allow-real-run --expect-text <safe_text> --json` | `auth_missing` | `null` | `null` | Preflight skipped before launch because local Claude Code auth is missing. |
+| OpenCode | `smoke --mode real --agent opencode --allow-real-run --expect-text <safe_text> --timeout-ms 120000 --json` | `success` | `true` | `false` | Latest same-machine opt-in smoke matched the expected text and did not mutate the isolated cwd; a 30s default-timeout retry can still classify as `timeout`; explicit read-only/workspace-write flags still remain unverified. |
 
 ## P2-12 Remote Release Candidate Evidence Closure
 
@@ -210,16 +230,16 @@ Runtime notes:
 - model probe: no live model probe; fallback aliases are `default`, `sonnet`, `opus`, `haiku`
 - `--resume` is the verified resume path in fixtures; `--session-id` is represented in the profile as `needsVerification` and is not emitted by `buildArgs()`
 - 2026-06-20 P2-9 local certification: executable/version/auth preflight passed for `2.1.178 (Claude Code)`, but auth was `missing`; no real run was launched.
-- DeepSeek Anthropic-compatible config can be supplied through environment variables:
+- DeepSeek or another Anthropic-compatible provider can be supplied through environment variables. Keep this as names and placeholders only; do not commit real token values, account-specific URLs, or private model aliases:
 
 ```bash
-export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-export ANTHROPIC_MODEL='deepseek-v4-pro[1m]'
-export ANTHROPIC_DEFAULT_OPUS_MODEL='deepseek-v4-pro[1m]'
-export ANTHROPIC_DEFAULT_SONNET_MODEL='deepseek-v4-pro[1m]'
-export ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash
-export CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash
-export CLAUDE_CODE_EFFORT_LEVEL=max
+export ANTHROPIC_BASE_URL=<anthropic-compatible-base-url>
+export ANTHROPIC_MODEL=<model-name>
+export ANTHROPIC_DEFAULT_OPUS_MODEL=<model-name>
+export ANTHROPIC_DEFAULT_SONNET_MODEL=<model-name>
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=<model-name>
+export CLAUDE_CODE_SUBAGENT_MODEL=<model-name>
+export CLAUDE_CODE_EFFORT_LEVEL=<effort>
 ```
 
 Set the provider's documented Anthropic-compatible auth token environment variable outside committed docs and fixtures.
@@ -291,11 +311,12 @@ node ./dist/cli/main.js conformance \
   --mode real \
   --agent codex \
   --allow-real-run \
+  --expect-text "agent-runtime codex smoke ok" \
   --json \
   --timeout-ms 30000
 ```
 
-`conformance --mode real` without `--allow-real-run` performs real local detection/profile certification and reports `runClassification: "real_run_skipped"` for runnable adapters. With `--allow-real-run`, it also executes the selected real CLI run and validates expected text plus cwd mutation evidence. It returns `schemaVersion: "agent-runtime.conformance.v1"` plus stable per-adapter fields: `adapter`, `version`, `resolvedExecutable`, `auth`, `modelsSource`, `capabilities`, `argvProfile`, `promptTransport`, `parserMode`, `runClassification`, `expectedTextMatched`, `observedTextTail`, `cwdMutated`, `diagnosticsCount`, `diagnostics`, `skippedReason`, and `failureReason`. `--agent all` keeps one adapter fail/skip isolated in the summary. The legacy `smoke --mode real` command remains available for detailed run-summary evidence with `--stream jsonl --diagnostics`.
+`conformance --mode real` without `--allow-real-run` performs real local detection/profile certification and reports `runClassification: "real_run_skipped"` for runnable adapters. With `--allow-real-run`, it also executes the selected real CLI run and validates expected text plus cwd mutation evidence. It returns `schemaVersion: "agent-runtime.conformance.v1"` plus stable per-adapter fields: `adapter`, `version`, `resolvedExecutable`, `auth`, `modelsSource`, `capabilities`, `argvProfile`, `promptTransport`, `parserMode`, `runClassification`, `expectedTextMatched`, `observedTextTail`, `cwdMutationChecked`, `cwdMutated`, `diagnosticsCount`, `diagnostics`, `skippedReason`, and `failureReason`. `--agent all` keeps one adapter fail/skip isolated in the summary. Use `smoke --mode real --allow-real-run --expect-text <safe_text>` for focused opt-in real-run evidence.
 
 P2-4 drift diagnostics:
 
@@ -303,7 +324,7 @@ P2-4 drift diagnostics:
 - `needs_verification`: version/help shape is outside the current profile; do not infer new flags from it.
 - parser/stream failures: structured stream errors become run diagnostics and are counted in conformance.
 
-All conformance output is redacted recursively. Do not commit real username paths, tokens, Bearer values, auth-token env assignments, full prompts, raw CLI output, or unredacted observed tails.
+All conformance and real-smoke output is redacted recursively. Do not commit real username paths, tokens, Bearer values, auth-token env assignments, full prompts, raw CLI output, final run records from real smoke, or unredacted observed tails.
 
 Equivalent lower-level run command:
 
@@ -583,7 +604,7 @@ Covered behavior:
 - planner parse/validation failure emits `scheduler_error` with `AGENT_TASK_GRAPH_INVALID`, writes goal diagnostics, and finishes the goal as failed without task attempts;
 - Codex / Claude / OpenCode parser conformance fixtures cover normal output, structured error, usage, tool/file event, partial line, and unknown event;
 - Codex / Claude / OpenCode `buildArgs` tests confirm long prompts stay out of argv while cwd/model/permission/session/extra dir mappings remain explicit;
-- `smoke --mode detection` and `smoke --mode fixtures` are offline-safe; `smoke --mode real` requires `--allow-real-run`;
+- `smoke --mode detection` and `smoke --mode fixtures` are offline-safe; P3-6 changed `smoke --mode real` so it performs detection/profile certification without `--allow-real-run` and launches real CLIs only when `--allow-real-run` is explicit;
 - Claude auth missing remains an expected `doctor` diagnostic and does not fail the overall doctor result when the adapter itself is available;
 - package root value exports remain limited to `createAgentRuntime`;
 - `npm pack --dry-run` excludes `.reference/`, test fixtures/secrets, and real smoke output.
@@ -626,21 +647,21 @@ npm run build
 node ./dist/cli/main.js smoke --mode fixtures --json
 node ./dist/cli/main.js smoke --mode detection --json
 node ./dist/cli/main.js doctor --json
-node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
-node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --expect-text "agent-runtime codex smoke ok" --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --expect-text "agent-runtime opencode smoke ok" --json --diagnostics --timeout-ms 30000
 ```
 
 Observed local results on 2026-06-17:
 
-- Codex: available, `codex-cli 0.140.0-alpha.19`, live model source, auth status `unknown`, read-only real smoke `classification: "success"` in isolated temp cwd.
+- Codex: available, `codex-cli 0.140.0-alpha.19`, live model source, auth status `unknown`, read-only real smoke `runClassification: "success"` in isolated temp cwd.
 - Claude Code: available, `2.1.178 (Claude Code)`, auth status `missing`; real run intentionally skipped by preflight until local auth is available.
-- OpenCode: available through fallback binary `opencode`, version `1.15.6`, live model source, real smoke `classification: "success"` in isolated temp cwd with runtime-requested read-only behavior; explicit read-only flag remains unverified.
+- OpenCode: available through fallback binary `opencode`, version `1.15.6`, live model source, real smoke `runClassification: "success"` in isolated temp cwd with runtime-requested read-only behavior; explicit read-only flag remains unverified.
 
 Covered behavior:
 
 - adapter profiles expose structured executable candidates, prompt transport mode, stream mode, known flags, and `needsVerification` flags;
 - `buildArgs()` keeps long prompts out of argv and no longer guesses unverified Claude `--session-id`;
-- real smoke refuses to run without `--allow-real-run`;
+- P3-6 supersedes the older refusal behavior: real smoke without `--allow-real-run` now emits a redacted preflight summary and does not launch a real run;
 - real smoke supports `--prompt-file`, `--cwd`, `--timeout-ms`, `--storage-dir`, `--json`, `--stream jsonl`, and `--diagnostics`;
 - auth missing and unavailable executable are classified before launch;
 - unsupported flag, timeout, and no-output runs include sanitized argv/profile diagnostics with stdout/stderr tails and actionable hints;
@@ -651,9 +672,9 @@ Covered behavior:
 Commands verified in this stage:
 
 ```bash
-node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
-node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000
-node ./dist/cli/main.js smoke --mode real --agent claude --allow-real-run --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --expect-text "agent-runtime codex smoke ok" --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --expect-text "agent-runtime opencode smoke ok" --json --diagnostics --timeout-ms 30000
+node ./dist/cli/main.js smoke --mode real --agent claude --allow-real-run --expect-text "agent-runtime claude smoke ok" --json --diagnostics --timeout-ms 30000
 npm run typecheck
 ```
 
@@ -662,11 +683,11 @@ Covered behavior:
 - default real smoke expects `agent-runtime <agent> smoke ok` in aggregated `text_delta`;
 - status-only exit `0` and wrong text classify as `unexpected_output`;
 - default isolated cwd mutation classifies as `cwd_mutated`;
-- `--prompt-file` without `--expect-text` does not force text matching and still keeps prompt content out of argv;
+- P3-6 requires expected text for success; `--prompt-file` without `--expect-text` still keeps prompt content out of argv but classifies the run as `unexpected_output`;
 - `--prompt-file --expect-text ...` enforces the override;
 - `observedTextTail`, expected text, cwd, diagnostics, and mutation samples are redacted and observed text is truncated.
-- local Codex and OpenCode real smoke passed with `expectedTextMatched: true`, `cwdMutationChecked: true`, and `cwdMutated: false`;
-- local Claude real smoke preflight returned `classification: "auth_missing"` without launching a run.
+- local Codex and OpenCode real smoke passed with `runClassification: "success"`, `expectedTextMatched: true`, `cwdMutationChecked: true`, and `cwdMutated: false`;
+- local Claude real smoke preflight returned `runClassification: "auth_missing"` without launching a run.
 
 ## P1-7 Durable Store Hardening
 

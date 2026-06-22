@@ -1,13 +1,40 @@
-# Release Report: 0.1.0-alpha.0 P2-13 plus P3-5 remote evidence closure
+# Release Report: 0.1.0-alpha.0 P3-6 real CLI opt-in smoke evidence
 
-Status: P3-5 Remote Release Evidence Closure
+Status: P3-6 Real CLI Opt-In Smoke Evidence
 Last updated: 2026-06-22
 
-This report records release-candidate and alpha publish-readiness evidence for `agent-cli-runtime@0.1.0-alpha.0`, plus post-P2-13 daemon-ready contract hardening notes. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
+This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, and P3-6 real CLI opt-in smoke evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
 
 ## Verdict
 
-The release candidate has GitHub Actions release-candidate evidence from P3-5 for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`. Workflow run `27932628093` completed successfully, uploaded all five release-candidate artifacts, and the downloaded artifacts passed local `npm run release:verify` after normalization. This evidence proves the workflow head SHA, not any later documentation commit that records the evidence. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+P3-6 adds a machine-reviewable opt-in real smoke evidence path while preserving the release boundary: default conformance/smoke real mode performs detection/profile certification only, and CI, dogfood, prepublish, and release-candidate gates still do not pass `--allow-real-run`. The release candidate also retains GitHub Actions release-candidate evidence from P3-5 for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; workflow run `27932628093` completed successfully, uploaded all five release-candidate artifacts, and the downloaded artifacts passed local `npm run release:verify` after normalization. This remote evidence proves the workflow head SHA, not later P3-6 local edits. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+
+## P3-6 Real CLI Opt-In Smoke Evidence
+
+P3-6 changes how real smoke evidence is requested and reviewed:
+
+- `node ./dist/cli/main.js smoke --mode real --agent <id> --json` does not launch a real agent run; it emits `schemaVersion: "agent-runtime.realSmoke.v1"` with `runClassification: "real_run_skipped"` or another preflight classification.
+- Authenticated real runs require `--allow-real-run` and expected text, for example `node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --expect-text <safe_text> --json`.
+- The same command shape is documented for Codex, Claude Code, and OpenCode.
+- The summary includes `adapter`, `version`, `auth`, `modelsSource`, `runClassification`, `expectedTextMatched`, redacted/truncated `observedTextTail`, `cwdMutationChecked`, `cwdMutated`, `diagnosticsCount`, `skippedReason`, and `failureReason`.
+- The summary excludes prompt text, token values, private cwd, raw stdout/stderr, and final run records.
+- A custom `--prompt` or `--prompt-file` without `--expect-text` cannot pass on exit `0`; it is classified as `unexpected_output`.
+- Preflight/run classifications include `auth_missing`, `unavailable_executable`, `unsupported_flag`, `unexpected_output`, `cwd_mutated`, `needs_verification`, and `real_run_skipped`.
+- Claude Anthropic-compatible provider docs use environment variable names and placeholders only; no real token value, provider URL, or private model alias is committed.
+- `.github/workflows/ci.yml`, `.github/workflows/release-candidate.yml`, `scripts/dogfood.mjs`, `scripts/create-release-candidate.mjs`, and `package.json` remain free of `--allow-real-run`.
+
+P3-6 local validation evidence on 2026-06-22:
+
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed with 191 tests and 1 skipped installed-package smoke.
+- `npm run build`: passed.
+- `npm run package:check`: passed with `package boundary ok: 147 files checked`.
+- `node ./dist/cli/main.js conformance --mode real --agent all --json`: passed without `--allow-real-run`; Codex and OpenCode reported `real_run_skipped`, Claude Code reported `auth_missing`.
+- `node ./dist/cli/main.js smoke --mode real --agent codex --json`: passed as safe preflight and reported `real_run_skipped`.
+- `node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --expect-text "agent-runtime real smoke ok" --timeout-ms 120000 --json`: completed with `runClassification: "success"`, `expectedTextMatched: true`, and `cwdMutated: false`. A 30s default-timeout retry can still classify as `timeout` in this environment.
+- `node ./dist/cli/main.js smoke --mode real --agent claude --allow-real-run --expect-text "agent-runtime real smoke ok" --json`: completed with `runClassification: "auth_missing"` before launch.
+- `node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --expect-text "agent-runtime real smoke ok" --timeout-ms 120000 --json`: completed with `runClassification: "success"`, `expectedTextMatched: true`, and `cwdMutated: false`. A 30s default-timeout retry can still classify as `timeout` in this environment.
 
 ## P3-5 Remote Release Evidence Closure
 
@@ -164,8 +191,10 @@ npm pack --dry-run
 npm publish --dry-run --ignore-scripts --tag alpha
 node ./dist/cli/main.js agents --json
 node ./dist/cli/main.js doctor --json
-git diff --check
 node ./dist/cli/main.js conformance --mode real --agent all --json
+node ./dist/cli/main.js smoke --mode real --agent codex --json
+node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --expect-text "agent-runtime real smoke ok" --json
+git diff --check
 ```
 
 `npm publish --dry-run --ignore-scripts --tag alpha` is a local manual safety check only. The explicit `--tag alpha` is required so dry-run output matches the pre-alpha release intent instead of reporting `latest`. Do not add it as a required CI gate unless npm dry-run output is proven stable for this repository and registry context.
@@ -285,9 +314,9 @@ Review the uploaded package file list and pack metadata before treating the cand
 
 ## Real CLI Evidence Boundary
 
-Default release gates do not launch authenticated real agent runs. `conformance --mode real --agent all --json` performs real local executable/version/auth/model/profile certification and reports `real_run_skipped`, `auth_missing`, `unsupported_flag`, or `needs_verification` honestly.
+Default release gates do not launch authenticated real agent runs. `conformance --mode real --agent all --json` and `smoke --mode real --agent <id> --json` perform real local executable/version/auth/model/profile certification and report `real_run_skipped`, `auth_missing`, `unsupported_flag`, or `needs_verification` honestly.
 
-Authenticated real runs require explicit `--allow-real-run` and remain local/manual evidence.
+Authenticated real runs require explicit `--allow-real-run --expect-text <safe_text>` and remain local/manual evidence. The real-smoke summary is redacted and does not contain prompt text, token values, private cwd, raw stdout/stderr, or the final run record.
 
 ## Known Risks
 

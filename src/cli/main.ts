@@ -81,7 +81,34 @@ interface ConformanceAdapterSummary {
   runClassification: string;
   expectedTextMatched: boolean | null;
   observedTextTail: string | null;
+  cwdMutationChecked: boolean;
   cwdMutated: boolean | null;
+  diagnosticsCount: number;
+  diagnostics: Array<Pick<RuntimeDiagnostic, "code" | "message" | "probe" | "actionableHints">>;
+  skippedReason: string | null;
+  failureReason: string | null;
+}
+
+interface RealSmokeSummary {
+  schemaVersion: "agent-runtime.realSmoke.v1";
+  type: "real_smoke_summary";
+  ok: boolean;
+  mode: "real";
+  adapter: string;
+  version: string | null;
+  auth: DetectedAgent["authStatus"] | "unknown";
+  modelsSource: DetectedAgent["modelsSource"] | "none";
+  runClassification: string;
+  expectedTextRequired: boolean;
+  expectedTextMatched: boolean | null;
+  observedTextDeltaCount: number;
+  observedTextTail: string | null;
+  cwdMutationChecked: boolean;
+  cwdMutated: boolean | null;
+  cwdMutationCount?: number;
+  cwdMutationSample?: Array<{ path: string; action: "created" | "updated" | "deleted" }>;
+  cwdMutationLimitReached?: boolean;
+  cwdMutationError?: string;
   diagnosticsCount: number;
   diagnostics: Array<Pick<RuntimeDiagnostic, "code" | "message" | "probe" | "actionableHints">>;
   skippedReason: string | null;
@@ -281,14 +308,13 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
     return;
   }
   if (mode === "real") {
-    if (!parsed.flags.has("allow-real-run")) {
-      throw new Error("smoke --mode real requires --allow-real-run");
-    }
     if (agent === "all") throw new Error("smoke --mode real requires --agent <id>");
+    const allowRealRun = parsed.flags.has("allow-real-run");
     const runtime = createAgentRuntime(runtimeOptionsFromFlags(parsed));
     try {
       const detected = (await runtime.detect({ includeUnavailable: true })).find((item) => item.id === agent);
-      const preflight = realSmokePreflight(agent, detected);
+      const adapter = runtime.getAdapter(agent);
+      const preflight = realSmokePreflight(agent, detected, adapter, allowRealRun);
       if (preflight) {
         output(parsed, preflight);
         return;
@@ -304,7 +330,7 @@ async function runSmoke(parsed: ParsedArgs): Promise<void> {
         permissionPolicy: "read-only",
         timeoutMs: numberFlag(parsed, "timeout-ms") ?? 30_000,
       });
-      await streamRealSmoke(parsed, agent, cwd, cwdFlag === undefined, expectation, beforeCwd, handle.events, { kind: "run", id: handle.runId }, () => runtime.getRun(handle.runId));
+      await streamRealSmoke(parsed, agent, detected, cwd, expectation, beforeCwd, handle.events, { kind: "run", id: handle.runId }, () => runtime.getRun(handle.runId));
     } finally {
       await runtime.shutdown("CLI command complete");
     }
@@ -383,6 +409,7 @@ function fixtureConformanceSummary(agent: "codex" | "claude" | "opencode"): Conf
     runClassification: ok ? "success" : "parser_fixture_failed",
     expectedTextMatched: null,
     observedTextTail: null,
+    cwdMutationChecked: false,
     cwdMutated: null,
     diagnosticsCount: fixtures.filter((fixture) => !fixture.ok).length,
     diagnostics: fixtures
@@ -448,7 +475,8 @@ async function runAgentConformance(
     parserMode: adapter?.compatibility?.streamFormat ?? null,
     runClassification: classification,
     expectedTextMatched,
-    observedTextTail: failureReason ? tailText(evidence.observedText, DEFAULT_OBSERVED_TEXT_TAIL_BYTES) : null,
+    observedTextTail: tailText(evidence.observedText, DEFAULT_OBSERVED_TEXT_TAIL_BYTES),
+    cwdMutationChecked: mutation.cwdMutationChecked,
     cwdMutated: mutation.cwdMutated,
     diagnosticsCount: (detected?.diagnostics.length ?? 0) + (run?.diagnostics.length ?? 0),
     diagnostics: compactDiagnostics([...(detected?.diagnostics ?? []), ...(run?.diagnostics ?? [])]),
@@ -475,6 +503,9 @@ function conformancePreflight(
   }
   if (detected.diagnostics.some((item) => item.code === "unsupported_flag")) {
     return skippedConformance(agent, "unsupported_flag", "unsupported_flag", detected.diagnostics.length, detected, adapter);
+  }
+  if (detected.diagnostics.some((item) => item.code === "needs_verification")) {
+    return skippedConformance(agent, "needs_verification", "needs_verification", detected.diagnostics.length, detected, adapter);
   }
   if (mode === "real" && !allowRealRun) {
     return skippedConformance(agent, "real_run_skipped", "real_run_not_allowed", detected.diagnostics.length, detected, adapter);
@@ -503,6 +534,7 @@ function skippedConformance(
     runClassification: classification,
     expectedTextMatched: null,
     observedTextTail: null,
+    cwdMutationChecked: false,
     cwdMutated: null,
     diagnosticsCount,
     diagnostics: compactDiagnostics(detected?.diagnostics ?? (diagnosticsCount > 0 ? [{
@@ -608,56 +640,93 @@ async function writeFakeExecutable(binDir: string, name: string, body: string): 
 }
 
 async function realSmokeExpectation(parsed: ParsedArgs, agent: string): Promise<RealSmokeExpectation> {
-  const explicitPrompt = parsed.flags.has("prompt") || parsed.flags.has("prompt-file");
-  const prompt = await optionalPromptFromFlags(parsed) ?? defaultRealSmokePrompt(agent);
+  const promptFromUser = await optionalPromptFromFlags(parsed);
   const expectText = stringFlag(parsed, "expect-text");
-  if (expectText !== undefined) return { prompt, expectedText: expectText, expectedTextRequired: true };
-  if (explicitPrompt) return { prompt, expectedTextRequired: false };
+  if (expectText !== undefined) {
+    return {
+      prompt: promptFromUser ?? promptForExpectedText(expectText),
+      expectedText: expectText,
+      expectedTextRequired: true,
+    };
+  }
+  if (promptFromUser !== undefined) return { prompt: promptFromUser, expectedTextRequired: true };
+  const prompt = defaultRealSmokePrompt(agent);
   return { prompt, expectedText: defaultRealSmokeExpectedText(agent), expectedTextRequired: true };
 }
 
 function defaultRealSmokePrompt(agent: string): string {
-  return `Reply exactly: ${defaultRealSmokeExpectedText(agent)}. Do not edit files.`;
+  return promptForExpectedText(defaultRealSmokeExpectedText(agent));
 }
 
 function defaultRealSmokeExpectedText(agent: string): string {
   return `agent-runtime ${agent} smoke ok`;
 }
 
-function realSmokePreflight(agent: string, detected: DetectedAgent | undefined): unknown | null {
+function promptForExpectedText(expectedText: string): string {
+  return `Reply exactly: ${expectedText}. Do not edit files.`;
+}
+
+function realSmokePreflight(
+  agent: string,
+  detected: DetectedAgent | undefined,
+  adapter: AgentAdapterDef | null,
+  allowRealRun: boolean,
+): RealSmokeSummary | null {
   if (!detected) {
-    return {
-      ok: false,
-      mode: "real",
-      agent,
-      skipped: true,
-      classification: "unavailable_executable",
-      diagnostics: [{ code: "not_installed", message: `No adapter detection result for ${agent}` }],
-    };
+    return skippedRealSmoke(agent, "unavailable_executable", "no_detection_result", 1, undefined, adapter);
   }
   if (!detected.available) {
-    return {
-      ok: false,
-      mode: "real",
-      agent,
-      skipped: true,
-      classification: "unavailable_executable",
-      detection: detected,
-      diagnostics: detected.diagnostics,
-    };
+    return skippedRealSmoke(agent, "unavailable_executable", "unavailable_executable", detected.diagnostics.length, detected, adapter);
   }
   if (detected.authStatus === "missing" || detected.authStatus === "expired") {
-    return {
-      ok: false,
-      mode: "real",
-      agent,
-      skipped: true,
-      classification: "auth_missing",
-      detection: detected,
-      diagnostics: detected.diagnostics,
-    };
+    return skippedRealSmoke(agent, "auth_missing", "auth_missing", detected.diagnostics.length, detected, adapter);
+  }
+  if (detected.diagnostics.some((item) => item.code === "unsupported_flag")) {
+    return skippedRealSmoke(agent, "unsupported_flag", "unsupported_flag", detected.diagnostics.length, detected, adapter);
+  }
+  if (detected.diagnostics.some((item) => item.code === "needs_verification")) {
+    return skippedRealSmoke(agent, "needs_verification", "needs_verification", detected.diagnostics.length, detected, adapter);
+  }
+  if (!allowRealRun) {
+    return skippedRealSmoke(agent, "real_run_skipped", "real_run_not_allowed", detected.diagnostics.length, detected, adapter);
   }
   return null;
+}
+
+function skippedRealSmoke(
+  agent: string,
+  classification: string,
+  reason: string,
+  diagnosticsCount: number,
+  detected?: DetectedAgent,
+  adapter?: AgentAdapterDef | null,
+): RealSmokeSummary {
+  const diagnostics = detected?.diagnostics ?? (diagnosticsCount > 0 ? [{
+    code: "not_installed",
+    message: `No adapter detection result for ${agent}`,
+    actionableHints: ["Verify the requested adapter id and executable configuration."],
+  }] : []);
+  return {
+    schemaVersion: "agent-runtime.realSmoke.v1",
+    type: "real_smoke_summary",
+    ok: false,
+    mode: "real",
+    adapter: agent,
+    version: detected?.version ?? null,
+    auth: detected?.authStatus ?? "unknown",
+    modelsSource: detected?.modelsSource ?? "none",
+    runClassification: classification,
+    expectedTextRequired: true,
+    expectedTextMatched: null,
+    observedTextDeltaCount: 0,
+    observedTextTail: null,
+    cwdMutationChecked: false,
+    cwdMutated: null,
+    diagnosticsCount,
+    diagnostics: compactDiagnostics(diagnostics),
+    skippedReason: reason,
+    failureReason: null,
+  };
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -733,8 +802,8 @@ async function streamRun(
 async function streamRealSmoke(
   parsed: ParsedArgs,
   agent: string,
+  detected: DetectedAgent | undefined,
   cwd: string,
-  isolatedCwd: boolean,
   expectation: RealSmokeExpectation,
   beforeCwd: CwdSnapshot,
   events: AsyncIterable<unknown>,
@@ -759,7 +828,7 @@ async function streamRealSmoke(
     if (parsed.flags.has("diagnostics")) {
       const run = await loadRun();
       const mutation = await cwdMutationEvidence(cwd, beforeCwd);
-      process.stdout.write(`${JSON.stringify(redactForCli(realSmokeSummary(agent, cwd, isolatedCwd, run, evidence, mutation)))}\n`);
+      process.stdout.write(`${JSON.stringify(redactForCli(realSmokeSummary(agent, detected, run, evidence, mutation)))}\n`);
     }
     return;
   }
@@ -777,7 +846,7 @@ async function streamRealSmoke(
   }
   const run = await loadRun();
   const mutation = await cwdMutationEvidence(cwd, beforeCwd);
-  output(parsed, realSmokeSummary(agent, cwd, isolatedCwd, run ?? (last as RunRecord | null), evidence, mutation));
+  output(parsed, realSmokeSummary(agent, detected, run ?? (last as RunRecord | null), evidence, mutation));
 }
 
 function collectRealSmokeEvidence(evidence: RealSmokeEvidence, event: unknown): void {
@@ -790,12 +859,11 @@ function collectRealSmokeEvidence(evidence: RealSmokeEvidence, event: unknown): 
 
 function realSmokeSummary(
   agent: string,
-  cwd: string,
-  isolatedCwd: boolean,
+  detected: DetectedAgent | undefined,
   run: RunRecord | null,
   evidence: RealSmokeEvidence,
   mutation: CwdMutationEvidence,
-): unknown {
+): RealSmokeSummary {
   const expectedTextMatched = evidence.expectedText ? evidence.observedText.includes(evidence.expectedText) : null;
   const hasObservedText = evidence.observedText.trim().length > 0;
   const classification = classifyRealSmokeRun(run, {
@@ -804,22 +872,32 @@ function realSmokeSummary(
     expectedTextRequired: evidence.expectedTextRequired,
     cwdMutated: mutation.cwdMutated,
   });
+  const diagnostics = run?.diagnostics ?? [];
+  const failureReason = classification === "success" ? null : classification;
   return {
+    schemaVersion: "agent-runtime.realSmoke.v1",
     type: "real_smoke_summary",
     ok: classification === "success",
     mode: "real",
-    agent,
-    cwd: isolatedCwd ? "<isolated-cwd>" : "<cwd>",
-    isolatedCwd,
-    expectedText: evidence.expectedText,
+    adapter: agent,
+    version: detected?.version ?? null,
+    auth: detected?.authStatus ?? "unknown",
+    modelsSource: detected?.modelsSource ?? "none",
+    runClassification: classification,
     expectedTextRequired: evidence.expectedTextRequired,
     expectedTextMatched,
     observedTextDeltaCount: evidence.textDeltaCount,
     observedTextTail: tailText(evidence.observedText, DEFAULT_OBSERVED_TEXT_TAIL_BYTES),
-    ...mutation,
-    classification,
-    run,
-    diagnostics: run?.diagnostics ?? [],
+    cwdMutationChecked: mutation.cwdMutationChecked,
+    cwdMutated: mutation.cwdMutated,
+    cwdMutationCount: mutation.cwdMutationCount,
+    cwdMutationSample: mutation.cwdMutationSample,
+    cwdMutationLimitReached: mutation.cwdMutationLimitReached,
+    cwdMutationError: mutation.cwdMutationError,
+    diagnosticsCount: diagnostics.length,
+    diagnostics: compactDiagnostics(diagnostics),
+    skippedReason: null,
+    failureReason,
   };
 }
 
@@ -842,6 +920,7 @@ function classifyRealSmokeRun(
   if (run.errorCode === "AGENT_TIMEOUT") return "timeout";
   if (run.errorCode === "AGENT_UNAVAILABLE" || run.errorCode === "AGENT_NOT_EXECUTABLE") return "unavailable_executable";
   if (run.diagnostics.some((diagnostic) => diagnostic.code === "unsupported_flag")) return "unsupported_flag";
+  if (run.diagnostics.some((diagnostic) => diagnostic.code === "needs_verification")) return "needs_verification";
   if (run.diagnostics.some((diagnostic) => diagnostic.code === "auth_missing" || diagnostic.code === "AGENT_AUTH_REQUIRED")) return "auth_missing";
   return run.errorCode ?? "failed";
 }

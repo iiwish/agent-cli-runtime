@@ -1,6 +1,6 @@
 # 本地 Coding Agent CLI Runtime SSOT
 
-状态：P3-5 Remote Release Evidence Closure
+状态：P3-6 Real CLI Opt-In Smoke Evidence
 负责人：local project
 最后更新：2026-06-22
 主要语言：中文；API 名、CLI 名、模型名、协议名、错误码、代码标识符等技术关键词保留英文。
@@ -562,7 +562,7 @@ codex exec --json --skip-git-repo-check --sandbox workspace-write -c sandbox_wor
 - Detection：支持 `CODEX_BIN`；probe `codex --version`；可选 probe `codex debug models`。
 - Compatibility：P1-5 本机检测通过，`codex debug models` live model source 可用；auth probe 暂无稳定非变更命令，状态为 `unknown`。
 - P0-4：真实 smoke 发现 `Reconnecting... n/5` 可在最终正文和 usage 前出现，parser 不再把这类 transient reconnect 当作 run failure。
-- P1-5：`smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000` 在 isolated temp cwd、read-only prompt 下通过，classification 为 `success`。Session/resume flag 仍未映射，profile 标记为 `needsVerification`。
+- P1-5 historical：`smoke --mode real --agent codex --allow-real-run --expect-text "agent-runtime codex smoke ok" --json --diagnostics --timeout-ms 30000` 在 isolated temp cwd、read-only prompt 下通过，`runClassification` 为 `success`。Session/resume flag 仍未映射，profile 标记为 `needsVerification`。
 
 ### Claude Code
 
@@ -598,7 +598,7 @@ opencode run --format json --dir <cwd>
 - Model：选择模型时追加 `-m <id>`。
 - Detection：支持 `OPENCODE_BIN`；probe `opencode models`，timeout 要比普通 version probe 更长。
 - Compatibility：P1-5 本机 `opencode-cli` 不存在，fallback 到 `/opt/homebrew/bin/opencode`；live model source 可用。`read-only` / `workspace-write` 权限映射保持未验证，不进入默认 argv。
-- P1-5：`smoke --mode real --agent opencode --allow-real-run --json --diagnostics --timeout-ms 30000` 在 isolated temp cwd、非写入 prompt、runtime 请求 read-only 行为下通过，说明本机 OpenCode 1.15.6 的 `opencode run --format json --dir <cwd>` 可接收 stdin prompt。`extraAllowedDirs`、session/resume 和 read-only/workspace-write explicit flags 仍标记为 `needsVerification`，不由 `buildArgs()` 猜测传入。
+- P1-5 historical：`smoke --mode real --agent opencode --allow-real-run --expect-text "agent-runtime opencode smoke ok" --json --diagnostics --timeout-ms 30000` 在 isolated temp cwd、非写入 prompt、runtime 请求 read-only 行为下通过，说明本机 OpenCode 1.15.6 的 `opencode run --format json --dir <cwd>` 可接收 stdin prompt。`extraAllowedDirs`、session/resume 和 read-only/workspace-write explicit flags 仍标记为 `needsVerification`，不由 `buildArgs()` 猜测传入。
 - Env：清理继承自 parent OpenCode process 的 runtime/session env keys，避免污染。
 - Permission：通过 `permissionPolicy` 暴露；只有显式请求时才传递 skip-permission flags。
 - Parser：映射 step start、text deltas、tool use/result、structured stdout errors、usage。
@@ -730,10 +730,11 @@ agent-runtime agents
 agent-runtime conformance --mode fixtures --json
 agent-runtime conformance --mode fake --json
 agent-runtime conformance --mode real --agent all --json
-agent-runtime conformance --mode real --agent codex --allow-real-run --json
+agent-runtime smoke --mode real --agent codex --allow-real-run --expect-text <safe_text> --json
+agent-runtime smoke --mode real --agent claude --allow-real-run --expect-text <safe_text> --json
+agent-runtime smoke --mode real --agent opencode --allow-real-run --expect-text <safe_text> --json
 agent-runtime smoke --mode detection --json
 agent-runtime smoke --mode fixtures --json
-agent-runtime smoke --mode real --agent codex --allow-real-run --json --diagnostics --timeout-ms 30000
 agent-runtime smoke --mode real --agent codex --allow-real-run --prompt-file task.md --expect-text "expected reply" --json --diagnostics --timeout-ms 30000
 agent-runtime run --agent codex --cwd . --prompt "fix lint"
 agent-runtime goal --agent codex --cwd . --prompt "split and execute this objective"
@@ -755,11 +756,12 @@ agent-runtime replay-goal goal_123 --storage-dir .agent-runtime --after 10 --jso
 - v1 event envelope 字段：`schemaVersion`、`id`、`sequence`、`timestamp`、`scope: { kind: "run" | "goal", id }`、`event`，terminal events 额外包含 `terminal: { result, reason }`。`result` 使用既有 `success | failed | cancelled`；`reason` 使用统一词表 `success | failed | timeout | canceled | interrupted | validation_failed | execution_failed | unavailable | auth_missing | task_graph_invalid`。
 - `store-health --json` 顶层输出 `schemaVersion: "agent-runtime.storeHealth.v1"`，并输出 `ok`、`storageDir`、`checkedAt`、`lock`、`totals`、`corruptManifests`、`corruptEventLogs`、`partialTails`、`activeRecords`、`activeInterrupted`、`warnings`、`storageDiagnostics`、`diagnostics`。
 - `store-repair --json` 顶层输出 `schemaVersion: "agent-runtime.storeRepair.v1"`；带 `--json` 的 CLI usage failure 顶层输出 `schemaVersion: "agent-runtime.cliError.v1"`、`ok: false` 和短的 redacted `error`。
-- `conformance --mode fixtures|fake|real` 是 P2-4 production gate。JSON 顶层输出 `schemaVersion: "agent-runtime.conformance.v1"`，并输出 per-adapter 稳定 summary：`adapter`、`version`、`resolvedExecutable`、`auth`、`modelsSource`、`capabilities`、`argvProfile`、`promptTransport`、`parserMode`、`runClassification`、`expectedTextMatched`、`observedTextTail`、`cwdMutated`、`diagnosticsCount`、`diagnostics`、`skippedReason`、`failureReason`。`fixtures` 只检查 parser fixtures；`fake` 通过临时 fake CLIs 走真实 adapter argv/stdin/parser；`real` 默认只做真实本地 detection/profile certification，不启动真实 agent run。只有显式 `--allow-real-run` 时才会运行真实 CLI；未授权时可运行 adapter 返回 `runClassification: "real_run_skipped"` 和 `skippedReason: "real_run_not_allowed"`。`--agent all` 中单 adapter unavailable/auth-missing/unsupported/fail 不得吞掉其他 adapter summary。
+- `conformance --mode fixtures|fake|real` 是 P2-4 production gate。JSON 顶层输出 `schemaVersion: "agent-runtime.conformance.v1"`，并输出 per-adapter 稳定 summary：`adapter`、`version`、`resolvedExecutable`、`auth`、`modelsSource`、`capabilities`、`argvProfile`、`promptTransport`、`parserMode`、`runClassification`、`expectedTextMatched`、`observedTextTail`、`cwdMutationChecked`、`cwdMutated`、`diagnosticsCount`、`diagnostics`、`skippedReason`、`failureReason`。`fixtures` 只检查 parser fixtures；`fake` 通过临时 fake CLIs 走真实 adapter argv/stdin/parser；`real` 默认只做真实本地 detection/profile certification，不启动真实 agent run。只有显式 `--allow-real-run` 时才会运行真实 CLI；未授权时可运行 adapter 返回 `runClassification: "real_run_skipped"` 和 `skippedReason: "real_run_not_allowed"`。`--agent all` 中单 adapter unavailable/auth-missing/unsupported/fail 不得吞掉其他 adapter summary。
 - P2-4 conformance drift detection：tracked flag 不再出现在 help 中时输出 `unsupported_flag` diagnostic；version/help 输出形状不在当前 profile 中时输出 `needs_verification` diagnostic；stream/parser error 必须写入 run diagnostic 并进入 conformance diagnostics count。不得猜测真实 CLI 新 flag；未知项必须保留在 `argvProfile.needsVerification`，直到有 fixtures 与 real local observed 证据。
 - P2-4 conformance/redaction boundary：JSON 输出不得包含真实 token、Bearer value、auth-token env assignment、完整 prompt、真实私有绝对路径或未脱敏 observed text tail。`--expect-text` 可用于授权 real run 的文本验收；失败时 `observedTextTail` 必须截断并脱敏。
-- `smoke --mode detection` 只做 detection；`smoke --mode fixtures` 离线执行内置 parser conformance fixtures；`smoke --mode real` 必须显式 `--allow-real-run` 和 `--agent <id>`，默认由 runtime 请求 read-only 行为、使用非写入 prompt、未传 `--cwd` 时使用临时目录，并支持 `--prompt`、`--prompt-file`、`--expect-text`、`--timeout-ms`、`--storage-dir`、`--json`、`--stream jsonl`、`--diagnostics`。real smoke 会先做 detection preflight：missing executable / non-executable / auth missing 会分类为 redacted smoke envelope，不强行启动真实 CLI。
-- P1-6 起，默认 real smoke prompt 为 `Reply exactly: agent-runtime <agent> smoke ok. Do not edit files.`，并自动要求聚合后的 `text_delta` 包含 `agent-runtime <agent> smoke ok`。`--expect-text <text>` 覆盖 expected text；若用户传 `--prompt` 或 `--prompt-file` 但未传 `--expect-text`，summary 输出 `expectedTextRequired: false`，不强制文本匹配，但仍要求至少有 `text_delta`，避免 status-only exit `0` 被判成功。required text 缺失分类为 `unexpected_output`。
+- `smoke --mode detection` 只做 detection；`smoke --mode fixtures` 离线执行内置 parser conformance fixtures；`smoke --mode real` 默认只做 detection/profile certification，不启动真实 run；只有显式 `--allow-real-run` 和 `--agent <id>` 才会执行真实 CLI。真实 run 默认由 runtime 请求 read-only 行为、使用非写入 prompt、未传 `--cwd` 时使用临时目录，并支持 `--prompt`、`--prompt-file`、`--expect-text`、`--timeout-ms`、`--storage-dir`、`--json`、`--stream jsonl`、`--diagnostics`。real smoke 会先做 detection preflight：missing executable / non-executable / auth missing / unsupported flag / 未授权 real run 会分类为 redacted smoke summary，不强行启动真实 CLI。
+- P3-6 起，real smoke JSON 输出 `schemaVersion: "agent-runtime.realSmoke.v1"` 和 `type: "real_smoke_summary"`，字段包括 `adapter`、`version`、`auth`、`modelsSource`、`runClassification`、`expectedTextMatched`、截断脱敏的 `observedTextTail`、`cwdMutationChecked`、`cwdMutated`、`diagnosticsCount`、`skippedReason`、`failureReason`。summary 不包含 prompt、token、私有 cwd、raw stdout/stderr 或 final run record。失败/跳过分类包括 `auth_missing`、`unavailable_executable`、`unsupported_flag`、`unexpected_output`、`cwd_mutated`、`needs_verification`、`real_run_skipped`。
+- 默认 real smoke prompt 为 `Reply exactly: agent-runtime <agent> smoke ok. Do not edit files.`，并自动要求聚合后的 `text_delta` 包含 `agent-runtime <agent> smoke ok`。`--expect-text <text>` 覆盖 expected text；若用户传 `--prompt` 或 `--prompt-file` 但未传 `--expect-text`，不能因为 exit `0` 或存在 text delta 判成功，必须分类为 `unexpected_output`。required text 缺失分类为 `unexpected_output`。
 - P1-6 real smoke 会在 run 前后轻量扫描 cwd，跳过 `.git`、`node_modules`、`dist`、`.agent-runtime` 并设置条目上限。summary 输出 `cwdMutationChecked`、`cwdMutated`、`cwdMutationCount`、`cwdMutationSample`；默认 read-only/non-mutating smoke 检测到新增/修改/删除时分类为 `cwd_mutated`。observed text tail、expected text、mutation sample、cwd 和 diagnostics 必须 redaction/truncation，不泄露 token、Bearer、`sk-*` 或私有绝对路径。
 - `runs` / `goals` 支持 `--status active|<terminal-status>` 过滤。
 - `run-status` / `goal-status` 输出单个历史 record，适合进程重启后的状态查询。
@@ -845,8 +847,8 @@ Diagnostics 应包含：
 - CLI `conformance --mode real` 无 `--allow-real-run` 必须完成 detection/profile certification 且不启动真实 run；real all-agent summary 中单 adapter fail/skip 不影响其他 adapter summary；
 - CLI `runs` / `goals` / `run-status` / `goal-status` / `replay-run` / `replay-goal` 可读取 storageDir；
 - CLI `store-health` / `diagnostics run` / `diagnostics goal --out` 可读取 storageDir 并输出 redacted evidence；
-- CLI `smoke --mode real` 无 `--allow-real-run` 必须拒绝；有 `--prompt-file` 时长 prompt 仍通过 stdin/file transport，不进入 argv；
-- CLI `smoke --mode real` 默认 expected text 匹配才可通过；status-only exit `0` 或 wrong text 分类为 `unexpected_output`；`--prompt-file` 不带 `--expect-text` 时不强制文本匹配但仍要求有 text delta；
+- CLI `smoke --mode real` 无 `--allow-real-run` 必须只做 detection/profile certification，不启动真实 run，并以 `real_run_skipped` 或其它 preflight 分类输出 redacted summary；有 `--prompt-file` 时长 prompt 仍通过 stdin/file transport，不进入 argv；
+- CLI `smoke --mode real` 默认 expected text 匹配才可通过；status-only exit `0`、wrong text、或 `--prompt-file` / `--prompt` 未带 `--expect-text` 均分类为 `unexpected_output`；
 - CLI `smoke --mode real` 输出 cwd mutation evidence，默认 isolated cwd 被写文件时分类为 `cwd_mutated`；
 - real smoke preflight 将 unavailable executable 和 auth missing 分类为诊断，不把 Claude 本机未登录当作 doctor 整体失败；
 - real smoke timeout diagnostics 和 diagnostics bundle 暴露 sanitized argv、promptTransport、streamFormat、parsedEventCount、stdout/stderr tail 与 actionable hints；
@@ -858,7 +860,7 @@ Diagnostics 应包含：
 agent-runtime agents
 agent-runtime smoke --mode detection --json
 agent-runtime smoke --mode fixtures --json
-agent-runtime smoke --mode real --agent codex --allow-real-run --json
+agent-runtime smoke --mode real --agent codex --allow-real-run --expect-text <safe_text> --json
 ```
 
 ## 18. 里程碑
@@ -957,7 +959,7 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 - 内置 adapter compatibility profile 增加 structured executable candidates、prompt transport mode、stream mode 和 `needsVerification` 列表。
 - `buildArgs()` 不再传入未验证的 Claude `--session-id`；Codex session、OpenCode session/extra dirs/read-only mapping 继续只记录为待验证 profile 项。
 - `agent-runtime smoke --mode real` 支持 `--agent <id>`、`--prompt-file`、`--cwd`、`--timeout-ms`、`--storage-dir`、`--json`、`--stream jsonl`、`--diagnostics`。
-- real smoke 默认由 runtime 请求 read-only 行为、使用非写入 prompt 和 isolated temp cwd；没有 `--allow-real-run` 会拒绝。
+- real smoke 默认由 runtime 请求 read-only 行为、使用非写入 prompt 和 isolated temp cwd；P3-6 起，没有 `--allow-real-run` 时输出 redacted preflight summary，不启动真实 run。
 - real smoke 先做 detection preflight；auth missing / unavailable executable 不启动真实 run，而是输出分类清楚的 redacted smoke envelope。
 - run diagnostics 对 unsupported flag / auth-looking / network-looking 输出给出 explicit diagnostic 或 actionable hints。
 - diagnostics bundle 的 run `adapterSummary` 汇总 sanitized argv、promptTransport、streamFormat、parsedEventCount 和 hints，方便从 storageDir 导出 real smoke evidence。
@@ -966,11 +968,11 @@ agent-runtime smoke --mode real --agent codex --allow-real-run --json
 ### P1-6：Real Smoke Evidence Hardening
 
 - real smoke 从“进程成功”提升为“可验收的非破坏性行为证据”：默认 expected text 必须出现在聚合 `text_delta`；`--expect-text` 可覆盖。
-- 用户自定义 `--prompt` / `--prompt-file` 且未传 `--expect-text` 时，summary 输出 `expectedTextRequired: false`，但 status-only exit `0` 仍分类为 `unexpected_output`。
+- P3-6 后，用户自定义 `--prompt` / `--prompt-file` 且未传 `--expect-text` 时不能成功；即使 exit `0` 且有 text delta，也必须分类为 `unexpected_output`。
 - real smoke run 前后扫描 cwd，输出 `cwdMutationChecked`、`cwdMutated`、`cwdMutationCount`、`cwdMutationSample`；检测到 mutation 时分类为 `cwd_mutated`。
-- JSON 和 `--stream jsonl --diagnostics` 都输出同等 redacted `real_smoke_summary`，包含 `expectedTextMatched`、`observedTextTail`、final run record 和 diagnostics。
+- JSON 和 `--stream jsonl --diagnostics` 都输出同等 redacted `real_smoke_summary`，包含 `schemaVersion`、`adapter`、`version`、`auth`、`modelsSource`、`runClassification`、`expectedTextMatched`、`observedTextTail`、cwd mutation evidence、`diagnosticsCount`、`skippedReason` 和 `failureReason`；不包含 prompt、token、私有 cwd、raw stderr/stdout 或 final run record。
 - 新增字段和 diagnostics 继续走 redaction；observed text tail 截断，expected text 与 mutation sample 不泄露 token、Bearer、`sk-*` 或私有 cwd。
-- P1-6 本机 evidence：Codex 和 OpenCode real smoke 均 `classification: "success"`、`expectedTextMatched: true`、`cwdMutationChecked: true`、`cwdMutated: false`；Claude Code 仍在 detection preflight 阶段返回 `classification: "auth_missing"`。
+- P1-6 historical 本机 evidence：Codex 和 OpenCode real smoke 均 `runClassification: "success"`、`expectedTextMatched: true`、`cwdMutationChecked: true`、`cwdMutated: false`；Claude Code 仍在 detection preflight 阶段返回 `runClassification: "auth_missing"`。P3-6 latest same-machine opt-in evidence keeps the same Codex/OpenCode success shape with explicit `--expect-text --timeout-ms 120000`, while default release gates still omit `--allow-real-run`。
 
 ### P1-7：Durable Store Hardening
 

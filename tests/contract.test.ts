@@ -788,35 +788,36 @@ exit 66
 
   it("marks unfamiliar version output as needs_verification without inventing new flags", async () => {
     const binDir = await tempDir();
-    await writeFakeCodexSmoke(binDir, `
-console.log(JSON.stringify({ type: "thread.started" }));
-console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
-`);
     await writeExecutable(binDir, "codex", `
 const args = process.argv.slice(2);
 if (args[0] === "--version") { console.log("mystery-runtime build local"); process.exit(0); }
 if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-drift", display_name: "GPT Drift" }] })); process.exit(0); }
-let input = "";
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", chunk => input += chunk);
-process.stdin.on("end", () => {
-  console.log(JSON.stringify({ type: "thread.started" }));
-  console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime codex smoke ok" } }));
-});
+console.error("real run should not launch for needs_verification");
+process.exit(66);
 `);
     const conformance = await execCliJson<{
-      agents: Array<{ diagnostics: Array<{ code: string; actionableHints?: string[] }>; argvProfile: { needsVerification: Array<{ mapsTo: string }> } }>;
+      agents: Array<{
+        runClassification: string;
+        skippedReason: string | null;
+        diagnostics: Array<{ code: string; actionableHints?: string[] }>;
+        argvProfile: { needsVerification: Array<{ mapsTo: string }> };
+      }>;
     }>([
       "conformance",
       "--mode",
       "real",
       "--agent",
       "codex",
+      "--allow-real-run",
       "--json",
     ], {
       env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     });
 
+    expect(conformance.agents[0]).toMatchObject({
+      runClassification: "needs_verification",
+      skippedReason: "needs_verification",
+    });
     expect(conformance.agents[0].diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: "needs_verification",
@@ -829,11 +830,94 @@ process.stdin.on("end", () => {
     ]));
   }, 30_000);
 
-  it("refuses real smoke unless --allow-real-run is explicit", async () => {
-    const failure = await execCliFailure(["smoke", "--mode", "real", "--agent", "codex", "--json"]);
-    const parsed = JSON.parse(failure.stdout) as { ok: false; error: { message: string } };
-    expect(failure).toMatchObject({ code: 1, stderr: "" });
-    expect(parsed.error.message).toContain("smoke --mode real requires --allow-real-run");
+  it("classifies real smoke profile drift as needs_verification without launching", async () => {
+    const binDir = await tempDir();
+    await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("mystery-runtime smoke local"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-drift", display_name: "GPT Drift" }] })); process.exit(0); }
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => input += chunk);
+process.stdin.on("end", () => {
+  console.error("real smoke should not launch for needs_verification");
+  process.exit(66);
+});
+`);
+    const smoke = await execCliJson<{
+      runClassification: string;
+      skippedReason: string | null;
+      diagnostics: Array<{ code: string; actionableHints?: string[] }>;
+    }>([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--json",
+    ], {
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
+    });
+
+    expect(smoke).toMatchObject({
+      schemaVersion: "agent-runtime.realSmoke.v1",
+      ok: false,
+      adapter: "codex",
+      runClassification: "needs_verification",
+      skippedReason: "needs_verification",
+      failureReason: null,
+      observedTextTail: null,
+      cwdMutationChecked: false,
+    });
+    expect(smoke.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "needs_verification",
+        actionableHints: expect.arrayContaining([expect.stringContaining("Verify this CLI version output manually")]),
+      }),
+    ]));
+  }, 30_000);
+
+  it("certifies real smoke preflight without launching runs unless --allow-real-run is explicit", async () => {
+    const binDir = await tempDir();
+    await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("codex-cli smoke-preflight"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-smoke-preflight", display_name: "GPT Smoke Preflight" }] })); process.exit(0); }
+console.error("real smoke should not launch without --allow-real-run");
+process.exit(66);
+`);
+    const smoke = await execCliJson([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--json",
+    ], {
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
+    });
+
+    expect(smoke).toMatchObject({
+      schemaVersion: "agent-runtime.realSmoke.v1",
+      type: "real_smoke_summary",
+      ok: false,
+      mode: "real",
+      adapter: "codex",
+      version: "codex-cli smoke-preflight",
+      auth: "unknown",
+      modelsSource: "live",
+      runClassification: "real_run_skipped",
+      expectedTextRequired: true,
+      expectedTextMatched: null,
+      observedTextDeltaCount: 0,
+      observedTextTail: null,
+      cwdMutationChecked: false,
+      cwdMutated: null,
+      diagnosticsCount: 0,
+      skippedReason: "real_run_not_allowed",
+      failureReason: null,
+    });
   }, 30_000);
 
   it("runs real smoke with --prompt-file without putting long prompts in argv", async () => {
@@ -877,9 +961,18 @@ process.stdin.on("end", () => {
       env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
     });
 
-    expect(smoke).toMatchObject({ ok: true, mode: "real", agent: "codex", run: { status: "succeeded" } });
-    expect(smoke).toMatchObject({ expectedTextRequired: false, expectedTextMatched: null });
+    expect(smoke).toMatchObject({
+      schemaVersion: "agent-runtime.realSmoke.v1",
+      ok: false,
+      mode: "real",
+      adapter: "codex",
+      runClassification: "unexpected_output",
+      expectedTextRequired: true,
+      expectedTextMatched: null,
+      failureReason: "unexpected_output",
+    });
     expect(JSON.stringify(smoke)).not.toContain(longPrompt);
+    expect(JSON.stringify(smoke)).not.toContain("run_");
   }, 30_000);
 
   it("requires default real smoke expected text evidence", async () => {
@@ -901,17 +994,66 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
     });
 
     expect(smoke).toMatchObject({
+      schemaVersion: "agent-runtime.realSmoke.v1",
       ok: true,
       mode: "real",
-      agent: "codex",
-      classification: "success",
-      expectedText: "agent-runtime codex smoke ok",
+      adapter: "codex",
+      runClassification: "success",
       expectedTextRequired: true,
       expectedTextMatched: true,
       observedTextTail: "agent-runtime codex smoke ok",
       cwdMutationChecked: true,
       cwdMutated: false,
-      run: { status: "succeeded" },
+      diagnosticsCount: 0,
+      skippedReason: null,
+      failureReason: null,
+    });
+    expect(JSON.stringify(smoke)).not.toContain("run_");
+  }, 30_000);
+
+  it("uses --expect-text as the default safe prompt when no prompt is supplied", async () => {
+    const binDir = await tempDir();
+    await writeExecutable(binDir, "codex", `
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("codex-cli test"); process.exit(0); }
+if (args[0] === "debug" && args[1] === "models") { console.log(JSON.stringify({ models: [{ slug: "gpt-test", display_name: "GPT Test" }] })); process.exit(0); }
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => input += chunk);
+process.stdin.on("end", () => {
+  if (!input.includes("Reply exactly: agent-runtime real smoke ok.")) {
+    console.error("safe expected text was not used as the prompt");
+    process.exit(65);
+  }
+  if (input.includes("agent-runtime codex smoke ok")) {
+    console.error("default adapter expected text leaked into custom expected smoke");
+    process.exit(66);
+  }
+  console.log(JSON.stringify({ type: "thread.started" }));
+  console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "agent-runtime real smoke ok" } }));
+});
+`);
+    const smoke = await execCliJson([
+      "smoke",
+      "--mode",
+      "real",
+      "--agent",
+      "codex",
+      "--allow-real-run",
+      "--expect-text",
+      "agent-runtime real smoke ok",
+      "--json",
+    ], {
+      env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
+    });
+
+    expect(smoke).toMatchObject({
+      ok: true,
+      adapter: "codex",
+      runClassification: "success",
+      expectedTextMatched: true,
+      observedTextTail: "agent-runtime real smoke ok",
+      failureReason: null,
     });
   }, 30_000);
 
@@ -934,12 +1076,12 @@ console.log(JSON.stringify({ type: "thread.started" }));
 
     expect(smoke).toMatchObject({
       ok: false,
-      classification: "unexpected_output",
+      runClassification: "unexpected_output",
       expectedTextRequired: true,
       expectedTextMatched: false,
       observedTextDeltaCount: 0,
       observedTextTail: "",
-      run: { status: "succeeded" },
+      failureReason: "unexpected_output",
     });
   }, 30_000);
 
@@ -963,10 +1105,10 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
 
     expect(smoke).toMatchObject({
       ok: false,
-      classification: "unexpected_output",
+      runClassification: "unexpected_output",
       expectedTextMatched: false,
       observedTextTail: "not the expected smoke text",
-      run: { status: "succeeded" },
+      failureReason: "unexpected_output",
     });
   }, 30_000);
 
@@ -993,17 +1135,17 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
 
     expect(smoke).toMatchObject({
       ok: false,
-      classification: "cwd_mutated",
+      runClassification: "cwd_mutated",
       expectedTextMatched: true,
       cwdMutationChecked: true,
       cwdMutated: true,
       cwdMutationCount: 1,
       cwdMutationSample: [{ path: "smoke-output.txt", action: "created" }],
-      run: { status: "succeeded" },
+      failureReason: "cwd_mutated",
     });
   }, 30_000);
 
-  it("does not require expected text for prompt-file real smoke unless --expect-text is set", async () => {
+  it("does not pass prompt-file real smoke without --expect-text", async () => {
     const binDir = await tempDir();
     const promptFile = path.join(await tempDir(), "prompt.txt");
     await writeFile(promptFile, "custom prompt-file smoke", "utf8");
@@ -1031,12 +1173,12 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
     });
 
     expect(smoke).toMatchObject({
-      ok: true,
-      classification: "success",
-      expectedTextRequired: false,
+      ok: false,
+      runClassification: "unexpected_output",
+      expectedTextRequired: true,
       expectedTextMatched: null,
       observedTextTail: "custom prompt-file response",
-      run: { status: "succeeded" },
+      failureReason: "unexpected_output",
     });
     expect(JSON.stringify(smoke)).not.toContain("custom prompt-file smoke");
   }, 30_000);
@@ -1067,8 +1209,7 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
 
     expect(smoke).toMatchObject({
       ok: true,
-      classification: "success",
-      expectedText: "custom expected ok",
+      runClassification: "success",
       expectedTextRequired: true,
       expectedTextMatched: true,
     });
@@ -1107,14 +1248,16 @@ console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_messag
     const text = JSON.stringify(smoke);
 
     expect(smoke).toMatchObject({
+      schemaVersion: "agent-runtime.realSmoke.v1",
       type: "real_smoke_summary",
-      classification: "cwd_mutated",
-      expectedText: "expected [REDACTED]",
+      runClassification: "cwd_mutated",
       cwdMutationSample: [{ path: "token-[REDACTED].txt", action: "created" }],
+      failureReason: "cwd_mutated",
     });
     expect(text).toContain("[REDACTED]");
     expect(text).not.toContain(secret);
     expect(text).not.toContain(privateCwd);
+    expect(text).not.toContain("expected ");
   }, 30_000);
 
   it("redacts observed text, prompt, auth env, and cwd in real conformance failures", async () => {
@@ -1201,12 +1344,17 @@ process.exit(66);
     })).stdout);
 
     expect(smoke).toMatchObject({
+      schemaVersion: "agent-runtime.realSmoke.v1",
       ok: false,
       mode: "real",
-      agent: "claude",
-      classification: "auth_missing",
-      skipped: true,
-      detection: { available: true, authStatus: "missing" },
+      adapter: "claude",
+      runClassification: "auth_missing",
+      auth: "missing",
+      observedTextTail: null,
+      cwdMutationChecked: false,
+      cwdMutated: null,
+      skippedReason: "auth_missing",
+      failureReason: null,
     });
     expect(smoke.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "auth_missing" })]));
   }, 30_000);
@@ -1231,12 +1379,16 @@ process.exit(66);
     })).stdout);
 
     expect(smoke).toMatchObject({
+      schemaVersion: "agent-runtime.realSmoke.v1",
       ok: false,
       mode: "real",
-      agent: "codex",
-      classification: "unavailable_executable",
-      skipped: true,
-      detection: { available: false },
+      adapter: "codex",
+      runClassification: "unavailable_executable",
+      observedTextTail: null,
+      cwdMutationChecked: false,
+      cwdMutated: null,
+      skippedReason: "unavailable_executable",
+      failureReason: null,
     });
     expect(smoke.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "not_installed" })]));
   }, 30_000);
@@ -1602,7 +1754,7 @@ setInterval(() => {}, 1000);
       env: fakeCliEnv(binDir, { CODEX_BIN: path.join(binDir, "codex") }),
       timeout: 10_000,
     })).stdout);
-    const runId = smoke.run?.id ?? (await waitForRunId(storageDir));
+    const runId = await waitForRunId(storageDir);
     if (runId === undefined) {
       throw new Error("Expected a run id from real smoke output or storage scan");
     }
@@ -1617,7 +1769,15 @@ setInterval(() => {}, 1000);
     ])).stdout) as DiagnosticsBundle;
     const text = JSON.stringify(bundle);
 
-    expect(smoke).toMatchObject({ ok: false, mode: "real", run: { status: "failed", errorCode: "AGENT_TIMEOUT" } });
+    expect(smoke).toMatchObject({
+      schemaVersion: "agent-runtime.realSmoke.v1",
+      ok: false,
+      mode: "real",
+      adapter: "codex",
+      runClassification: "timeout",
+      failureReason: "timeout",
+    });
+    expect(JSON.stringify(smoke)).not.toContain(privateCwd);
     expect(bundle.adapterSummary).toMatchObject({
       kind: "run",
       agentId: "codex",
@@ -1951,9 +2111,13 @@ setInterval(() => {}, 1000);
       scripts: Record<string, string>;
     };
     const creator = await readFile(releaseCandidateCreator, "utf8");
+    const dogfood = await readFile(path.join(root, "scripts", "dogfood.mjs"), "utf8");
 
     expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
+    expect(manifest.scripts.dogfood).not.toContain("--allow-real-run");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("--allow-real-run");
+    expect(manifest.scripts["release:candidate"]).not.toContain("--allow-real-run");
     expect(creator).toContain("agent-cli-runtime.releaseGateEvidence.v1");
     expect(creator).toContain("npm run daemon:verify");
     expect(creator).toContain("npm run runtime:safety");
@@ -1961,6 +2125,29 @@ setInterval(() => {}, 1000);
     expect(creator).not.toMatch(/\bnpm publish\b/u);
     expect(creator).not.toContain("NODE_AUTH_TOKEN");
     expect(creator).not.toContain("--allow-real-run");
+    expect(dogfood).not.toContain("--allow-real-run");
+  });
+
+  it("keeps public docs free of real token and provider-specific secret examples", async () => {
+    const docs = [
+      "README.md",
+      "README.zh-CN.md",
+      "docs/compatibility.md",
+      "docs/production-readiness.md",
+      "docs/release-report.md",
+      "docs/release-checklist.md",
+      "docs/ssot.md",
+      "docs/daemon-ready-contract.md",
+    ];
+
+    for (const doc of docs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text).not.toMatch(/\b(?:sk|pk)-[A-Za-z0-9_-]{20,}\b/u);
+      expect(text).not.toMatch(/\bBearer\s+[A-Za-z0-9+/_-]{10,}\b/u);
+      expect(text).not.toMatch(/\b(?:ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY|OPENAI_API_KEY|OPENAI_AUTH_TOKEN|CLAUDE_AUTH_TOKEN|CODEX_AUTH_TOKEN|OPENCODE_AUTH_TOKEN)\s*=\s*(?!<|\$|\$\{|\[REDACTED\]|redacted\b)[^\s#'"]{4,}/iu);
+      expect(text).not.toMatch(/api\.deepseek\.com/iu);
+      expect(text).not.toMatch(/\bdeepseek-[a-z0-9._:-]+/iu);
+    }
   });
 
   it("documents P3-5 workflow-head evidence without pending status or old-run reuse", async () => {

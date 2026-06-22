@@ -1,9 +1,9 @@
 # Production Readiness
 
-Status: P3-5 remote release evidence closure
+Status: P3-6 real CLI opt-in smoke evidence
 Last updated: 2026-06-22
 
-This project is still **pre-alpha / developer preview**. P2-11 through P2-13 established release-candidate artifact verification, remote evidence closure, and alpha publish-readiness docs without publishing npm. P3-1 froze daemon-ready execution-kernel contracts for embedders in [docs/daemon-ready-contract.md](./daemon-ready-contract.md); P3-2 added an executable daemon embedding stability gate for the installed-package fake-CLI path; P3-3 added an installed-package long-lived runtime resource safety gate; P3-4 aligned CI and release-candidate artifacts so those gates are represented in remote release artifacts; P3-5 verified the workflow head SHA through a successful remote release-candidate workflow and downloaded artifact re-verification. It still does not publish npm, configure trusted publishing, claim provenance, or add daemon/API server/database/WAL/remote-worker/UI/telemetry/artifact layers.
+This project is still **pre-alpha / developer preview**. P2-11 through P2-13 established release-candidate artifact verification, remote evidence closure, and alpha publish-readiness docs without publishing npm. P3-1 froze daemon-ready execution-kernel contracts for embedders in [docs/daemon-ready-contract.md](./daemon-ready-contract.md); P3-2 added an executable daemon embedding stability gate for the installed-package fake-CLI path; P3-3 added an installed-package long-lived runtime resource safety gate; P3-4 aligned CI and release-candidate artifacts so those gates are represented in remote release artifacts; P3-5 verified the workflow head SHA through a successful remote release-candidate workflow and downloaded artifact re-verification; P3-6 adds a redacted opt-in real smoke evidence format for Codex, Claude Code, and OpenCode while keeping default release gates on detection/profile certification only. It still does not publish npm, configure trusted publishing, claim provenance, or add daemon/API server/database/WAL/remote-worker/UI/telemetry/artifact layers.
 
 ## Local-First Production Definition
 
@@ -24,7 +24,8 @@ For this repository, "production-ready local runtime" means:
 - daemon/product shell embedding semantics are documented without adding a hosted daemon surface;
 - `npm run daemon:verify` packs and installs the package into a temporary consumer, then verifies fake run, fake goal, replay, diagnostics, store inspection, shutdown, and reopen using temp storage and fake CLIs;
 - `npm run runtime:safety` packs and installs the package into a temporary consumer, then verifies repeated run/goal execution, slow event consumption, cancel/timeout churn, bounded redacted diagnostics, repeated shutdown, lease close, and reopen behavior using fake CLIs only;
-- real CLI conformance defaults to detection/profile certification only; authenticated real agent runs require explicit `--allow-real-run`;
+- real CLI conformance and smoke default to detection/profile certification only; authenticated real agent runs require explicit `--allow-real-run`;
+- real smoke evidence uses `schemaVersion: "agent-runtime.realSmoke.v1"`, requires expected text for success, checks cwd mutation, and omits prompts, raw stdout/stderr, private cwd, tokens, and final run records;
 - `npm run dogfood` is the default release-candidate gate and does not launch authenticated real agent runs;
 - `npm run dogfood` also installs the packed tarball into a temporary TypeScript consumer, runs `tsc --noEmit`, and executes fake-CLI library run/goal/replay/diagnostics smoke;
 - `npm run prepublish:check` is the local prepublish guard, includes `npm run daemon:verify` and `npm run runtime:safety`, and also avoids authenticated real agent runs;
@@ -58,6 +59,7 @@ npm run release:verify -- --dir release-candidate
 node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
 node ./dist/cli/main.js conformance --mode real --agent all --json
+node ./dist/cli/main.js smoke --mode real --agent codex --json
 node ./dist/cli/main.js store-health --storage-dir <temp-dir> --json
 node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --dry-run --json
 node ./dist/cli/main.js store-repair --storage-dir <corrupt-fixture-temp-dir> --apply --json
@@ -100,14 +102,14 @@ Manual real CLI run gate, only on a machine where the selected CLI is installed,
 
 ```bash
 node ./dist/cli/main.js conformance --mode real --agent all --json
-node ./dist/cli/main.js conformance --mode real --agent codex --allow-real-run --json
-node ./dist/cli/main.js conformance --mode real --agent claude --allow-real-run --json
-node ./dist/cli/main.js conformance --mode real --agent opencode --allow-real-run --json
+node ./dist/cli/main.js smoke --mode real --agent codex --allow-real-run --expect-text <safe_text> --json
+node ./dist/cli/main.js smoke --mode real --agent claude --allow-real-run --expect-text <safe_text> --json
+node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --expect-text <safe_text> --json
 ```
 
-`--agent all` keeps one adapter's fail/skip isolated in the summary. Real mode without `--allow-real-run` never launches a real agent run; it performs executable/version/auth/model/profile certification and returns `runClassification: "real_run_skipped"` when a run would require explicit authorization.
+`--agent all` keeps one adapter's fail/skip isolated in the conformance summary. Real mode without `--allow-real-run` never launches a real agent run; it performs executable/version/auth/model/profile certification and returns `runClassification: "real_run_skipped"` when a run would require explicit authorization.
 
-`--allow-real-run` is the safety boundary. When it is present, the runtime may consume the selected local CLI account/network path. Without `--cwd`, conformance/smoke real runs use an isolated temporary cwd, request read-only behavior, require expected text by default, and check cwd mutation evidence.
+`--allow-real-run` is the safety boundary. When it is present, the runtime may consume the selected local CLI account/network path. Without `--cwd`, conformance/smoke real runs use an isolated temporary cwd, request read-only behavior, require expected text by default, and check cwd mutation evidence. A custom `--prompt` or `--prompt-file` without `--expect-text` is intentionally `unexpected_output`.
 
 Conformance JSON uses `schemaVersion: "agent-runtime.conformance.v1"`. Stable summary fields per adapter:
 
@@ -123,13 +125,14 @@ Conformance JSON uses `schemaVersion: "agent-runtime.conformance.v1"`. Stable su
 - `runClassification`
 - `expectedTextMatched`
 - `observedTextTail`
+- `cwdMutationChecked`
 - `cwdMutated`
 - `diagnosticsCount`
 - `diagnostics`
 - `skippedReason`
 - `failureReason`
 
-The conformance layer reports `unsupported_flag`, unfamiliar version/help shapes, and parser/stream failures as actionable diagnostics instead of guessing replacements. Unknown or unproven flags stay in `argvProfile.needsVerification`. JSON output is recursively redacted and must not contain tokens, Bearer values, auth-token environment assignments, full prompts, raw private absolute paths, or unredacted observed text tails.
+The conformance and real-smoke layers report `unsupported_flag`, unfamiliar version/help shapes, and parser/stream failures as actionable diagnostics instead of guessing replacements. Unknown or unproven flags stay in `argvProfile.needsVerification` and may classify real smoke as `needs_verification` before launch. JSON output is recursively redacted and must not contain tokens, Bearer values, auth-token environment assignments, full prompts, raw private absolute paths, raw stdout/stderr, final real-smoke run records, or unredacted observed text tails.
 
 ## Examples And Package Boundary
 
@@ -185,11 +188,11 @@ Excluded artifacts:
 
 - Real CLI behavior can drift after this release candidate. Treat `docs/compatibility.md` as dated evidence, not a permanent guarantee.
 - P3-5 verifies one remote release-candidate run and downloaded artifact re-verification for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`. Historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. Internal files under `dist/` may exist in the tarball for declarations and CLI execution, but importing internal subpaths is not a documented contract.
-- `status-only real smoke exit 0` remains intentionally non-passing: a real smoke run must emit `text_delta`; if required text is missing, classification is `unexpected_output`.
+- `status-only real smoke exit 0`, wrong expected text, or a custom prompt without `--expect-text` remain intentionally non-passing: classification is `unexpected_output`.
 - Real conformance preflight can classify a local CLI as unavailable/auth-missing because of machine-specific executable, auth, network, or proxy state. That skip is useful compatibility evidence but is not a successful real run.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume mappings remain in `needsVerification`.
 - Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment.
-- P3-5 closes workflow-head remote release evidence for the P3-4 five-artifact workflow, but does not implement scheduler expansion, daemon/API server, database, WAL, remote workers, web UI, telemetry, npm publish, trusted publishing configuration, provenance publishing, or authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
+- P3-6 adds opt-in real smoke evidence, but does not add authenticated real runs to CI, dogfood, prepublish, or release-candidate gates and does not implement scheduler expansion, daemon/API server, database, WAL, remote workers, web UI, telemetry, npm publish, trusted publishing configuration, provenance publishing, or guaranteed authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
 
 ## Durable Supervisor Contract
 
