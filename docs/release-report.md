@@ -13,7 +13,7 @@ P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, 
 
 P3-9 refreshes release-candidate evidence for locked evidence target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a` after the P3-8 documentation evidence commit. It does not add runtime APIs, publish npm, configure npm tokens/trusted publishing, execute authenticated real agent runs, or add daemon/API server/database/WAL/remote-worker/UI/telemetry layers.
 
-This report is the repository-resident evidence lock. The remote workflow evidence is intentionally commit-specific and proves the locked evidence target SHA above; later documentation-only commits that record this evidence must not be treated as the workflow head unless a new release-candidate run is triggered for them.
+This report is the repository-resident evidence lock. The remote workflow evidence is intentionally commit-specific and proves the locked evidence target SHA above; later evidence-recording commits that record this evidence must not be treated as the workflow head unless a new release-candidate run is triggered for them.
 
 Evidence target and worktree state before remote trigger:
 

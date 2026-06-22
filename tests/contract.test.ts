@@ -2366,6 +2366,8 @@ setInterval(() => {}, 1000);
     const report = await readFile(path.join(root, "docs", "release-report.md"), "utf8");
     const checklist = await readFile(path.join(root, "docs", "release-checklist.md"), "utf8");
     const ssot = await readFile(path.join(root, "docs", "ssot.md"), "utf8");
+    expect(report).toContain("later evidence-recording commits");
+    expect(report).not.toContain("later documentation-only commits");
 
     for (const doc of docs) {
       const text = await readFile(path.join(root, doc), "utf8");
