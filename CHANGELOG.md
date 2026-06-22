@@ -2,10 +2,11 @@
 
 ## 0.1.0-alpha.0 — pre-alpha developer preview (release-candidate hardening)
 
-- P3-9 final alpha dry-run and current-HEAD release readiness lock:
-  - refreshed current-HEAD release-candidate evidence for `a0299a7d81bb614661922bebc8c75496cf0a3d11` through GitHub Actions run `27942743285`;
+- P3-9 final alpha dry-run and evidence-target release readiness lock:
+  - refreshed evidence-target release-candidate evidence for `65fac505ca3eb830a06d8656068cf4ed5f6dd46a` through GitHub Actions run `27943672095`;
   - re-verified all five downloaded artifacts with `agent-cli-runtime.releaseVerification.v1` and empty diagnostics;
   - confirmed `gate-evidence.json` records `daemon:verify` and `runtime:safety` with `packageSource: "installed-tarball"`;
+  - tightened package boundary verification so published file paths cannot contain `fixtures?`;
   - passed local `npm publish --dry-run --ignore-scripts --tag alpha` without publishing npm.
 - P2-13 alpha publish readiness decision:
   - completed npm metadata review by adding repository, homepage, and bugs entries while keeping `publishConfig.tag: "alpha"`;
@@ -41,4 +42,4 @@
   - no daemon,
   - no WAL,
   - no remote runtime mode.
-- Confirmed package packaging boundary excludes `.reference/`, `tests/`, and fixture directories; redaction and secrets hygiene remains enforced in diagnostics and package artifacts.
+- Confirmed package packaging boundary excludes `.reference/`, `tests/`, and fixture paths; redaction and secrets hygiene remains enforced in diagnostics and package artifacts.

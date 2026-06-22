@@ -24,7 +24,7 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 
 发布边界说明：
 - 这是 P3-7 API / CLI schema freeze 阶段，不承诺稳定 API，也不是 npm 发布记录。
-- P3-9 锁定最终 pre-alpha 当前 HEAD 的 release-candidate 证据和 alpha publish dry-run；不改变 API 边界，也不发布 npm。
+- P3-9 锁定最终 pre-alpha 证据目标提交的 release-candidate 证据和 alpha publish dry-run；不改变 API 边界，也不发布 npm。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、API server、WAL、database 或 remote runtime 模式承诺。
 - 运行时定位是可嵌入 daemon/product shell 的 local-first execution kernel，不替代托管平台服务。
@@ -344,7 +344,7 @@ node ./dist/cli/main.js smoke --mode real --agent codex --json
 
 CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、production dependency audit、package boundary check 和 `npm pack --dry-run`。`npm run daemon:verify`、`npm run runtime:safety` 和 `npm run dogfood` 放在单 Node 版本 release-gates job 中执行，避免 matrix 重复跑 installed-package gates。dogfood、CI 和 prepublish 的默认边界一致：允许 fixtures、fake CLIs、真实本地 detection/profile certification；不带 `--allow-real-run` 时不启动 authenticated real agent run。
 
-本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、daemon embedding verification、runtime safety verification、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood` 和 `npm run release:candidate -- --out-dir release-candidate`；生成并上传 npm tarball、pack metadata、package file list、`gate-evidence.json` 和 `release-verification.json`。P3-9 当前 HEAD 的 release-candidate 证据是目标 SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` 的 run `27942743285`，五个下载 artifacts 均已通过本地 `release:verify`。历史 P3-8 run `27940814340` 只证明目标 SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`；历史 P3-5 run `27932628093` 只证明 workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`。它不执行 publish，也不需要 npm token。
+本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、daemon embedding verification、runtime safety verification、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood` 和 `npm run release:candidate -- --out-dir release-candidate`；生成并上传 npm tarball、pack metadata、package file list、`gate-evidence.json` 和 `release-verification.json`。P3-9 证据目标提交的 release-candidate 证据是目标 SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a` 的 run `27943672095`，五个下载 artifacts 均已通过本地 `release:verify`。历史 P3-9 interim run `27942743285` 只证明 strict `fixtures?` package-boundary lock 之前的目标 SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11`；历史 P3-8 run `27940814340` 只证明目标 SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`；历史 P3-5 run `27932628093` 只证明 workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`。它不执行 publish，也不需要 npm token。
 
 如需在本地生成可审查的 release-candidate artifact set：
 

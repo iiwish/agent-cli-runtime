@@ -2343,7 +2343,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("documents P3-9 current-HEAD workflow evidence without pending status or historical-run reuse", async () => {
+  it("documents P3-9 evidence-target workflow evidence without pending status or historical-run reuse", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
@@ -2354,8 +2354,10 @@ setInterval(() => {}, 1000);
       "docs/release-report.md",
       "docs/ssot.md",
     ];
-    const evidenceRun = "27942743285";
-    const evidenceTargetSha = "a0299a7d81bb614661922bebc8c75496cf0a3d11";
+    const evidenceRun = "27943672095";
+    const evidenceTargetSha = "65fac505ca3eb830a06d8656068cf4ed5f6dd46a";
+    const historicalP39InterimRun = "27942743285";
+    const historicalP39InterimSha = "a0299a7d81bb614661922bebc8c75496cf0a3d11";
     const historicalP38Run = "27940814340";
     const historicalP38Sha = "eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4";
     const historicalP35Run = "27932628093";
@@ -2369,6 +2371,11 @@ setInterval(() => {}, 1000);
       const text = await readFile(path.join(root, doc), "utf8");
       expect(text).not.toContain("remote_evidence`: pending");
       expect(text).not.toMatch(/P3-9[^\n]*(?:pending|待触发|待复验|待闭环)/u);
+      expect(text).not.toMatch(/P3-9[^\n]*(?:current-HEAD|current HEAD|当前 HEAD)/iu);
+      expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target) SHA[:：]?\\s*${historicalP39InterimSha}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) SHA[:：]?\\s*${historicalP39InterimSha}`, "u"));
+      expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target) run[:：]?\\s*${historicalP39InterimRun}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) run[:：]?\\s*${historicalP39InterimRun}`, "u"));
       expect(text).not.toMatch(new RegExp(`(?:current|latest|target|evidence target) SHA[:：]?\\s*${historicalP38Sha}`, "iu"));
       expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) SHA[:：]?\\s*${historicalP38Sha}`, "u"));
       expect(text).not.toMatch(new RegExp(`(?:current|latest|target|evidence target) SHA[:：]?\\s*${historicalP35Sha}`, "iu"));
@@ -2387,14 +2394,15 @@ setInterval(() => {}, 1000);
       expect(text).toMatch(/target SHA|Target SHA|evidence target SHA|证据目标 SHA/u);
       expect(text).toContain("agent-cli-runtime-gate-evidence");
       expect(text).toContain("installed-tarball");
-      expect(text).toContain("npm run release:verify -- --dir /tmp/agent-runtime-p3-9-RGVdwg/normalized");
+      expect(text).toContain("npm run release:verify -- --dir /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized");
       expect(text).toContain("agent-cli-runtime.releaseVerification.v1");
       expect(text).toMatch(/`ok`:\s*`true`|ok: true/u);
       expect(text).toContain("diagnostics");
     }
-    expect(report).toContain("Historical P3-8 run `27940814340`");
-    expect(report).toContain("Historical P3-5 run `27932628093`");
-    expect(report).toContain("historical P2-12 run `27869580048`");
+    expect(report).toContain("Historical P3-9 interim run `27942743285`");
+    expect(report).toMatch(/historical P3-8 run `27940814340`/iu);
+    expect(report).toMatch(/historical P3-5 run `27932628093`/iu);
+    expect(report).toMatch(/historical P2-12 run `27869580048`/iu);
   });
 
   it("documents publish dry-run with the alpha dist-tag instead of latest", async () => {

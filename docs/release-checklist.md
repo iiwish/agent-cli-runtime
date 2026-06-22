@@ -11,15 +11,15 @@
 - [x] Drift tests protect package root value exports, built declaration boundaries, schema inventory, failure taxonomy, release artifact schemas, redaction boundaries, and over-claiming language.
 - [x] P3-7 does not publish npm, configure tokens/trusted publishing, add daemon/API server/database/WAL/remote worker/UI/telemetry, or add authenticated real runs to default gates.
 
-## P3-9 final alpha dry-run and current-HEAD release readiness lock
+## P3-9 final alpha dry-run and evidence-target release readiness lock
 
-- [x] Confirmed local branch `main`, evidence target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11`, matching `origin/main`, and clean worktree before remote trigger.
+- [x] Confirmed local branch `main`, evidence target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`, matching `origin/main`, and clean worktree before the remote trigger.
 - [x] Ran the full local P3-9 gate set: typecheck, lint, tests, build, package boundary check, dogfood, daemon verification, runtime safety verification, local release-candidate generation/verification, production dependency audit, pack dry-run, alpha publish dry-run, built CLI JSON/preflight commands, and `git diff --check`.
-- [x] Pushed local `main` to `origin/main` because remote `main` was still at the P3-8 schema-freeze evidence target; without this push, `workflow_dispatch --ref main` would not prove the current HEAD.
-- [x] Triggered fresh remote `.github/workflows/release-candidate.yml` run `27942743285` for target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11`.
-- [x] Confirmed run `27942743285` status/conclusion `completed` / `success`; job `82679850807` and steps `Run CI gate`, `Run dogfood gate without authenticated real runs`, `Create npm pack artifact and gate evidence without publishing`, plus all five upload steps concluded `success`.
-- [x] Downloaded all five artifacts and normalized them to `/tmp/agent-runtime-p3-9-RGVdwg/normalized`.
-- [x] Re-ran `npm run release:verify -- --dir /tmp/agent-runtime-p3-9-RGVdwg/normalized` with this checkout's verifier; result `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `151`, empty diagnostics, and gate evidence for `daemon:verify` plus `runtime:safety`.
+- [x] Pushed local `main` to `origin/main` because remote `main` was still at the P3-9 interim evidence target before the strict `fixtures?` package-boundary lock; without this push, `workflow_dispatch --ref main` would not prove the evidence target.
+- [x] Triggered fresh remote `.github/workflows/release-candidate.yml` run `27943672095` for target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
+- [x] Confirmed run `27943672095` status/conclusion `completed` / `success`; job `82682936901` and steps `Run CI gate`, `Run dogfood gate without authenticated real runs`, `Create npm pack artifact and gate evidence without publishing`, plus all five upload steps concluded `success`.
+- [x] Downloaded all five artifacts and normalized them to `/tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized`.
+- [x] Re-ran `npm run release:verify -- --dir /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized` with this checkout's verifier; result `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `151`, empty diagnostics, and gate evidence for `daemon:verify` plus `runtime:safety`.
 - [x] Confirmed artifacts include `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`.
 - [x] Confirmed package file list has no `.reference/`, `tests/`, fixture paths, raw real CLI output, private paths, token-looking values, Bearer values, or auth env assignments.
 - [x] Confirmed workflow/script boundary still contains no npm publish step, npm token requirement, trusted-publishing setup, or default `--allow-real-run`.
@@ -27,6 +27,7 @@
 
 ## P3-8 target SHA remote release-candidate evidence refresh (historical)
 
+- [x] P3-9 interim run `27942743285` proved target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` only; it is historical after the strict `fixtures?` package-boundary lock in run `27943672095`.
 - [x] P3-8 run `27940814340` proved target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4` only; it is historical after P3-9.
 
 ## P3-6 real CLI opt-in smoke evidence
@@ -139,7 +140,7 @@
 
 ## GitHub Actions release candidate
 
-P2-12 remote evidence, observed on 2026-06-20, remains historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`. P3-5 release-candidate evidence is workflow run `27932628093` for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; P3-8 release-candidate evidence is workflow run `27940814340` for target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; both are historical after P3-9. P3-9 release-candidate evidence is workflow run `27942743285` for current target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11`.
+P2-12 remote evidence, observed on 2026-06-20, remains historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`. P3-5 release-candidate evidence is workflow run `27932628093` for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; P3-8 release-candidate evidence is workflow run `27940814340` for target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; P3-9 interim release-candidate evidence is workflow run `27942743285` for target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11`; all three are historical after the final P3-9 lock. P3-9 release-candidate evidence is workflow run `27943672095` for locked evidence target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
 
 - [x] Trigger `.github/workflows/release-candidate.yml` manually with `workflow_dispatch` for the P3-9 target SHA.
 - [x] Confirm the workflow is configured to run `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`.
@@ -151,7 +152,7 @@ P2-12 remote evidence, observed on 2026-06-20, remains historical evidence for c
   - `agent-cli-runtime-package-files`
   - `agent-cli-runtime-gate-evidence`
   - `agent-cli-runtime-release-verification`
-- [x] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir /tmp/agent-runtime-p3-9-RGVdwg/normalized`.
+- [x] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized`.
 - [x] Confirm `release-verification.json` uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, has `ok: true`, package file count `151`, and empty diagnostics.
 - [x] Confirm `gate-evidence.json` uses `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and records `daemon:verify` plus `runtime:safety` with `packageSource: "installed-tarball"`.
 - [x] Confirm no npm token, npm provenance publish, or registry credential is required.
