@@ -23,7 +23,7 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 本仓库目前处于 **pre-alpha / developer preview**。
 
 发布边界说明：
-- 这是 P3-2 daemon embedding stability gate 阶段，不承诺稳定 API，也不是 npm 发布记录。
+- 这是 P3-3 long-lived runtime resource safety gate 阶段，不承诺稳定 API，也不是 npm 发布记录。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、API server、WAL、database 或 remote runtime 模式承诺。
 - 运行时定位是可嵌入 daemon/product shell 的 local-first execution kernel，不替代托管平台服务。
@@ -276,13 +276,14 @@ void goalRequest;
 void runtime.shutdown();
 ```
 
-Daemon embedding gate 会把 packed tarball 安装到临时 consumer，再用 fake CLI 跑 detect/conformance、run、goal、replay、diagnostics、store inspection、shutdown 和 reopen：
+Daemon embedding gate 会把 packed tarball 安装到临时 consumer，再用 fake CLI 跑 detect/conformance、run、goal、replay、diagnostics、store inspection、shutdown 和 reopen。Runtime safety gate 使用同样的 installed-package 边界，覆盖 repeated run/goal、慢 event consumer、cancel/timeout churn、repeated shutdown、lease close 和 reopen：
 
 ```bash
 npm run daemon:verify
+npm run runtime:safety
 ```
 
-更完整的 release gate 会把 packed tarball 安装到临时 TypeScript 项目，执行 `tsc --noEmit`，再用 fake CLI 跑 library run / goal / replay / diagnostics smoke。见 `npm run daemon:verify`、`npm run dogfood` 和 [docs/release-checklist.md](./docs/release-checklist.md)。
+更完整的 release gate 会把 packed tarball 安装到临时 TypeScript 项目，执行 `tsc --noEmit`，再用 fake CLI 跑 library run / goal / replay / diagnostics smoke。见 `npm run daemon:verify`、`npm run runtime:safety`、`npm run dogfood` 和 [docs/release-checklist.md](./docs/release-checklist.md)。
 
 本机 agent CLI 按场景安装即可：
 
@@ -328,6 +329,7 @@ export HTTP_PROXY=http://127.0.0.1:7897
 ```bash
 npm run ci
 npm run daemon:verify
+npm run runtime:safety
 npm run dogfood
 npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
@@ -339,7 +341,7 @@ node ./dist/cli/main.js conformance --mode real --agent all --json
 
 CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、production dependency audit、package boundary check 和 `npm pack --dry-run`。`npm run dogfood` 放在单 Node 版本 job 中执行，避免 matrix 重复跑完整安装 smoke。dogfood、CI 和 prepublish 的默认边界一致：允许 fixtures、fake CLIs、真实本地 detection/profile certification；不带 `--allow-real-run` 时不启动 authenticated real agent run。
 
-本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、daemon embedding verification、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood`，随后生成并上传 npm tarball、pack metadata、package file list 和 `release-verification.json`。它不执行 publish，也不需要 npm token。
+本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、daemon embedding verification、runtime safety verification、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood`，随后生成并上传 npm tarball、pack metadata、package file list 和 `release-verification.json`。它不执行 publish，也不需要 npm token。
 
 如需在本地生成可审查的 release-candidate artifact set：
 

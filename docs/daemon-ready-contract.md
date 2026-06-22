@@ -1,9 +1,9 @@
 # Daemon-Ready Execution Kernel Contract
 
-Status: P3-2 daemon embedding stability gate
+Status: P3-3 long-lived runtime resource safety gate
 Last updated: 2026-06-22
 
-This document freezes the contract that a desktop product shell, local daemon, or other embedding process can rely on when using Agent CLI Runtime as a local-first execution kernel. P3-2 adds an executable offline stability gate for that contract. It is not a daemon implementation and does not add a hosted control plane API.
+This document freezes the contract that a desktop product shell, local daemon, or other embedding process can rely on when using Agent CLI Runtime as a local-first execution kernel. P3-2 added an executable offline stability gate for that contract; P3-3 adds a long-lived runtime resource safety gate for repeated embedding, event consumption, cancellation churn, shutdown, and reopen behavior. It is not a daemon implementation and does not add a hosted control plane API.
 
 ## Positioning
 
@@ -65,6 +65,22 @@ Embedding lifecycle rules:
 The gate emits `schemaVersion: "agent-runtime.daemonVerification.v1"` JSON with only redacted summary fields. It does not require real Codex, Claude Code, or OpenCode credentials, and it does not launch authenticated real agent runs.
 
 P3-2 also locks regression coverage for read-only inspection, live-owner isolation, shutdown/recovery terminal-event idempotence, and daemon-facing schema compatibility. It still does not implement HTTP, IPC, RPC, auth, users, tenants, remote workers, Docker/SSH, telemetry, database, WAL, compaction, or OpenDesign daemon parity.
+
+## P3-3 Resource Safety Gate
+
+`npm run runtime:safety` is the P3-3 long-lived runtime resource safety gate. It packs the current package, installs that tarball into a temporary consumer, creates a fake local CLI and temp storage, then exercises the installed package path under one embedded runtime:
+
+1. execute repeated fake runs and fake goals without active run/goal leaks;
+2. hold a slow event consumer while the fake CLI emits many JSON and text events, then verify terminal events and replay counts remain stable;
+3. churn multiple cancellations and a timeout/process-close race, verifying one `run_finished` per run;
+4. cancel a goal with running and queued tasks, verifying stable task states and one `goal_finished`;
+5. export noisy failure diagnostics with bounded, redacted stdout/stderr tails;
+6. call `shutdown()` repeatedly, verify terminal event counts do not grow, verify active state is empty, and verify the durable lease closes;
+7. reopen the same store and verify terminal records are queryable while active records are not falsely recovered.
+
+The gate emits `schemaVersion: "agent-runtime.runtimeSafety.v1"` JSON with redacted summary counts and statuses only. It does not include temp paths, prompts, raw corrupt lines, auth env assignments, token-looking values, or Bearer values. It uses fake CLIs only and does not require real Codex, Claude Code, or OpenCode credentials.
+
+P3-3 is intentionally still local-kernel hardening. It does not implement HTTP, IPC, RPC, auth, users, tenants, queue admission, remote workers, Docker/SSH, telemetry, database, WAL, compaction, UI/artifact layers, or OpenDesign daemon parity.
 
 ## Writer Lease And Store Ownership
 

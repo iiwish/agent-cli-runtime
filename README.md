@@ -23,7 +23,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P3-2 daemon embedding stability gate track, not a stable API release or npm publication record.
+- This is a P3-3 long-lived runtime resource safety gate track, not a stable API release or npm publication record.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no API server, no WAL, no database, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended as a local-first execution kernel for embedding in a daemon or product shell, not as a hosted control plane.
@@ -278,13 +278,14 @@ void goalRequest;
 void runtime.shutdown();
 ```
 
-The daemon embedding gate installs the packed tarball into a temporary consumer, then executes fake-CLI detect/conformance, run, goal, replay, diagnostics, store inspection, shutdown, and reopen checks:
+The daemon embedding gate installs the packed tarball into a temporary consumer, then executes fake-CLI detect/conformance, run, goal, replay, diagnostics, store inspection, shutdown, and reopen checks. The runtime safety gate uses the same installed-package boundary for repeated run/goal execution, slow event consumption, cancel/timeout churn, repeated shutdown, lease close, and reopen checks:
 
 ```bash
 npm run daemon:verify
+npm run runtime:safety
 ```
 
-The broader release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run daemon:verify`, `npm run dogfood`, and [docs/release-checklist.md](./docs/release-checklist.md).
+The broader release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run daemon:verify`, `npm run runtime:safety`, `npm run dogfood`, and [docs/release-checklist.md](./docs/release-checklist.md).
 
 Required local agent CLIs are optional by scenario:
 
@@ -330,6 +331,7 @@ Use one of the quick verification command sets before release:
 ```bash
 npm run ci
 npm run daemon:verify
+npm run runtime:safety
 npm run dogfood
 npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
@@ -341,7 +343,7 @@ node ./dist/cli/main.js conformance --mode real --agent all --json
 
 CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node dogfood job runs `npm run dogfood` so the full matrix does not launch redundant install smokes. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
 
-For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, daemon embedding verification, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates and uploads the npm tarball, pack metadata, package file list, and `release-verification.json`. It does not publish and does not require an npm token.
+For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, daemon embedding verification, runtime safety verification, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, and `npm run dogfood`, then creates and uploads the npm tarball, pack metadata, package file list, and `release-verification.json`. It does not publish and does not require an npm token.
 
 To create a local release-candidate artifact set without publishing, run:
 

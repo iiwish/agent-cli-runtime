@@ -39,6 +39,7 @@ const cli = path.join(root, "dist", "cli", "main.js");
 const releaseVerifier = path.join(root, "scripts", "verify-release-artifacts.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
+const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
 
 function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -260,6 +261,52 @@ describe("public contract", () => {
     if (process.env.HOME) expect(text).not.toContain(process.env.HOME);
     expect(text).not.toContain("Bearer ");
     expect(text).not.toContain("ANTHROPIC_AUTH_TOKEN");
+  }, 60_000);
+
+  it("runs the installed-package runtime safety verification path with fake CLIs", async () => {
+    const { stdout } = await execFileP(process.execPath, [runtimeSafetyVerifier], { cwd: root });
+    const summary = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageSource: string;
+      repeatedRuns: number;
+      repeatedGoals: number;
+      slowConsumer: { terminalEvents: number; replayEvents: number };
+      cancelChurn: { terminalEvents: number[] };
+      timeoutRace: { terminalEvents: number };
+      goalCancel: { terminalEvents: number; taskStatuses: string[] };
+      diagnostics: { schemaVersion: string; stdoutTailLength: number; stderrTailLength: number; redacted: boolean };
+      activeBeforeShutdown: { runs: number; goals: number };
+      activeAfterReopen: { runs: number; goals: number };
+      repeatedShutdownStable: boolean;
+      reopened: { runStatuses: string[]; goalStatuses: string[] };
+    };
+    const text = JSON.stringify(summary);
+
+    expect(summary).toMatchObject({
+      schemaVersion: "agent-runtime.runtimeSafety.v1",
+      ok: true,
+      packageSource: "installed-tarball",
+      repeatedRuns: 4,
+      repeatedGoals: 2,
+      slowConsumer: { terminalEvents: 1 },
+      timeoutRace: { terminalEvents: 1 },
+      diagnostics: { schemaVersion: "agent-runtime.diagnostics.v1", redacted: true },
+      activeBeforeShutdown: { runs: 0, goals: 0 },
+      activeAfterReopen: { runs: 0, goals: 0 },
+      repeatedShutdownStable: true,
+    });
+    expect(summary.cancelChurn.terminalEvents.every((count) => count === 1)).toBe(true);
+    expect(summary.goalCancel).toMatchObject({ terminalEvents: 1, taskStatuses: ["canceled", "canceled", "canceled"] });
+    expect(summary.diagnostics.stdoutTailLength).toBeLessThanOrEqual(4_000);
+    expect(summary.diagnostics.stderrTailLength).toBeLessThanOrEqual(4_000);
+    expect(summary.reopened.runStatuses.every((status) => status && status !== "running" && status !== "queued")).toBe(true);
+    expect(summary.reopened.goalStatuses.every((status) => status && status !== "running" && status !== "planning")).toBe(true);
+    expect(text).not.toContain(root);
+    if (process.env.HOME) expect(text).not.toContain(process.env.HOME);
+    expect(text).not.toContain("Bearer ");
+    expect(text).not.toContain("ANTHROPIC_AUTH_TOKEN");
+    expect(text).not.toContain("noisy-fail");
   }, 60_000);
 
   it("keeps the package root focused on the runtime facade and public types", async () => {

@@ -50,10 +50,11 @@
     "daemon:verify": "node ./scripts/verify-daemon-ready.mjs",
     "dogfood": "node ./scripts/dogfood.mjs",
     "package:check": "node ./scripts/check-package-boundary.mjs",
-    "prepublish:check": "npm run typecheck && npm run lint && npm test && npm run build && npm run daemon:verify && npm run dogfood && npm audit --omit=dev && npm run package:check && npm pack --dry-run",
+    "prepublish:check": "npm run typecheck && npm run lint && npm test && npm run build && npm run daemon:verify && npm run runtime:safety && npm run dogfood && npm audit --omit=dev && npm run package:check && npm pack --dry-run",
     "prepack": "npm run build",
     "release:candidate": "node ./scripts/create-release-candidate.mjs",
     "release:verify": "node ./scripts/verify-release-artifacts.mjs",
+    "runtime:safety": "node ./scripts/verify-runtime-safety.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && vitest run --reporter=verbose --no-file-parallelism --testTimeout 30000"

@@ -1,5 +1,15 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P3-3 long-lived runtime resource safety gate
+
+- [x] `npm run runtime:safety` exists and emits `schemaVersion: "agent-runtime.runtimeSafety.v1"` JSON.
+- [x] The runtime safety verification path packs and installs the package into a temporary consumer before running fake CLI resource-safety checks.
+- [x] The gate covers repeated fake runs, repeated fake goals, slow event consumption, run replay counts, cancel churn, timeout/process-close race, goal cancellation with queued/running tasks, diagnostics tail bounds/redaction, repeated shutdown, storage lease closure, and reopen of terminal records.
+- [x] The gate does not require real Codex, Claude Code, OpenCode accounts or `--allow-real-run`.
+- [x] P3-3 tests cover event iterators closing after terminal events, one terminal event per run/goal, active run/goal cleanup, no false active recovery after reopen, and bounded redacted diagnostics.
+- [x] `npm run prepublish:check` includes `npm run runtime:safety`; `npm run dogfood` remains the bounded package/API dogfood gate and does not duplicate the P3-3 churn verifier.
+- [x] P3-3 does not add daemon/API server, database, WAL, remote worker, web UI, telemetry, npm publish, publish workflow, npm token, trusted publishing configuration, or package-root value exports.
+
 ## P3-2 daemon embedding stability gate
 
 - [x] `npm run daemon:verify` exists and emits `schemaVersion: "agent-runtime.daemonVerification.v1"` JSON.
@@ -44,7 +54,8 @@
 - [x] `npm run daemon:verify` — passed locally on 2026-06-22.
 - [x] `npm run ci` — passed in remote release-candidate run `27869580048`.
 - [x] `npm run dogfood` — passed locally and in remote release-candidate run `27869580048`.
-- [x] `npm run prepublish:check` — passed locally on 2026-06-20.
+- [x] `npm run runtime:safety` — passed locally on 2026-06-22.
+- [x] `npm run prepublish:check` — passed locally on 2026-06-22 with `runtime:safety` included.
 - [x] `npm run release:candidate -- --out-dir <temp-dir>` — passed locally on 2026-06-20.
 - [x] `npm run release:verify -- --dir <temp-dir>` — passed locally and against downloaded remote artifacts.
 - [ ] `node ./dist/cli/main.js conformance --mode fixtures --json`
@@ -68,7 +79,7 @@
 
 `npm run dogfood` is the default publish-readiness bundle. It rebuilds, runs offline fixtures/fake conformance, runs real local detection/profile conformance without `--allow-real-run`, executes fake-CLI examples, performs a pack dry-run, and installs the packed tarball into a temporary project for package-root import, TypeScript `tsc --noEmit`, fake library run/goal/replay/diagnostics, and installed CLI smoke.
 
-`npm run prepublish:check` is the local release-candidate guard. It combines typecheck, lint, tests, build, dogfood, production audit, package boundary checking, and pack dry-run. It must not run authenticated real agents.
+`npm run prepublish:check` is the local release-candidate guard. It combines typecheck, lint, tests, build, daemon verification, runtime safety verification, dogfood, production audit, package boundary checking, and pack dry-run. It must not run authenticated real agents.
 
 `npm publish --dry-run --ignore-scripts --tag alpha` is a manual local safety check only. It must show `tag alpha`, must not publish, and must not require an npm token. Keep it out of required CI unless the output is proven stable enough for this repository.
 
