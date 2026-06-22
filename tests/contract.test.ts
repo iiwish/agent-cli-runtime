@@ -38,6 +38,7 @@ const root = path.resolve(import.meta.dirname, "..");
 const cli = path.join(root, "dist", "cli", "main.js");
 const releaseVerifier = path.join(root, "scripts", "verify-release-artifacts.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
+const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 
 function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -144,6 +145,123 @@ function isLikelyBinary(buffer: Buffer): boolean {
 }
 
 describe("public contract", () => {
+  it("keeps daemon-facing schema fixtures versioned and redacted", async () => {
+    const fixtures = {
+      event: {
+        schemaVersion: "agent-runtime.event.v1",
+        id: 1,
+        sequence: 1,
+        timestamp: 1760000000000,
+        scope: { kind: "run", id: "run_fixture" },
+        event: { type: "run_finished", result: "success", timestamp: 1760000000000 },
+        terminal: { result: "success", reason: "success" },
+      },
+      diagnostics: {
+        schemaVersion: "agent-runtime.diagnostics.v1",
+        exportedAt: 1760000000000,
+        storageDir: "<storageDir>",
+        subject: { kind: "run", id: "run_fixture" },
+        manifest: { id: "run_fixture", cwd: "<cwd>", status: "succeeded", diagnostics: [] },
+        events: { total: 2, retained: 2, terminalEvent: true, eventTypes: { run_started: 1, run_finished: 1 } },
+        diagnostics: [],
+        storageDiagnostics: [],
+        consistencyWarnings: [],
+        supervisorSummary: { kind: "run", terminalReason: "success", terminalEventCount: 1 },
+        adapterSummary: { kind: "run", agentId: "fake", status: "succeeded" },
+      },
+      conformance: {
+        schemaVersion: "agent-runtime.conformance.v1",
+        ok: true,
+        mode: "fake",
+        agents: [{ adapter: "codex", runClassification: "success", observedTextTail: "<redacted>", diagnostics: [] }],
+      },
+      storeHealth: {
+        schemaVersion: "agent-runtime.storeHealth.v1",
+        ok: true,
+        storageDir: "<storageDir>",
+        checkedAt: 1760000000000,
+        lock: { file: "runtime.lock.json", status: "missing", staleMs: 30000, diagnostics: [] },
+        totals: { runs: 0, goals: 0, corruptEventLogLines: 0, partialEventLogTails: 0, activeRecords: 0 },
+        corruptManifests: [],
+        corruptEventLogs: [],
+        partialTails: [],
+        activeRecords: [],
+        activeInterrupted: [],
+        warnings: [],
+        storageDiagnostics: [],
+        diagnostics: { total: 0, byCode: {} },
+      },
+      storeRepair: {
+        schemaVersion: "agent-runtime.storeRepair.v1",
+        storageDir: "<storageDir>",
+        checkedAt: 1760000000000,
+        dryRun: true,
+        applied: false,
+        ok: true,
+        actions: [],
+        diagnostics: { total: 0, byCode: {} },
+      },
+      cliError: {
+        schemaVersion: "agent-runtime.cliError.v1",
+        ok: false,
+        error: { code: "CLI_USAGE_ERROR", message: "storageDir is required" },
+      },
+    };
+    const text = JSON.stringify(fixtures);
+
+    expect(fixtures.event.schemaVersion).toBe("agent-runtime.event.v1");
+    expect(fixtures.diagnostics.schemaVersion).toBe("agent-runtime.diagnostics.v1");
+    expect(fixtures.conformance.schemaVersion).toBe("agent-runtime.conformance.v1");
+    expect(fixtures.storeHealth.schemaVersion).toBe("agent-runtime.storeHealth.v1");
+    expect(fixtures.storeRepair.schemaVersion).toBe("agent-runtime.storeRepair.v1");
+    expect(fixtures.cliError.schemaVersion).toBe("agent-runtime.cliError.v1");
+    for (const forbidden of [
+      process.env.HOME,
+      root,
+      "/Users/",
+      "Bearer ",
+      "ANTHROPIC_AUTH_TOKEN",
+      "sk-",
+      "raw corrupt",
+      "prompt",
+    ].filter(Boolean)) {
+      expect(text).not.toContain(forbidden);
+    }
+  });
+
+  it("runs the installed-package daemon verification path with fake CLIs", async () => {
+    const { stdout } = await execFileP(process.execPath, [daemonVerifier], { cwd: root });
+    const summary = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageSource: string;
+      run: { status: string; replayEvents: number };
+      goal: { status: string; replayEvents: number };
+      diagnostics: { runSchemaVersion: string; goalSchemaVersion: string };
+      reopened: { runStatus: string; goalStatus: string };
+    };
+    const text = JSON.stringify(summary);
+
+    expect(summary).toMatchObject({
+      schemaVersion: "agent-runtime.daemonVerification.v1",
+      ok: true,
+      packageSource: "installed-tarball",
+      run: { status: "succeeded" },
+      goal: { status: "succeeded" },
+      diagnostics: {
+        runSchemaVersion: "agent-runtime.diagnostics.v1",
+        goalSchemaVersion: "agent-runtime.diagnostics.v1",
+      },
+      reopened: { runStatus: "succeeded", goalStatus: "succeeded" },
+    });
+    expect(summary.run.replayEvents).toBeGreaterThan(0);
+    expect(summary.goal.replayEvents).toBeGreaterThan(0);
+    expect(text).not.toContain(root);
+    if (process.env.HOME) expect(text).not.toContain(process.env.HOME);
+    expect(text).not.toContain("Bearer ");
+    expect(text).not.toContain("ANTHROPIC_AUTH_TOKEN");
+  }, 60_000);
+
   it("keeps the package root focused on the runtime facade and public types", async () => {
     type PublicApiSmoke = {
       adapter: AgentAdapterDef;

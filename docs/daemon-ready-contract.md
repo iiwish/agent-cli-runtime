@@ -1,9 +1,9 @@
 # Daemon-Ready Execution Kernel Contract
 
-Status: P3-1 daemon-ready contract freeze
+Status: P3-2 daemon embedding stability gate
 Last updated: 2026-06-22
 
-This document freezes the contract that a desktop product shell, local daemon, or other embedding process can rely on when using Agent CLI Runtime as a local-first execution kernel. It is not a daemon implementation and does not add a hosted control plane API.
+This document freezes the contract that a desktop product shell, local daemon, or other embedding process can rely on when using Agent CLI Runtime as a local-first execution kernel. P3-2 adds an executable offline stability gate for that contract. It is not a daemon implementation and does not add a hosted control plane API.
 
 ## Positioning
 
@@ -47,6 +47,24 @@ Embedding lifecycle rules:
 - call `runtime.shutdown(reason)` before process exit when possible;
 - treat process crash recovery as replay/diagnostics recovery, not live process resume;
 - use read-only inspection commands or facade methods for dashboards that should not acquire the writer lease.
+
+## P3-2 Executable Gate
+
+`npm run daemon:verify` is the P3-2 daemon embedding stability gate. It packs the current package, installs that tarball into a temporary consumer, creates fake local CLIs and temp storage, then exercises the installed package path:
+
+1. create a runtime with `storageDir`;
+2. detect the fake adapter and run fake conformance through the installed CLI;
+3. run a fake task;
+4. create a fake goal;
+5. replay run and goal events;
+6. inspect store health;
+7. export run and goal diagnostics;
+8. call `shutdown()`;
+9. reopen the same store and query terminal run/goal records.
+
+The gate emits `schemaVersion: "agent-runtime.daemonVerification.v1"` JSON with only redacted summary fields. It does not require real Codex, Claude Code, or OpenCode credentials, and it does not launch authenticated real agent runs.
+
+P3-2 also locks regression coverage for read-only inspection, live-owner isolation, shutdown/recovery terminal-event idempotence, and daemon-facing schema compatibility. It still does not implement HTTP, IPC, RPC, auth, users, tenants, remote workers, Docker/SSH, telemetry, database, WAL, compaction, or OpenDesign daemon parity.
 
 ## Writer Lease And Store Ownership
 

@@ -1,5 +1,18 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P3-2 daemon embedding stability gate
+
+- [x] `npm run daemon:verify` exists and emits `schemaVersion: "agent-runtime.daemonVerification.v1"` JSON.
+- [x] The daemon verification path packs and installs the package into a temporary consumer before running fake CLI embedding checks.
+- [x] The gate covers fake adapter detection, fake conformance, fake run, fake goal, run/goal replay, store health, diagnostics export, shutdown, and reopen of terminal records.
+- [x] The gate does not require real Codex, Claude Code, OpenCode accounts or `--allow-real-run`.
+- [x] Read-only inspection coverage verifies `store-health`, `store-lock`, `diagnostics`, `replay-run`, and `replay-goal` do not acquire the writer lease or recover live-owner active records.
+- [x] Second writer refusal leaves live-owner active run/goal records active and unmodified.
+- [x] Shutdown/cancel/recovery paths are covered for single terminal event idempotence.
+- [x] Active goal recovery keeps pending/running tasks canceled and succeeded tasks stable across reopen.
+- [x] Daemon-facing schema compatibility coverage includes event envelope, diagnostics, conformance, store health, store repair, and CLI JSON error v1 shapes.
+- [x] P3-2 does not add daemon/API server, database, WAL, remote worker, web UI, telemetry, npm publish, publish workflow, npm token, trusted publishing configuration, or package-root value exports.
+
 ## P3-1 daemon-ready contract freeze
 
 - [x] `docs/daemon-ready-contract.md` documents daemon/product shell embedding semantics without implementing a daemon.
@@ -28,6 +41,7 @@
 - [x] `npm run lint` — passed locally on 2026-06-20.
 - [x] `npm test` — passed locally on 2026-06-20 with 170 tests.
 - [x] `npm run build` — passed locally on 2026-06-20.
+- [x] `npm run daemon:verify` — passed locally on 2026-06-22.
 - [x] `npm run ci` — passed in remote release-candidate run `27869580048`.
 - [x] `npm run dogfood` — passed locally and in remote release-candidate run `27869580048`.
 - [x] `npm run prepublish:check` — passed locally on 2026-06-20.
