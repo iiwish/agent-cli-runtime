@@ -35,7 +35,7 @@ jobs:
           node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync('release-candidate/npm-pack.json', 'utf8')); process.stdout.write('tarball=' + data[0].filename + '\n');" >> "$GITHUB_OUTPUT"
 
       - name: Upload tarball
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: agent-cli-runtime-tarball
           path: release-candidate/${{ steps.pack.outputs.tarball }}
@@ -43,7 +43,7 @@ jobs:
           retention-days: 14
 
       - name: Upload pack metadata
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: agent-cli-runtime-pack-metadata
           path: release-candidate/npm-pack.json
@@ -51,7 +51,7 @@ jobs:
           retention-days: 14
 
       - name: Upload package file list
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: agent-cli-runtime-package-files
           path: release-candidate/package-files.txt
@@ -59,7 +59,7 @@ jobs:
           retention-days: 14
 
       - name: Upload daemon-ready gate evidence
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: agent-cli-runtime-gate-evidence
           path: release-candidate/gate-evidence.json
@@ -67,7 +67,7 @@ jobs:
           retention-days: 14
 
       - name: Upload release verification
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: agent-cli-runtime-release-verification
           path: release-candidate/release-verification.json
