@@ -87,7 +87,7 @@ for (const required of requiredFiles) {
 const disallowedPathPatterns = [
   /^\.reference(?:\/|$)/u,
   /^tests(?:\/|$)/u,
-  /(?:^|\/)fixtures(?:\/|$)/u,
+  /fixtures?/iu,
   /(?:^|\/)fault-fixtures(?:\/|$)/u,
   /(?:^|\/)repair-backups(?:\/|$)/u,
   /(?:^|\/)raw-corrupt-samples(?:\/|$)/u,

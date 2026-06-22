@@ -1,9 +1,9 @@
 # Alpha Publish Readiness Runbook
 
-Status: P2-13 alpha publish readiness decision
+Status: P3-9 final alpha dry-run evidence locked
 Last updated: 2026-06-22
 
-This runbook is a decision and execution checklist for a future `agent-cli-runtime@0.1.0-alpha.0` npm alpha publish. P2-13 does not publish npm, does not create or commit npm credentials, and does not configure trusted publishing. It only makes the publish boundary explicit enough for a human maintainer to review and execute later.
+This runbook is a decision and execution checklist for a future `agent-cli-runtime@0.1.0-alpha.0` npm alpha publish. P3-9 does not publish npm, does not create or commit npm credentials, and does not configure trusted publishing. It only locks current-HEAD release-candidate evidence and the local alpha publish dry-run boundary for a human maintainer to review and execute later.
 
 ## Decision
 
@@ -13,10 +13,11 @@ Recommended state for the next human gate:
 - The package root value API remains `createAgentRuntime` only; public TypeScript types are exposed through the root declarations, not as runtime values.
 - The release-candidate workflow remains artifact-only: it creates and verifies the tarball but does not publish and does not require registry credentials.
 - The future publish must use the `alpha` dist-tag. Do not publish this pre-alpha version as `latest`.
+- Latest locked evidence: current target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11`, release-candidate workflow run `27942743285`, downloaded artifact verification `ok: true`, and local `npm publish --dry-run --ignore-scripts --tag alpha` passed with `tag alpha`.
 
 ## Non-Goals
 
-- Do not run a real `npm publish` during P2-13.
+- Do not run a real `npm publish` during P3-9.
 - Do not add npm tokens, GitHub tokens, registry credential environment variables, or private auth files.
 - Do not configure real npm trusted publishing during P2-13.
 - Do not publish a GitHub release.

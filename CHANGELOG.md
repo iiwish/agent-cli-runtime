@@ -2,6 +2,11 @@
 
 ## 0.1.0-alpha.0 — pre-alpha developer preview (release-candidate hardening)
 
+- P3-9 final alpha dry-run and current-HEAD release readiness lock:
+  - refreshed current-HEAD release-candidate evidence for `a0299a7d81bb614661922bebc8c75496cf0a3d11` through GitHub Actions run `27942743285`;
+  - re-verified all five downloaded artifacts with `agent-cli-runtime.releaseVerification.v1` and empty diagnostics;
+  - confirmed `gate-evidence.json` records `daemon:verify` and `runtime:safety` with `packageSource: "installed-tarball"`;
+  - passed local `npm publish --dry-run --ignore-scripts --tag alpha` without publishing npm.
 - P2-13 alpha publish readiness decision:
   - completed npm metadata review by adding repository, homepage, and bugs entries while keeping `publishConfig.tag: "alpha"`;
   - added `docs/release-publish-runbook.md` for dry-run, future real publish commands, human confirmation points, dist-tag checks, rollback/deprecation/unpublish boundaries, 2FA, trusted publishing, provenance, and token strategy;

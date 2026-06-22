@@ -29,7 +29,7 @@ const REQUIRED_GATE_EVIDENCE = [
 const disallowedPathPatterns = [
   { code: "reference_material", pattern: /^\.reference(?:\/|$)/u },
   { code: "tests", pattern: /^tests(?:\/|$)/u },
-  { code: "fixture_material", pattern: /(?:^|\/)fixtures?(?:\/|$)/iu },
+  { code: "fixture_material", pattern: /fixtures?/iu },
   { code: "fault_fixtures", pattern: /(?:^|\/)fault-fixtures(?:\/|$)/u },
   { code: "repair_backups", pattern: /(?:^|\/)repair-backups(?:\/|$)/u },
   { code: "raw_corrupt_samples", pattern: /(?:^|\/)raw-corrupt-samples(?:\/|$)/u },

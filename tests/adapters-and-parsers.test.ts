@@ -4,7 +4,7 @@ import { claudeAdapter } from "../src/adapters/claude.js";
 import { codexAdapter } from "../src/adapters/codex.js";
 import { opencodeAdapter } from "../src/adapters/opencode.js";
 import { preparePromptTransport } from "../src/runs/prompt-transport.js";
-import { runParserFixtureCases } from "../src/smoke/parser-fixtures.js";
+import { runParserFixtureCases } from "../src/smoke/parser-samples.js";
 
 describe("MVP adapters", () => {
   it("declares compatibility profiles for Codex, Claude, and OpenCode", () => {

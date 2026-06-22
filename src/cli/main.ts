@@ -10,7 +10,7 @@ import {
   type EventScope,
 } from "../core/event-contract.js";
 import { redactText } from "../core/redaction.js";
-import { runParserFixtureCases } from "../smoke/parser-fixtures.js";
+import { runParserFixtureCases } from "../smoke/parser-samples.js";
 import { defaultAdapters } from "../adapters/registry.js";
 import {
   atomicWriteJsonFile,
