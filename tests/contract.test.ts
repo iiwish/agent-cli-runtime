@@ -2342,7 +2342,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("documents P3-5 workflow-head evidence without pending status or old-run reuse", async () => {
+  it("documents P3-8 target SHA workflow evidence without pending status or old-run reuse", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
@@ -2353,8 +2353,10 @@ setInterval(() => {}, 1000);
       "docs/release-report.md",
       "docs/ssot.md",
     ];
-    const evidenceRun = "27932628093";
-    const evidenceTargetSha = "8d7bc2a19c626caa1ad5223acbcd35df34aff18e";
+    const evidenceRun = "27940814340";
+    const evidenceTargetSha = "eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4";
+    const historicalP3Run = "27932628093";
+    const historicalP3Sha = "8d7bc2a19c626caa1ad5223acbcd35df34aff18e";
     const oldRun = "27869580048";
     const report = await readFile(path.join(root, "docs", "release-report.md"), "utf8");
     const checklist = await readFile(path.join(root, "docs", "release-checklist.md"), "utf8");
@@ -2363,27 +2365,29 @@ setInterval(() => {}, 1000);
     for (const doc of docs) {
       const text = await readFile(path.join(root, doc), "utf8");
       expect(text).not.toContain("remote_evidence`: pending");
-      expect(text).not.toMatch(/P3-5[^\n]*(?:pending|待触发|待复验|待闭环)/u);
-      expect(text).not.toMatch(new RegExp(`current commit[^\\n]{0,160}${evidenceTargetSha}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`当前 commit[^\\n]{0,160}${evidenceTargetSha}`, "u"));
-      expect(text).not.toMatch(new RegExp(`current remote evidence[^\\n]{0,160}${evidenceTargetSha}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`当前远端证据[^\\n]{0,160}${evidenceTargetSha}`, "u"));
-      expect(text).not.toMatch(new RegExp(`current(?: remote)? evidence[^\\n]{0,80}${oldRun}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`当前(?:远端)?证据[^\\n]{0,80}${oldRun}`, "u"));
+      expect(text).not.toMatch(/P3-8[^\n]*(?:pending|待触发|待复验|待闭环)/u);
+      expect(text).not.toMatch(new RegExp(`target SHA[:：]?\\s*${historicalP3Sha}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`证据目标 SHA[:：]?\\s*${historicalP3Sha}`, "u"));
+      expect(text).not.toMatch(new RegExp(`evidence target SHA[:：]?\\s*${historicalP3Sha}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`target run[:：]?\\s*${historicalP3Run}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`证据目标 run[:：]?\\s*${historicalP3Run}`, "u"));
+      expect(text).not.toMatch(new RegExp(`target run[:：]?\\s*${oldRun}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`证据目标 run[:：]?\\s*${oldRun}`, "u"));
     }
 
     for (const text of [report, checklist, ssot]) {
       expect(text).toContain(evidenceRun);
       expect(text).toContain(evidenceTargetSha);
-      expect(text).toMatch(/workflow head SHA|Workflow head SHA/u);
+      expect(text).toMatch(/target SHA|Target SHA|evidence target SHA|证据目标 SHA/u);
       expect(text).toContain("agent-cli-runtime-gate-evidence");
       expect(text).toContain("installed-tarball");
-      expect(text).toContain("npm run release:verify -- --dir /tmp/agent-runtime-p3-5-remote-7rkBqm/normalized");
+      expect(text).toContain("npm run release:verify -- --dir /tmp/agent-runtime-p3-8-tcTB1b/normalized");
       expect(text).toContain("agent-cli-runtime.releaseVerification.v1");
       expect(text).toMatch(/`ok`:\s*`true`|ok: true/u);
       expect(text).toContain("diagnostics");
     }
-    expect(report).toContain("Historical P2-12 run `27869580048`");
+    expect(report).toContain("Historical P3-5 run `27932628093`");
+    expect(report).toContain("historical P2-12 run `27869580048`");
   });
 
   it("documents publish dry-run with the alpha dist-tag instead of latest", async () => {

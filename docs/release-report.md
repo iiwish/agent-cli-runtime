@@ -1,13 +1,99 @@
-# Release Report: 0.1.0-alpha.0 P3-7 API / CLI schema freeze
+# Release Report: 0.1.0-alpha.0 P3-8 target SHA remote RC evidence refresh
 
-Status: P3-7 API / CLI Schema Freeze
+Status: P3-8 Target SHA Remote Release-Candidate Evidence Refresh
 Last updated: 2026-06-22
 
-This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, and P3-7 API / CLI schema freeze evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
+This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, and P3-8 target-SHA remote release-candidate evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
 
 ## Verdict
 
-P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, version bump policy, and failure taxonomy in [docs/api-schema-contract.md](./api-schema-contract.md), with drift tests tying the docs to source-level schema/failure vocabularies. It preserves the release boundary: no npm publish, no trusted publishing setup, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. The release candidate also retains GitHub Actions release-candidate evidence from P3-5 for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; workflow run `27932628093` completed successfully, uploaded all five release-candidate artifacts, and the downloaded artifacts passed local `npm run release:verify` after normalization. This remote evidence proves the workflow head SHA, not later P3-6 or P3-7 local edits. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, version bump policy, and failure taxonomy in [docs/api-schema-contract.md](./api-schema-contract.md), with drift tests tying the docs to source-level schema/failure vocabularies. P3-8 refreshes the remote release-candidate evidence for evidence target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`: GitHub Actions run `27940814340` completed successfully, uploaded all five release-candidate artifacts, and the downloaded artifacts passed local `npm run release:verify` after normalization. It preserves the release boundary: no npm publish, no trusted publishing setup, no npm token, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. Historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+
+## P3-8 Target SHA Remote Release-Candidate Evidence Refresh
+
+P3-8 refreshes release-candidate evidence for target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`. It does not add runtime APIs, publish npm, configure npm tokens/trusted publishing, execute authenticated real agent runs, or add daemon/API server/database/WAL/remote-worker/UI/telemetry layers.
+
+Evidence target and worktree state before remote trigger:
+
+- Branch: `main`.
+- Evidence target SHA: `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`.
+- Initial worktree: clean, local `main` was ahead of `origin/main` by three commits.
+- Push required for remote evidence: `git push origin main` advanced remote `main` from `8d7bc2a19c626caa1ad5223acbcd35df34aff18e` to `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4` before triggering the workflow.
+
+P3-8 local validation evidence on 2026-06-22:
+
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed with 196 tests and 1 skipped installed-package smoke.
+- `npm run build`: passed.
+- `npm run package:check`: passed with `package boundary ok: 151 files checked`.
+- `npm run dogfood`: passed.
+- `npm run daemon:verify`: passed with `schemaVersion: "agent-runtime.daemonVerification.v1"`, `ok: true`, and `packageSource: "installed-tarball"`.
+- `npm run runtime:safety`: passed with `schemaVersion: "agent-runtime.runtimeSafety.v1"`, `ok: true`, and `packageSource: "installed-tarball"`.
+- `npm run release:candidate -- --out-dir /tmp/agent-runtime-p3-8-tcTB1b/release-candidate`: passed, producing `agent-cli-runtime-0.1.0-alpha.0.tgz`, `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, and `release-verification.json`.
+- `npm run release:verify -- --dir /tmp/agent-runtime-p3-8-tcTB1b/release-candidate`: passed with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `151`, five artifact names, empty diagnostics, and gate evidence for `daemon:verify` plus `runtime:safety`.
+- `node ./dist/cli/main.js agents --json`: passed; Codex `codex-cli 0.142.0-alpha.6` and OpenCode `1.15.6` available, Claude Code `2.1.178` available with `auth_missing`.
+- `node ./dist/cli/main.js doctor --json`: passed with `ok: true`; Claude Code remains `auth_missing`.
+- `node ./dist/cli/main.js conformance --mode real --agent all --json`: passed without `--allow-real-run`; Codex and OpenCode reported `real_run_skipped`, Claude Code reported `auth_missing`.
+- `node ./dist/cli/main.js smoke --mode real --agent codex --json`: exited `0` as safe preflight with `schemaVersion: "agent-runtime.realSmoke.v1"` and `runClassification: "real_run_skipped"`; no authenticated real run was launched.
+- `git diff --check`: passed.
+
+Remote workflow evidence target:
+
+- Branch: `main`.
+- Workflow head SHA: `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`.
+- Trigger command: `gh workflow run release-candidate.yml --ref main`.
+- Run id: `27940814340`.
+- Run URL: `https://github.com/iiwish/agent-cli-runtime/actions/runs/27940814340`.
+- Event: `workflow_dispatch`.
+- Workflow: `Release Candidate`.
+- Run status/conclusion: `completed` / `success`.
+- Run created/updated: `2026-06-22T08:49:42Z` / `2026-06-22T08:51:10Z`.
+- Job `Build release candidate artifacts` id `82673483690`, URL `https://github.com/iiwish/agent-cli-runtime/actions/runs/27940814340/job/82673483690`, started at `2026-06-22T08:49:47Z`, completed at `2026-06-22T08:51:09Z`, and concluded `success`.
+- Steps `Install dependencies`, `Run CI gate`, `Run dogfood gate without authenticated real runs`, `Create npm pack artifact and gate evidence without publishing`, `Upload tarball`, `Upload pack metadata`, `Upload package file list`, `Upload daemon-ready gate evidence`, and `Upload release verification` all concluded `success`.
+- Download directory: `/tmp/agent-runtime-p3-8-tcTB1b/downloaded`.
+- Normalized review directory: `/tmp/agent-runtime-p3-8-tcTB1b/normalized`.
+
+Current artifact metadata from the GitHub Actions API:
+
+| Artifact | GitHub artifact id | Archive size | Digest | Expires |
+| --- | ---: | ---: | --- | --- |
+| `agent-cli-runtime-tarball` | `7787451630` | `220040` bytes | `sha256:a584dcd86da703e3dce9f3e3f178a0369182aa0608efa7776cf481b8a7d05a98` | `2026-07-06T08:50:58Z` |
+| `agent-cli-runtime-pack-metadata` | `7787452120` | `2011` bytes | `sha256:85c406be6e4d160f3b369d330ade6428df2ac3a7d0167fe239e370d6bb3a14cf` | `2026-07-06T08:51:00Z` |
+| `agent-cli-runtime-package-files` | `7787452552` | `963` bytes | `sha256:85097bad148a208265f29a8f3892aa59fb5681fc89d35b2cd119542e48153a9b` | `2026-07-06T08:51:02Z` |
+| `agent-cli-runtime-gate-evidence` | `7787453036` | `443` bytes | `sha256:56f7c6073ebb17d7b7bf6a156901ad3a234eccd5615075dcdded57112a7cd91e` | `2026-07-06T08:51:03Z` |
+| `agent-cli-runtime-release-verification` | `7787453542` | `649` bytes | `sha256:7751cd758befaa341d1466ca9118dc7d443c1eda4525a5f6485a45da4d68acec` | `2026-07-06T08:51:04Z` |
+
+Downloaded artifact normalization:
+
+```bash
+gh run download 27940814340 --dir /tmp/agent-runtime-p3-8-tcTB1b/downloaded
+cp /tmp/agent-runtime-p3-8-tcTB1b/downloaded/agent-cli-runtime-tarball/agent-cli-runtime-0.1.0-alpha.0.tgz /tmp/agent-runtime-p3-8-tcTB1b/normalized/
+cp /tmp/agent-runtime-p3-8-tcTB1b/downloaded/agent-cli-runtime-pack-metadata/npm-pack.json /tmp/agent-runtime-p3-8-tcTB1b/normalized/
+cp /tmp/agent-runtime-p3-8-tcTB1b/downloaded/agent-cli-runtime-package-files/package-files.txt /tmp/agent-runtime-p3-8-tcTB1b/normalized/
+cp /tmp/agent-runtime-p3-8-tcTB1b/downloaded/agent-cli-runtime-gate-evidence/gate-evidence.json /tmp/agent-runtime-p3-8-tcTB1b/normalized/
+cp /tmp/agent-runtime-p3-8-tcTB1b/downloaded/agent-cli-runtime-release-verification/release-verification.json /tmp/agent-runtime-p3-8-tcTB1b/normalized/
+npm run release:verify -- --dir /tmp/agent-runtime-p3-8-tcTB1b/normalized
+```
+
+Downloaded artifact re-verification result:
+
+- `schemaVersion`: `agent-cli-runtime.releaseVerification.v1`
+- `ok`: `true`
+- diagnostics: empty
+- package file count: `151`
+- artifact names: `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, `agent-cli-runtime-release-verification`
+- tarball: `agent-cli-runtime-0.1.0-alpha.0.tgz`
+- tarball size: `219786` bytes
+- tarball sha256: `99c1dc4d053e2140e3bcbe57f13f977e2658e9ae9820bad49518039f76ceb1dc`
+- npm pack shasum: `2f91a02e1dc38a95ac309cea43841652bf34e04f`
+- npm pack integrity: `sha512-PFLgT+GaCErF6OnTZ0ZWKITZCbwXtHBs6pkSDKlVw42dvlye5PhWiwTMRwK07G/FNqu+fSw5VDbLvQIB6QxFig==`
+- package name/version: `agent-cli-runtime@0.1.0-alpha.0`
+- gate evidence schema: `agent-cli-runtime.releaseGateEvidence.v1`
+- gate evidence commands: `npm run daemon:verify`, `npm run runtime:safety`
+- gate evidence package source: both `installed-tarball`
+- gate evidence flags: `noAuthenticatedRealRun: true`, `noNpmPublish: true`, `noNpmToken: true`
+- package file review: 151 entries and no `.reference/`, `tests/`, fixtures, raw real CLI output, private paths, token-looking values, Bearer values, or auth env assignments.
 
 ## P3-7 API / CLI Schema Freeze
 
@@ -61,9 +147,9 @@ P3-6 local validation evidence on 2026-06-22:
 - `node ./dist/cli/main.js smoke --mode real --agent claude --allow-real-run --expect-text "agent-runtime real smoke ok" --json`: completed with `runClassification: "auth_missing"` before launch.
 - `node ./dist/cli/main.js smoke --mode real --agent opencode --allow-real-run --expect-text "agent-runtime real smoke ok" --timeout-ms 120000 --json`: completed with `runClassification: "success"`, `expectedTextMatched: true`, and `cwdMutated: false`. A 30s default-timeout retry can still classify as `timeout` in this environment.
 
-## P3-5 Remote Release Evidence Closure
+## Historical P3-5 Remote Release Evidence Closure
 
-P3-5 closes the P3-4 remote evidence gap for the release-candidate workflow head SHA. It does not add runtime features and does not publish npm.
+P3-5 closed the P3-4 remote evidence gap for its workflow head SHA. It remains historical evidence only and does not prove the P3-8 target SHA.
 
 Workflow evidence target:
 
@@ -81,7 +167,7 @@ Workflow evidence target:
 - Download directory: `/tmp/agent-runtime-p3-5-remote-7rkBqm/downloaded`.
 - Normalized review directory: `/tmp/agent-runtime-p3-5-remote-7rkBqm/normalized`.
 
-Current artifact metadata from the GitHub Actions API:
+Historical artifact metadata from the GitHub Actions API:
 
 | Artifact | GitHub artifact id | Archive size | Digest | Expires |
 | --- | ---: | ---: | --- | --- |
@@ -140,7 +226,7 @@ P3-4 is local-first release gate alignment, not a new runtime feature and not an
 - Verifier: `release:verify` requires `gate-evidence.json`; missing or incomplete daemon-ready gate evidence fails verification while package boundary, private path, token-looking value, Bearer, and auth env checks remain active.
 - Boundary: workflows still contain no `npm publish`, no `NODE_AUTH_TOKEN` / `NPM_TOKEN`, no trusted-publishing credential setup, and no `--allow-real-run`.
 
-Remote P3-4 evidence was pending until P3-5. P3-5 run `27932628093` is the workflow-head evidence closure for the five-artifact set.
+Remote P3-4 evidence was pending until P3-5. P3-5 run `27932628093` is the historical workflow-head evidence closure for the five-artifact set.
 
 ## P3-1 Daemon-Ready Contract Hardening
 
@@ -252,7 +338,7 @@ Expected remote evidence:
 - No workflow runs `npm publish`, sets `NODE_AUTH_TOKEN`, or requires an npm token.
 P2-13 keeps those workflow guarantees and does not add a publish workflow.
 
-Remote GitHub Actions evidence for the P3-5 release-candidate target is run `27932628093` on workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`. Historical P2-12 run `27869580048` must not be reused as evidence for later release-candidate targets.
+Remote GitHub Actions evidence for the P3-8 release-candidate target is run `27940814340` on target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`. Historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` must not be reused as evidence for later release-candidate targets.
 
 ## Release-Candidate Artifacts
 
@@ -266,7 +352,7 @@ The manual release-candidate workflow uploads:
 
 Artifacts are retained for 14 days to keep the audit window explicit while avoiding long-lived stale release-candidate evidence.
 
-The P3-5 artifact set has five artifacts. The P2-12 downloaded artifact table below is retained as historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`; it predates `agent-cli-runtime-gate-evidence` and must not be reused as P3-5 evidence.
+The P3-8 artifact set has five artifacts and all were re-verified from downloaded GitHub Actions artifacts. The P2-12 downloaded artifact table below is retained as historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`; it predates `agent-cli-runtime-gate-evidence` and must not be reused as P3-8 release-candidate evidence.
 
 Downloaded artifact evidence from run `27869580048`:
 
@@ -345,8 +431,8 @@ Authenticated real runs require explicit `--allow-real-run --expect-text <safe_t
 
 ## Known Risks
 
-- Remote GitHub Actions evidence is commit-specific; P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`.
-- Historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56` and predates the gate-evidence artifact.
+- Remote GitHub Actions evidence is commit-specific; P3-8 run `27940814340` proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`.
+- Historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56` and predates the gate-evidence artifact.
 - Real CLI behavior, auth state, model lists, and flags can drift after this dated evidence.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume remain in `needsVerification`.
 - Claude Code authenticated run smoke depends on local auth or a correctly configured provider environment.
