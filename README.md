@@ -23,7 +23,7 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P3-4 CI / release gate alignment track, not a stable API release or npm publication record.
+- This is a P3-5 remote release evidence closure track, not a stable API release or npm publication record.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no API server, no WAL, no database, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended as a local-first execution kernel for embedding in a daemon or product shell, not as a hosted control plane.
@@ -343,7 +343,7 @@ node ./dist/cli/main.js conformance --mode real --agent all --json
 
 CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node release-gates job runs `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` so the full matrix does not launch redundant installed-package gates. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
 
-For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, daemon embedding verification, runtime safety verification, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`; the generated artifact set includes the npm tarball, pack metadata, package file list, `gate-evidence.json`, and `release-verification.json`. It does not publish and does not require an npm token.
+For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, daemon embedding verification, runtime safety verification, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`; the generated artifact set includes the npm tarball, pack metadata, package file list, `gate-evidence.json`, and `release-verification.json`. P3-5 release-candidate evidence target is run `27932628093` for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`, with all five downloaded artifacts passing local `release:verify`. It does not publish and does not require an npm token.
 
 To create a local release-candidate artifact set without publishing, run:
 

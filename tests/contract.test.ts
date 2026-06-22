@@ -41,6 +41,13 @@ const releaseCandidateCreator = path.join(root, "scripts", "create-release-candi
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
 const runInstalledPackageContractTests = process.env.AGENT_RUNTIME_RUN_INSTALLED_PACKAGE_TESTS === "1";
+const expectedReleaseCandidateArtifacts = [
+  "agent-cli-runtime-tarball",
+  "agent-cli-runtime-pack-metadata",
+  "agent-cli-runtime-package-files",
+  "agent-cli-runtime-gate-evidence",
+  "agent-cli-runtime-release-verification",
+];
 
 function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -1724,13 +1731,7 @@ setInterval(() => {}, 1000);
         sizeBytes: expect.any(Number),
       },
       diagnostics: [],
-      artifactNames: expect.arrayContaining([
-        "agent-cli-runtime-tarball",
-        "agent-cli-runtime-pack-metadata",
-        "agent-cli-runtime-package-files",
-        "agent-cli-runtime-gate-evidence",
-        "agent-cli-runtime-release-verification",
-      ]),
+      artifactNames: expect.arrayContaining(expectedReleaseCandidateArtifacts),
       gateEvidence: {
         schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
         commands: ["npm run daemon:verify", "npm run runtime:safety"],
@@ -1754,6 +1755,7 @@ setInterval(() => {}, 1000);
         packageSource: "installed-tarball",
       }),
     ]);
+    expect([...verification.artifactNames].sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
     expect(stdout).not.toContain(dir);
   });
 
@@ -1888,6 +1890,7 @@ setInterval(() => {}, 1000);
     const ci = await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
     const releaseCandidate = await readFile(path.join(root, ".github", "workflows", "release-candidate.yml"), "utf8");
     const ciCompact = ci.replace(/\s+/gu, "");
+    const releaseArtifactNames = [...releaseCandidate.matchAll(/^\s+name:\s+(agent-cli-runtime-[^\n]+)$/gmu)].map((match) => match[1].trim());
 
     expect(ciCompact).toContain("node-version:[20.x,22.x,24.x]");
     for (const requiredStep of [
@@ -1917,9 +1920,14 @@ setInterval(() => {}, 1000);
     expect(releaseGateBuild).toBeLessThan(daemonGate);
     expect(ci).not.toContain("Package install smoke");
     expect(ci).not.toContain("agent-runtime-release-smoke");
-    expect(ci).not.toContain("--allow-real-run");
-    expect(ci).not.toMatch(/\bnpm publish\b/u);
-    expect(ci).not.toContain("NODE_AUTH_TOKEN");
+    for (const workflow of [ci, releaseCandidate]) {
+      expect(workflow).not.toContain("--allow-real-run");
+      expect(workflow).not.toMatch(/\bnpm publish\b/u);
+      expect(workflow).not.toContain("NODE_AUTH_TOKEN");
+      expect(workflow).not.toContain("NPM_TOKEN");
+      expect(workflow).not.toContain("id-token: write");
+      expect(workflow).not.toContain("registry-url:");
+    }
 
     expect(releaseCandidate).toMatch(/on:\n\s+workflow_dispatch:/u);
     expect(releaseCandidate).toContain("npm run ci");
@@ -1933,19 +1941,9 @@ setInterval(() => {}, 1000);
     expect(releaseCandidate).toContain("actions/setup-node@v5");
     expect(releaseCandidate).toContain("actions/upload-artifact@v6");
     expect(releaseCandidate).not.toMatch(/actions\/(?:checkout|setup-node)@v4|actions\/upload-artifact@v[45]/u);
-    expect(releaseCandidate).toContain("agent-cli-runtime-tarball");
-    expect(releaseCandidate).toContain("agent-cli-runtime-pack-metadata");
-    expect(releaseCandidate).toContain("agent-cli-runtime-package-files");
-    expect(releaseCandidate).toContain("agent-cli-runtime-gate-evidence");
-    expect(releaseCandidate).toContain("agent-cli-runtime-release-verification");
+    expect(releaseArtifactNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
     expect(releaseCandidate).toContain("retention-days: 14");
     expect(releaseCandidate).not.toMatch(/const disallowed|disallowed package artifact path/u);
-    expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
-    expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
-    expect(releaseCandidate).not.toContain("NPM_TOKEN");
-    expect(releaseCandidate).not.toContain("id-token: write");
-    expect(releaseCandidate).not.toContain("registry-url:");
-    expect(releaseCandidate).not.toContain("--allow-real-run");
   });
 
   it("keeps prepublish and release candidate gates aligned with daemon-ready scripts", async () => {
@@ -1963,6 +1961,49 @@ setInterval(() => {}, 1000);
     expect(creator).not.toMatch(/\bnpm publish\b/u);
     expect(creator).not.toContain("NODE_AUTH_TOKEN");
     expect(creator).not.toContain("--allow-real-run");
+  });
+
+  it("documents P3-5 workflow-head evidence without pending status or old-run reuse", async () => {
+    const docs = [
+      "README.md",
+      "README.zh-CN.md",
+      "docs/compatibility.md",
+      "docs/production-readiness.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/ssot.md",
+    ];
+    const evidenceRun = "27932628093";
+    const evidenceTargetSha = "8d7bc2a19c626caa1ad5223acbcd35df34aff18e";
+    const oldRun = "27869580048";
+    const report = await readFile(path.join(root, "docs", "release-report.md"), "utf8");
+    const checklist = await readFile(path.join(root, "docs", "release-checklist.md"), "utf8");
+    const ssot = await readFile(path.join(root, "docs", "ssot.md"), "utf8");
+
+    for (const doc of docs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text).not.toContain("remote_evidence`: pending");
+      expect(text).not.toMatch(/P3-5[^\n]*(?:pending|待触发|待复验|待闭环)/u);
+      expect(text).not.toMatch(new RegExp(`current commit[^\\n]{0,160}${evidenceTargetSha}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`当前 commit[^\\n]{0,160}${evidenceTargetSha}`, "u"));
+      expect(text).not.toMatch(new RegExp(`current remote evidence[^\\n]{0,160}${evidenceTargetSha}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`当前远端证据[^\\n]{0,160}${evidenceTargetSha}`, "u"));
+      expect(text).not.toMatch(new RegExp(`current(?: remote)? evidence[^\\n]{0,80}${oldRun}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`当前(?:远端)?证据[^\\n]{0,80}${oldRun}`, "u"));
+    }
+
+    for (const text of [report, checklist, ssot]) {
+      expect(text).toContain(evidenceRun);
+      expect(text).toContain(evidenceTargetSha);
+      expect(text).toMatch(/workflow head SHA|Workflow head SHA/u);
+      expect(text).toContain("agent-cli-runtime-gate-evidence");
+      expect(text).toContain("installed-tarball");
+      expect(text).toContain("npm run release:verify -- --dir /tmp/agent-runtime-p3-5-remote-7rkBqm/normalized");
+      expect(text).toContain("agent-cli-runtime.releaseVerification.v1");
+      expect(text).toMatch(/`ok`:\s*`true`|ok: true/u);
+      expect(text).toContain("diagnostics");
+    }
+    expect(report).toContain("Historical P2-12 run `27869580048`");
   });
 
   it("documents publish dry-run with the alpha dist-tag instead of latest", async () => {

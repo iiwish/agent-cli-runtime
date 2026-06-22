@@ -1,6 +1,6 @@
 # Release Checklist (pre-alpha / developer preview)
 
-## P3-4 CI / release gate alignment
+## P3-5 remote release evidence closure
 
 - [x] `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
 - [x] CI runs `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` in one single-Node release-gates job instead of repeating installed-package gates across the matrix.
@@ -9,7 +9,7 @@
 - [x] `release:verify` requires `gate-evidence.json`, rejects missing or incomplete daemon-ready gate evidence, and still checks `.reference/`, tests/fixtures, private paths, token-looking values, Bearer values, and auth env assignments.
 - [x] `npm run prepublish:check` includes both `npm run daemon:verify` and `npm run runtime:safety`.
 - [x] Workflows still contain no `npm publish`, no `NODE_AUTH_TOKEN` / `NPM_TOKEN`, no trusted-publishing credential setup, and no `--allow-real-run`.
-- [ ] Trigger a fresh remote `.github/workflows/release-candidate.yml` run for the P3-4 commit and download/re-verify all five artifacts, including `agent-cli-runtime-gate-evidence`.
+- [x] Triggered fresh remote `.github/workflows/release-candidate.yml` run `27932628093` for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e` and downloaded/re-verified all five artifacts, including `agent-cli-runtime-gate-evidence`.
 
 ## P3-3 long-lived runtime resource safety gate
 
@@ -98,21 +98,21 @@
 
 ## GitHub Actions release candidate
 
-P2-12 remote evidence, observed on 2026-06-20, remains historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`. P3-4 changes the artifact set by adding `gate-evidence.json`, so current-commit remote evidence is pending until a fresh `workflow_dispatch` run is triggered and reviewed.
+P2-12 remote evidence, observed on 2026-06-20, remains historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`. P3-5 release-candidate evidence is workflow run `27932628093` for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; it includes the P3-4 five-artifact set with `gate-evidence.json`.
 
-- [ ] Trigger `.github/workflows/release-candidate.yml` manually with `workflow_dispatch` for the P3-4 commit.
+- [x] Trigger `.github/workflows/release-candidate.yml` manually with `workflow_dispatch` for the P3-5 commit.
 - [x] Confirm the workflow is configured to run `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`.
 - [x] Confirm dogfood output is limited to fixtures, fake CLIs, and real local detection/profile certification without `--allow-real-run`.
 - [x] Confirm `npm run release:candidate` is configured to create a tarball artifact, gate evidence, and release verification JSON but no `npm publish` step exists.
-- [ ] Download and review the uploaded artifacts:
+- [x] Download and review the uploaded artifacts:
   - `agent-cli-runtime-tarball`
   - `agent-cli-runtime-pack-metadata`
   - `agent-cli-runtime-package-files`
   - `agent-cli-runtime-gate-evidence`
   - `agent-cli-runtime-release-verification`
-- [ ] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir <downloaded-artifact-dir>`.
-- [ ] Confirm `release-verification.json` uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, has `ok: true`, and contains only redacted paths/diagnostics.
-- [ ] Confirm `gate-evidence.json` uses `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and records `daemon:verify` plus `runtime:safety`.
+- [x] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir /tmp/agent-runtime-p3-5-remote-7rkBqm/normalized`.
+- [x] Confirm `release-verification.json` uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, has `ok: true`, package file count `147`, and empty diagnostics.
+- [x] Confirm `gate-evidence.json` uses `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and records `daemon:verify` plus `runtime:safety` with `packageSource: "installed-tarball"`.
 - [x] Confirm no npm token, npm provenance publish, or registry credential is required.
 - [x] Confirm artifacts use the documented 14-day retention window.
 

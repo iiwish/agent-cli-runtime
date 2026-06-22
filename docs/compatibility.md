@@ -1,13 +1,13 @@
 # Agent CLI Compatibility Matrix
 
-Status: P3-4 CI / Release Gate Alignment
+Status: P3-5 Remote Release Evidence Closure
 Last updated: 2026-06-22
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-4 keeps the P3-1 daemon-ready contract freeze and P3-2/P3-3 installed-package gates, then aligns CI and release-candidate evidence so those gates are represented in artifacts. It does not publish npm, configure trusted publishing, implement a daemon/API server, or change adapter compatibility behavior. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-5 closes workflow-head remote release evidence for the P3-4 five-artifact workflow. It does not publish npm, configure trusted publishing, implement a daemon/API server, or change adapter compatibility behavior. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P3-4 pre-alpha CI / release gate alignment evidence, which is intended to be the default interpretation for this matrix.
+Current status is P3-5 pre-alpha remote release evidence closure, which is intended to be the default interpretation for this matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and single-Node TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
@@ -19,7 +19,7 @@ Current status is P3-4 pre-alpha CI / release gate alignment evidence, which is 
 - `docs/daemon-ready-contract.md` documents embedding semantics for daemon/product shell callers without adding a hosted daemon surface.
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
 - CI runs `daemon:verify`, `runtime:safety`, and dogfood once in a single Node.js 22 release-gates job; the Node.js 20/22/24 matrix does not repeat installed-package gates.
-- Remote GitHub Actions release-candidate evidence is run `27869580048` on commit `2f8832119b4ebdb8393077052560589a398ebf56`; do not reuse it for later commits.
+- Remote GitHub Actions release-candidate evidence is run `27932628093` on workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`.
 - Evidence modes are intentionally separate:
   - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
   - `fake`: temporary local fake CLIs through the real adapter argv/stdin/parser path; no network or real account is used.
@@ -56,6 +56,16 @@ P2-13 does not change adapter compatibility. It keeps the pre-alpha runtime beha
 - `.github/workflows/ci.yml` and `.github/workflows/release-candidate.yml` remain artifact/check workflows and do not publish npm or require registry credentials;
 - trusted publishing and provenance are future choices, not configured evidence for P2-13.
 
+## P3-5 Remote Release Evidence Closure
+
+P3-5 does not change adapter invocation compatibility. It closes workflow-head release-candidate evidence:
+
+- `.github/workflows/release-candidate.yml` run `27932628093` completed successfully on workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`.
+- The run uploaded `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`.
+- Downloaded artifacts were normalized into `/tmp/agent-runtime-p3-5-remote-7rkBqm/normalized` and passed `npm run release:verify -- --dir /tmp/agent-runtime-p3-5-remote-7rkBqm/normalized`.
+- Verification result: `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `147`, empty diagnostics, and gate evidence for `daemon:verify` plus `runtime:safety` with `packageSource: "installed-tarball"`.
+- Local real conformance after the remote run still did not launch authenticated real agent runs: Codex and OpenCode reported `real_run_skipped`; Claude Code reported `auth_missing`.
+
 ## P3-4 CI / Release Gate Alignment
 
 P3-4 does not change adapter invocation compatibility. It changes release evidence handling:
@@ -64,7 +74,7 @@ P3-4 does not change adapter invocation compatibility. It changes release eviden
 - `.github/workflows/release-candidate.yml` remains `workflow_dispatch` only and uploads five artifacts for current P3-4 candidates: `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`.
 - `gate-evidence.json` uses `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and records `npm run daemon:verify` plus `npm run runtime:safety` with installed-package output schema versions.
 - `npm run release:verify` rejects missing or incomplete gate evidence while keeping package boundary and secret/private-path checks.
-- P3-4 remote evidence is pending until a fresh release-candidate workflow run is triggered for the current commit and the five downloaded artifacts pass local `release:verify`.
+- P3-4 remote evidence was closed by P3-5 run `27932628093` for the workflow head SHA.
 - P3-4 does not run authenticated real agent runs, publish npm, configure npm tokens, configure trusted publishing, or add daemon/API server behavior.
 
 ## P3-1 Daemon-Ready Contract Freeze
