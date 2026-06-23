@@ -47,6 +47,8 @@ const postAlphaVerifier = path.join(root, "scripts", "verify-post-alpha-release.
 const publishedSmoke = path.join(root, "scripts", "smoke-published.mjs");
 const publishedDaemonConsumerVerifier = path.join(root, "scripts", "verify-published-daemon-consumer.mjs");
 const publishedAdaptersVerifier = path.join(root, "scripts", "verify-published-adapters.mjs");
+const publishedVerificationCreator = path.join(root, "scripts", "create-published-verification-evidence.mjs");
+const publishedVerificationVerifier = path.join(root, "scripts", "verify-published-verification-evidence.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
@@ -57,6 +59,9 @@ const expectedReleaseCandidateArtifacts = [
   "agent-cli-runtime-package-files",
   "agent-cli-runtime-gate-evidence",
   "agent-cli-runtime-release-verification",
+];
+const expectedPublishedVerificationArtifacts = [
+  "agent-cli-runtime-published-verification",
 ];
 
 function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
@@ -297,6 +302,7 @@ describe("public contract", () => {
     expect(releaseVerifierText).toContain("agent-cli-runtime.releaseVerification.v1");
     expect(releaseVerifierText).toContain("agent-cli-runtime.releaseGateEvidence.v1");
     expect(releaseCandidateCreatorText).toContain("agent-cli-runtime.releaseGateEvidence.v1");
+    expect(apiContract).toContain("agent-cli-runtime.publishedVerification.v1");
   });
 
   it("keeps public docs from over-claiming API stability or hosted daemon readiness", async () => {
@@ -328,19 +334,24 @@ describe("public contract", () => {
     const runtimeSafetyScript = await readFile(runtimeSafetyVerifier, "utf8");
     const publishedDaemonScript = await readFile(publishedDaemonConsumerVerifier, "utf8");
     const publishedAdaptersScript = await readFile(publishedAdaptersVerifier, "utf8");
+    const publishedVerificationScript = await readFile(publishedVerificationCreator, "utf8");
+    const publishedVerificationVerifierScript = await readFile(publishedVerificationVerifier, "utf8");
 
     expect(manifest.scripts.test).not.toContain("daemon:verify");
     expect(manifest.scripts.test).not.toContain("runtime:safety");
     expect(manifest.scripts.test).not.toContain("published:daemon:verify");
     expect(manifest.scripts.test).not.toContain("published:adapters:verify");
+    expect(manifest.scripts.test).not.toContain("published:verify");
     expect(manifest.scripts.ci).not.toContain("daemon:verify");
     expect(manifest.scripts.ci).not.toContain("runtime:safety");
     expect(manifest.scripts.ci).not.toContain("published:daemon:verify");
     expect(manifest.scripts.ci).not.toContain("published:adapters:verify");
+    expect(manifest.scripts.ci).not.toContain("published:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:daemon:verify");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:adapters:verify");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("published:verify");
 
     expect(daemonScript).toContain("agent-runtime.daemonVerification.v1");
     expect(daemonScript).toContain("installed-tarball");
@@ -381,6 +392,91 @@ describe("public contract", () => {
     expect(publishedAdaptersScript).not.toContain("--allow-real-run");
     expect(publishedAdaptersScript).not.toMatch(/\bnpm publish\b/u);
     expect(publishedAdaptersScript).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(manifest.scripts["published:verify"]).toBe("node ./scripts/create-published-verification-evidence.mjs");
+    expect(manifest.scripts["published:verify:evidence"]).toBe("node ./scripts/verify-published-verification-evidence.mjs");
+    expect(manifest.files).not.toContain("scripts/create-published-verification-evidence.mjs");
+    expect(manifest.files).not.toContain("scripts/verify-published-verification-evidence.mjs");
+    expect(publishedVerificationScript).toContain("agent-cli-runtime.publishedVerification.v1");
+    expect(publishedVerificationScript).toContain("npm run smoke:published");
+    expect(publishedVerificationScript).toContain("npm run published:daemon:verify");
+    expect(publishedVerificationScript).toContain("npm run published:adapters:verify");
+    expect(publishedVerificationScript).toContain("npm run release:post-alpha:verify");
+    expect(publishedVerificationScript).toContain("npm view");
+    expect(publishedVerificationScript).toContain("noAuthenticatedRealRun: true");
+    expect(publishedVerificationScript).toContain("noNpmPublish: true");
+    expect(publishedVerificationScript).toContain("noNpmToken: true");
+    expect(publishedVerificationScript).toContain("outDir: displayPath(outDir)");
+    expect(publishedVerificationScript).toContain("return path.basename(file)");
+    expect(publishedVerificationScript).not.toMatch(/\bnpm publish\b/u);
+    expect(publishedVerificationScript).not.toContain("--allow-real-run");
+    expect(publishedVerificationVerifierScript).toContain("agent-cli-runtime.publishedVerification.v1");
+    expect(publishedVerificationVerifierScript).toContain("failedGateRejected");
+    expect(publishedVerificationVerifierScript).toContain("unsafeContentRejected");
+    expect(publishedVerificationVerifierScript).not.toMatch(/\bnpm publish\b/u);
+    expect(publishedVerificationVerifierScript).not.toContain("--allow-real-run");
+  });
+
+  it("keeps published verification evidence verifier strict, redacted, and offline testable", async () => {
+    const { stdout } = await execFileP(process.execPath, [publishedVerificationVerifier, "--self-test"]);
+    const result = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      checks: {
+        validSummaryAccepted: boolean;
+        failedGateRejected: boolean;
+        unsafeContentRejected: boolean;
+        safetyFlagsChecked: boolean;
+      };
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+    };
+
+    expect(result).toMatchObject({
+      schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+      ok: true,
+      checks: {
+        validSummaryAccepted: true,
+        failedGateRejected: true,
+        unsafeContentRejected: true,
+        safetyFlagsChecked: true,
+      },
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+  });
+
+  it("keeps published verification creator stdout from leaking external temp paths on usage errors", async () => {
+    const externalOutDir = path.join(await tempDir("agent-runtime-published-verification-out-"), "evidence");
+    const failure = await execCliFailureViaNode([
+      publishedVerificationCreator,
+      "--out-dir",
+      externalOutDir,
+      "--unknown",
+    ]);
+    const payload = JSON.parse(failure.stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      diagnostics: Array<{ code: string; message: string }>;
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+    };
+
+    expect(failure.code).toBe(1);
+    expect(payload).toMatchObject({
+      schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+      ok: false,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+    expect(failure.stdout).not.toContain(externalOutDir);
+    expect(failure.stdout).not.toContain("/tmp/");
+    expect(failure.stdout).not.toContain("/private/tmp/");
+    expect(failure.stdout).not.toContain("/var/folders/");
   });
 
   it("keeps published adapters verifier schema, redaction, and failure isolation stable", async () => {
@@ -2087,6 +2183,7 @@ setInterval(() => {}, 1000);
     expect(files).toContain("docs/release-publish-runbook.md");
     expect(files).toContain("docs/api-schema-contract.md");
     expect(files).toContain("docs/ssot.md");
+    expect(files).not.toContainEqual(expect.stringMatching(/^published-verification\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^\.release-evidence\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
@@ -2578,7 +2675,9 @@ setInterval(() => {}, 1000);
   it("keeps remote CI and release-candidate workflows audit-only and artifact-focused", async () => {
     const ci = await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
     const releaseCandidate = await readFile(path.join(root, ".github", "workflows", "release-candidate.yml"), "utf8");
+    const publishedPackageVerification = await readFile(path.join(root, ".github", "workflows", "published-package-verification.yml"), "utf8");
     const creator = await readFile(releaseCandidateCreator, "utf8");
+    const publishedCreator = await readFile(publishedVerificationCreator, "utf8");
     const manifest = await readFile(path.join(root, "package.json"), "utf8");
     const ciCompact = ci.replace(/\s+/gu, "");
     const releaseArtifactNames = [...releaseCandidate.matchAll(/^\s+name:\s+(agent-cli-runtime-[^\n]+)$/gmu)].map((match) => match[1].trim());
@@ -2611,7 +2710,7 @@ setInterval(() => {}, 1000);
     expect(releaseGateBuild).toBeLessThan(daemonGate);
     expect(ci).not.toContain("Package install smoke");
     expect(ci).not.toContain("agent-runtime-release-smoke");
-    for (const releaseSurface of [ci, releaseCandidate, creator, manifest]) {
+    for (const releaseSurface of [ci, releaseCandidate, publishedPackageVerification, creator, publishedCreator, manifest]) {
       expect(releaseSurface).not.toContain("--allow-real-run");
       expect(releaseSurface).not.toMatch(/\bnpm publish\b/u);
       expect(releaseSurface).not.toContain("NODE_AUTH_TOKEN");
@@ -2636,6 +2735,20 @@ setInterval(() => {}, 1000);
     expect(releaseArtifactNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
     expect(releaseCandidate).toContain("retention-days: 14");
     expect(releaseCandidate).not.toMatch(/const disallowed|disallowed package artifact path/u);
+
+    expect(publishedPackageVerification).toMatch(/on:\n\s+workflow_dispatch:/u);
+    expect(publishedPackageVerification).toContain("node-version: 22.x");
+    expect(publishedPackageVerification).toContain("npm ci");
+    expect(publishedPackageVerification).toContain("npm run published:verify -- --out-dir published-verification");
+    expect(publishedPackageVerification).toContain("npm run published:verify:evidence -- --dir published-verification");
+    expect(publishedPackageVerification).toContain("actions/checkout@v5");
+    expect(publishedPackageVerification).toContain("actions/setup-node@v5");
+    expect(publishedPackageVerification).toContain("actions/upload-artifact@v6");
+    expect(publishedPackageVerification).toContain("name: agent-cli-runtime-published-verification");
+    expect(publishedPackageVerification).toContain("path: published-verification");
+    expect(publishedPackageVerification).toContain("retention-days: 14");
+    const publishedArtifactNames = [...publishedPackageVerification.matchAll(/^\s+name:\s+(agent-cli-runtime-[^\n]+)$/gmu)].map((match) => match[1].trim());
+    expect(publishedArtifactNames.sort()).toEqual([...expectedPublishedVerificationArtifacts].sort());
   });
 
   it("keeps prepublish and release candidate gates aligned with daemon-ready scripts", async () => {
@@ -2651,6 +2764,8 @@ setInterval(() => {}, 1000);
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
     expect(manifest.scripts["release:post-alpha:verify"]).toBe("node ./scripts/verify-post-alpha-release.mjs");
     expect(manifest.scripts["smoke:published"]).toBe("node ./scripts/smoke-published.mjs");
+    expect(manifest.scripts["published:verify"]).toBe("node ./scripts/create-published-verification-evidence.mjs");
+    expect(manifest.scripts["published:verify:evidence"]).toBe("node ./scripts/verify-published-verification-evidence.mjs");
     expect(manifest.scripts.dogfood).not.toContain("--allow-real-run");
     expect(manifest.scripts["prepublish:check"]).not.toContain("--allow-real-run");
     expect(manifest.scripts["release:candidate"]).not.toContain("--allow-real-run");

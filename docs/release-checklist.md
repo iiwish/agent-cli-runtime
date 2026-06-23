@@ -1,5 +1,15 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P5-3 published package remote verification evidence workflow
+
+- [x] `npm run published:verify` exists and emits `schemaVersion: "agent-cli-runtime.publishedVerification.v1"` evidence under `published-verification/` by default.
+- [x] The aggregator runs `smoke:published`, `published:daemon:verify`, `published:adapters:verify`, `release:post-alpha:verify`, and npm registry metadata lookup for the current package version.
+- [x] `npm run published:verify:evidence` verifies the schema, all four gate summaries, npm registry source, redaction boundaries, and `noAuthenticatedRealRun` / `noNpmPublish` / `noNpmToken` flags.
+- [x] `.github/workflows/published-package-verification.yml` is manual `workflow_dispatch`, uses Node.js 22, runs `npm ci`, creates and verifies `published-verification`, and uploads `agent-cli-runtime-published-verification` with 14-day retention.
+- [x] The workflow remains post-publish verification only: it does not publish npm, configure registry credentials, configure provenance/trusted publishing, pass `--allow-real-run`, or launch authenticated real Codex/Claude/OpenCode runs.
+- [x] `published-verification/` and the repo-only P5-3 scripts are outside package runtime API and excluded from npm pack.
+- [x] Contract tests cover npm script presence, workflow safety boundary, artifact name/retention, schema inventory, package boundary, and verifier self-test for redaction plus failed-gate summaries.
+
 ## P5-2 published-package built-in adapter compatibility gate
 
 - [x] `npm run published:adapters:verify` exists and emits `schemaVersion: "agent-runtime.publishedAdapters.v1"`.
@@ -54,7 +64,7 @@
 
 - [x] `docs/api-schema-contract.md` records the public root boundary and package-root value export remains `createAgentRuntime`.
 - [x] `docs/api-schema-contract.md` records schema versioning policy for optional additive fields, breaking field changes, terminal/failure vocabulary changes, and CLI command/flag semantic changes.
-- [x] Schema inventory covers `agent-runtime.event.v1`, `agent-runtime.diagnostics.v1`, `agent-runtime.conformance.v1`, `agent-runtime.publishedAdapters.v1`, `agent-runtime.realSmoke.v1`, `agent-runtime.storeHealth.v1`, `agent-runtime.storeRepair.v1`, `agent-runtime.cliError.v1`, `agent-cli-runtime.releaseVerification.v1`, and `agent-cli-runtime.releaseGateEvidence.v1`.
+- [x] Schema inventory covers `agent-runtime.event.v1`, `agent-runtime.diagnostics.v1`, `agent-runtime.conformance.v1`, `agent-runtime.publishedAdapters.v1`, `agent-cli-runtime.publishedVerification.v1`, `agent-runtime.realSmoke.v1`, `agent-runtime.storeHealth.v1`, `agent-runtime.storeRepair.v1`, `agent-runtime.cliError.v1`, `agent-cli-runtime.releaseVerification.v1`, and `agent-cli-runtime.releaseGateEvidence.v1`.
 - [x] Failure taxonomy keeps `success`, `failed`, `timeout`, `canceled`, `interrupted`, `validation_failed`, `execution_failed`, `unavailable`, `auth_missing`, and `task_graph_invalid` as event terminal reasons.
 - [x] Smoke/conformance classifications keep `success`, `real_run_skipped`, `auth_missing`, `unavailable_executable`, `unsupported_flag`, `needs_verification`, `unexpected_output`, `cwd_mutated`, `timeout`, and `failed`.
 - [x] Docs state that skipped evidence is not success, `auth_missing` is not unavailable, and `needs_verification` must not be guessed into a flag mapping.

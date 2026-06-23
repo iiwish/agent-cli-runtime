@@ -20,6 +20,7 @@ Current state and future human gate:
 - Current-head evidence rule: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, and record the volatile run evidence under `.release-evidence/`.
 - Because this runbook and release report are included in the npm package, do not write current run ids, artifact digests, tarball shasums, or pack shasums into package docs.
 - Before any future real publish, confirm the fresh release-candidate workflow head SHA matches the commit being published.
+- After any future real publish, run the manual published package verification workflow and download `agent-cli-runtime-published-verification`; it must pass `npm run published:verify:evidence -- --dir <downloaded-artifact-dir>`.
 - Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
 - Do not reuse historical workflow runs as publish evidence for a later commit.
 
@@ -112,6 +113,8 @@ Immediately after any real publish:
 ```bash
 npm view agent-cli-runtime@0.1.0-alpha.1 version dist-tags --json
 npm dist-tag ls agent-cli-runtime
+npm run published:verify -- --out-dir published-verification
+npm run published:verify:evidence -- --dir published-verification
 ```
 
 Expected result:

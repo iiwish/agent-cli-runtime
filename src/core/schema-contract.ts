@@ -90,6 +90,26 @@ export const CLI_SCHEMA_INVENTORY = [
     redactionRules: ["no temp paths", "no raw stdout/stderr", "no full prompt", ...commonRedactionRules],
   },
   {
+    schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+    requiredTopLevelFields: [
+      "schemaVersion",
+      "ok",
+      "packageName",
+      "version",
+      "gitSha",
+      "checkedAt",
+      "packageSource",
+      "gates",
+      "registry",
+      "diagnostics",
+      "noAuthenticatedRealRun",
+      "noNpmPublish",
+      "noNpmToken",
+    ],
+    classificationFields: ["ok", "gates[].ok", "gates[].schemaVersion", "registry.ok", "diagnostics[].code"],
+    redactionRules: ["no raw stdout/stderr", "no temp paths", "no full prompt", "no npm token references", ...commonRedactionRules],
+  },
+  {
     schemaVersion: "agent-runtime.realSmoke.v1",
     requiredTopLevelFields: [
       "schemaVersion",

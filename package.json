@@ -55,6 +55,8 @@
     "prepack": "npm run build",
     "published:adapters:verify": "node ./scripts/verify-published-adapters.mjs",
     "published:daemon:verify": "node ./scripts/verify-published-daemon-consumer.mjs",
+    "published:verify": "node ./scripts/create-published-verification-evidence.mjs",
+    "published:verify:evidence": "node ./scripts/verify-published-verification-evidence.mjs",
     "release:candidate": "node ./scripts/create-release-candidate.mjs",
     "release:post-alpha:verify": "node ./scripts/verify-post-alpha-release.mjs",
     "release:verify": "node ./scripts/verify-release-artifacts.mjs",

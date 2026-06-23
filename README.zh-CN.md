@@ -280,16 +280,18 @@ void goalRequest;
 void runtime.shutdown();
 ```
 
-Daemon embedding gate 会把 packed tarball 安装到临时 consumer，再用 fake CLI 跑 detect/conformance、run、goal、replay、diagnostics、store inspection、shutdown 和 reopen。Runtime safety gate 使用同样的 installed-package 边界，覆盖 repeated run/goal、慢 event consumer、cancel/timeout churn、repeated shutdown、lease close 和 reopen。Published daemon consumer gate 会从 npm registry 安装 `agent-cli-runtime@0.1.0-alpha.1` 到临时 daemon-style consumer，并用 fake Codex/Claude/OpenCode binaries 验证已发布包的嵌入生命周期。Published adapter gate 会从 npm registry 安装已发布包，并用 fake CLI 验证内置 Codex、Claude、OpenCode adapter detection、argv shape、stdin prompt transport、parser behavior、redaction 和 failure isolation：
+Daemon embedding gate 会把 packed tarball 安装到临时 consumer，再用 fake CLI 跑 detect/conformance、run、goal、replay、diagnostics、store inspection、shutdown 和 reopen。Runtime safety gate 使用同样的 installed-package 边界，覆盖 repeated run/goal、慢 event consumer、cancel/timeout churn、repeated shutdown、lease close 和 reopen。Published daemon consumer gate 会从 npm registry 安装 `agent-cli-runtime@0.1.0-alpha.1` 到临时 daemon-style consumer，并用 fake Codex/Claude/OpenCode binaries 验证已发布包的嵌入生命周期。Published adapter gate 会从 npm registry 安装已发布包，并用 fake CLI 验证内置 Codex、Claude、OpenCode adapter detection、argv shape、stdin prompt transport、parser behavior、redaction 和 failure isolation。Published verification gate 会把这些 post-publish checks 和 registry metadata 聚合为 redacted artifact：
 
 ```bash
 npm run daemon:verify
 npm run runtime:safety
 npm run published:daemon:verify
 npm run published:adapters:verify
+npm run published:verify -- --out-dir published-verification
+npm run published:verify:evidence -- --dir published-verification
 ```
 
-更完整的 release gate 会把 packed tarball 安装到临时 TypeScript 项目，执行 `tsc --noEmit`，再用 fake CLI 跑 library run / goal / replay / diagnostics smoke。见 `npm run daemon:verify`、`npm run runtime:safety`、`npm run published:daemon:verify`、`npm run published:adapters:verify`、`npm run dogfood` 和 [docs/release-checklist.md](./docs/release-checklist.md)。
+更完整的 release gate 会把 packed tarball 安装到临时 TypeScript 项目，执行 `tsc --noEmit`，再用 fake CLI 跑 library run / goal / replay / diagnostics smoke。见 `npm run daemon:verify`、`npm run runtime:safety`、`npm run published:daemon:verify`、`npm run published:adapters:verify`、`npm run published:verify`、`npm run dogfood` 和 [docs/release-checklist.md](./docs/release-checklist.md)。
 
 本机 agent CLI 按场景安装即可：
 
@@ -338,6 +340,8 @@ npm run daemon:verify
 npm run runtime:safety
 npm run published:daemon:verify
 npm run published:adapters:verify
+npm run published:verify -- --out-dir published-verification
+npm run published:verify:evidence -- --dir published-verification
 npm run dogfood
 npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
@@ -359,6 +363,8 @@ npm run release:post-alpha:verify
 npm run smoke:published
 npm run published:daemon:verify
 npm run published:adapters:verify
+npm run published:verify -- --out-dir published-verification
+npm run published:verify:evidence -- --dir published-verification
 ```
 
 `release:post-alpha:verify` 会比较 npm registry tarball 与 `v0.1.0-alpha.1` GitHub Release tarball。两者 raw gzip SHA1/SHA256 可以不同，因为 registry tarball 和 Release asset 是不同 packaging artifact；package 内容边界以 npm registry `shasum`/`integrity`、解包后的 package 文件列表和内容一致性，以及 `npm run release:verify -- --dir <downloaded-github-release-assets-dir>` 为准。
@@ -366,6 +372,8 @@ npm run published:adapters:verify
 `published:daemon:verify` 安装的是已经发布到 npm registry 的包，不依赖本地 checkout 或本地 `dist/`，输出 `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"` 且 `packageSource: "npm-registry"`。它只使用 fake CLI，覆盖 detect、run、goal、cancel、timeout、replay、writer active 时的 read-only inspection、second-writer refusal、shutdown/reopen 和 stale owner recovery，不启动 authenticated real agent run。
 
 `published:adapters:verify` 同样从 npm registry 安装，输出 `schemaVersion: "agent-runtime.publishedAdapters.v1"` 且 `packageSource: "npm-registry"`。它用 fake Codex/Claude/OpenCode binaries 验证已发布包的内置 adapter invocation shape、stdin prompt transport、parser noise tolerance、redaction 和 per-adapter failure isolation。这是 fake-CLI adapter contract evidence，不是 authenticated real CLI compatibility success evidence。
+
+`published:verify` 输出 `schemaVersion: "agent-cli-runtime.publishedVerification.v1"`，默认写入 `published-verification/published-verification.json`。它聚合 `smoke:published`、`published:daemon:verify`、`published:adapters:verify`、`release:post-alpha:verify` 和 npm registry metadata，不保存 raw stdout/stderr，也不需要发布凭证。GitHub Actions 的手动 `Published Package Verification` workflow 会在 Node.js 22 上执行同一套 post-publish verification，并上传 `agent-cli-runtime-published-verification`。
 
 如需在本地生成可审查的 release-candidate artifact set：
 
@@ -376,7 +384,7 @@ npm run release:verify -- --dir release-candidate
 
 `release:candidate` 会在输出目录写入 `npm-pack.json`、`package-files.txt`、`gate-evidence.json`、tarball 和 `release-verification.json`。`release:verify` 也可用于下载 GitHub Actions artifacts 后复核同一组文件，并确认候选包记录了 `daemon:verify` 和 `runtime:safety` 证据。
 
-Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。
+Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。Published package verification 是单独的手动 post-publish workflow，不是 publish workflow。
 
 可运行示例见 [examples/library-run.js](./examples/library-run.js)、[examples/library-goal.js](./examples/library-goal.js) 和 [examples/cli-dogfood.md](./examples/cli-dogfood.md)。两个 JavaScript 示例会创建本地 fake CLI，不需要真实 provider secret。
 

@@ -122,6 +122,14 @@ The gate verifies the published package path, not the local checkout, local `dis
 
 The gate emits `schemaVersion: "agent-runtime.publishedAdapters.v1"` with `packageSource: "npm-registry"`, `agents`, `checks`, `diagnostics`, and `noAuthenticatedRealRun`. Stable classification fields include `checks.failureIsolation` and `agents[].terminalStatus`. This is fake-CLI compatibility evidence for the published package's built-in adapter contract. It is not authenticated real Codex, Claude Code, or OpenCode run evidence, and it does not publish npm, expand package-root value exports, or add a daemon/API server, database, WAL, remote worker, queue service, UI, telemetry, or hosted control plane.
 
+## P5-3 Published Package Remote Verification Evidence
+
+`npm run published:verify -- --out-dir published-verification` is the repo-only P5-3 aggregation gate for post-publish evidence. It runs the published package smoke, the P5-1 daemon consumer gate, the P5-2 adapter gate, post-alpha npm/GitHub Release verification, and an npm registry metadata lookup for the current `package.json` version.
+
+The summary is written as `published-verification/published-verification.json` with `schemaVersion: "agent-cli-runtime.publishedVerification.v1"`, `packageSource: "npm-registry"`, gate summaries, registry metadata, `gitSha`, `checkedAt`, and explicit `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` flags. It records gate commands, pass/fail state, output schema versions, durations, selected summary fields, and redacted diagnostics only. It does not store raw stdout/stderr, temp paths, private paths, full prompts, token values, Bearer values, or auth environment assignments.
+
+`.github/workflows/published-package-verification.yml` is manual `workflow_dispatch` only. It runs on Node.js 22, executes `npm ci`, creates and verifies the published verification evidence, and uploads `agent-cli-runtime-published-verification` with the same 14-day retention window as release-candidate artifacts. It is evidence for the already published package on a clean runner; it is not a publish workflow and does not configure registry credentials, provenance, authenticated real agent runs, or hosted daemon behavior.
+
 ## Writer Lease And Store Ownership
 
 The local lease is a best-effort same-machine writer guard. It is not a distributed lock, daemon consensus protocol, WAL, database transaction, or multi-host scheduler.
@@ -218,6 +226,7 @@ Stable daemon-facing schemas:
 | CLI JSON error | `agent-runtime.cliError.v1` | `schemaVersion`, `ok`, `error` |
 | Published daemon consumer | `agent-runtime.publishedDaemonConsumer.v1` | `schemaVersion`, `ok`, `packageName`, `version`, `packageSource`, `checks`, `diagnostics`, `noAuthenticatedRealRun` |
 | Published built-in adapter gate | `agent-runtime.publishedAdapters.v1` | `schemaVersion`, `ok`, `packageName`, `version`, `packageSource`, `checks`, `agents`, `diagnostics`, `noAuthenticatedRealRun` |
+| Published verification evidence | `agent-cli-runtime.publishedVerification.v1` | `schemaVersion`, `ok`, `packageName`, `version`, `gitSha`, `checkedAt`, `packageSource`, `gates`, `registry`, `diagnostics`, `noAuthenticatedRealRun`, `noNpmPublish`, `noNpmToken` |
 | Release verification | `agent-cli-runtime.releaseVerification.v1` | `schemaVersion`, `ok`, `checkedFiles`, `tarball`, `diagnostics`, `artifactNames`, `gateEvidence`, `packageName`, `version` |
 | Release gate evidence | `agent-cli-runtime.releaseGateEvidence.v1` | `schemaVersion`, `generatedAt`, `gates`, `noAuthenticatedRealRun`, `noNpmPublish`, `noNpmToken` |
 
