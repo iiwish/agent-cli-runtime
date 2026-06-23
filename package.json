@@ -53,6 +53,7 @@
     "package:check": "node ./scripts/check-package-boundary.mjs",
     "prepublish:check": "npm run typecheck && npm run lint && npm test && npm run build && npm run daemon:verify && npm run runtime:safety && npm run dogfood && npm audit --omit=dev && npm run package:check && npm pack --dry-run",
     "prepack": "npm run build",
+    "published:adapters:verify": "node ./scripts/verify-published-adapters.mjs",
     "published:daemon:verify": "node ./scripts/verify-published-daemon-consumer.mjs",
     "release:candidate": "node ./scripts/create-release-candidate.mjs",
     "release:post-alpha:verify": "node ./scripts/verify-post-alpha-release.mjs",

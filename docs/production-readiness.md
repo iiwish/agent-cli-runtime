@@ -38,6 +38,7 @@ For this repository, "production-ready local runtime" means:
 - `npm run release:post-alpha:verify` compares npm registry and GitHub Release tarballs, allowing raw gzip hash differences only when unpacked package content is identical;
 - `npm run smoke:published` installs the published npm package and verifies package-root ESM import plus `agent-runtime agents --json` parsing without authenticated real runs;
 - `npm run published:daemon:verify` is the published-package daemon lifecycle proof and emits redacted JSON with `packageSource: "npm-registry"` and `noAuthenticatedRealRun: true`;
+- `npm run published:adapters:verify` installs the published npm package from the npm registry and verifies built-in Codex, Claude, and OpenCode adapters with fake binaries, real adapter argv/stdin/parser paths, redacted JSON schema `agent-runtime.publishedAdapters.v1`, and no authenticated real runs;
 - `docs/release-publish-runbook.md` records current post-alpha registry state, the future alpha publish command path, 2FA/trusted publishing/provenance decisions, dist-tag checks, and rollback boundaries without configuring real publishing;
 - CLI JSON success and error contracts are parseable, redacted, and covered for core release-facing commands;
 - `npm test` uses Vitest verbose output for default contract coverage; slower installed-package gates and install smokes run through single-Node release gates or explicit opt-in checks rather than every Node matrix entry;
@@ -58,6 +59,7 @@ npm run build
 npm run daemon:verify
 npm run runtime:safety
 npm run published:daemon:verify
+npm run published:adapters:verify
 npm run ci
 npm run dogfood
 npm run prepublish:check
@@ -67,6 +69,7 @@ npm run release:verify -- --dir release-candidate
 npm run release:post-alpha:verify
 npm run smoke:published
 npm run published:daemon:verify
+npm run published:adapters:verify
 node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
 node ./dist/cli/main.js conformance --mode real --agent all --json
@@ -176,6 +179,8 @@ Repository-only daemon embedding gates:
 
 - `scripts/verify-daemon-ready.mjs`
 - `scripts/verify-runtime-safety.mjs`
+- `scripts/verify-published-daemon-consumer.mjs`
+- `scripts/verify-published-adapters.mjs`
 
 Repository-only prepublish artifacts:
 

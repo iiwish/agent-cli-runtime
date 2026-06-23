@@ -18,6 +18,7 @@ Current status is P3-6 pre-alpha real CLI opt-in smoke evidence, which is intend
 - `docs/release-publish-runbook.md` documents the future human alpha publish path, dist-tag verification, rollback/deprecation/unpublish boundary, 2FA, trusted publishing, provenance, and token strategy; no real publish is performed in P2-13.
 - `docs/daemon-ready-contract.md` documents embedding semantics for daemon/product shell callers without adding a hosted daemon surface.
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
+- `npm run published:adapters:verify` installs the already published npm package from the npm registry into a temporary consumer and verifies built-in Codex, Claude, and OpenCode adapter detection, argv shape, stdin prompt transport, parser behavior, redaction, and per-adapter failure isolation with fake CLIs only.
 - CI runs `daemon:verify`, `runtime:safety`, and dogfood once in a single Node.js 22 release-gates job; the Node.js 20/22/24 matrix does not repeat installed-package gates.
 - Remote GitHub Actions release-candidate evidence is run `27932628093` on workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`.
 - Evidence modes are intentionally separate:
@@ -191,6 +192,8 @@ Historical local real-CLI detection/preflight evidence from `node ./dist/cli/mai
 | Codex CLI | redacted local app path | `codex-cli 0.142.0-alpha.6` | Pass | Skipped in P3-1 default real conformance; prior opt-in Codex smoke evidence remains historical. | Not run in P3-1 | Uses `codex exec --json --skip-git-repo-check` with stdin prompt and `-C <cwd>`. Live model probe passed. P3-1 reports `real_run_skipped` without `--allow-real-run`; session and auth probe remain `needsVerification`. |
 | Claude Code | redacted local app path | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P2-9 | `claude auth status` returned auth missing in the local P2-9 certification. Conformance skips before launching Claude. |
 | OpenCode | redacted local app path | `1.15.6` | Pass | Skipped in P3-1 default real conformance; prior opt-in OpenCode smoke evidence remains historical. | Not run in P3-1 | P3-1 reports `real_run_skipped` without `--allow-real-run` and live model source is available. Explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
+
+P5-2 published adapter evidence uses fake CLIs only. It verifies that the published package's built-in adapter invocation profiles still match the documented shapes and that prompts stay on stdin, but it is not authenticated real CLI compatibility success evidence.
 
 ## Verified Invocation Shapes
 

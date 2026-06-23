@@ -1,5 +1,21 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P5-2 published-package built-in adapter compatibility gate
+
+- [x] `npm run published:adapters:verify` exists and emits `schemaVersion: "agent-runtime.publishedAdapters.v1"`.
+- [x] The gate installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary consumer project, not from local `dist/` or a freshly packed tarball.
+- [x] The consumer uses package-root `createAgentRuntime` and the installed `agent-runtime` CLI without expanding package-root value exports.
+- [x] Fake `codex`, `claude`, and `opencode-cli`/`opencode` binaries cover built-in adapter detection, argv shape, stdin prompt transport, parser behavior, and diagnostics.
+- [x] Codex uses `codex exec --json --skip-git-repo-check -C <cwd>` with stdin text; Claude uses `claude -p --input-format stream-json --output-format stream-json --verbose` with stdin JSONL; OpenCode uses `opencode run --format json --dir <cwd>` with stdin text.
+- [x] Long prompts are asserted absent from argv for all three adapters.
+- [x] `agent-runtime conformance --mode fake --json` is checked for `agent-runtime.conformance.v1`.
+- [x] Claude stream-json noise plus partial/unknown events and Codex/OpenCode non-JSON noise are parser-tolerated.
+- [x] A forced single-adapter failure still leaves summaries for the other adapters.
+- [x] Output includes `packageSource: "npm-registry"`, `version`, `checks`, `agents`, `diagnostics`, and `noAuthenticatedRealRun`.
+- [x] Output and failure JSON are redacted for temp paths, private user paths, token-looking values, Bearer values, auth env assignments, raw stdout/stderr, and full prompts.
+- [x] Contract tests verify the script schema self-test, redaction boundaries, failure isolation summary, npm script stability, and repo-only package boundary.
+- [x] P5-2 does not publish npm, configure trusted publishing/provenance/npm tokens, launch authenticated real Codex/Claude/OpenCode runs, add daemon/API server/database/WAL/remote worker/UI/telemetry, or expand package-root value exports.
+
 ## P5-1 published-package daemon consumer harness
 
 - [x] `npm run published:daemon:verify` exists and emits `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"`.
@@ -38,7 +54,7 @@
 
 - [x] `docs/api-schema-contract.md` records the public root boundary and package-root value export remains `createAgentRuntime`.
 - [x] `docs/api-schema-contract.md` records schema versioning policy for optional additive fields, breaking field changes, terminal/failure vocabulary changes, and CLI command/flag semantic changes.
-- [x] Schema inventory covers `agent-runtime.event.v1`, `agent-runtime.diagnostics.v1`, `agent-runtime.conformance.v1`, `agent-runtime.realSmoke.v1`, `agent-runtime.storeHealth.v1`, `agent-runtime.storeRepair.v1`, `agent-runtime.cliError.v1`, `agent-cli-runtime.releaseVerification.v1`, and `agent-cli-runtime.releaseGateEvidence.v1`.
+- [x] Schema inventory covers `agent-runtime.event.v1`, `agent-runtime.diagnostics.v1`, `agent-runtime.conformance.v1`, `agent-runtime.publishedAdapters.v1`, `agent-runtime.realSmoke.v1`, `agent-runtime.storeHealth.v1`, `agent-runtime.storeRepair.v1`, `agent-runtime.cliError.v1`, `agent-cli-runtime.releaseVerification.v1`, and `agent-cli-runtime.releaseGateEvidence.v1`.
 - [x] Failure taxonomy keeps `success`, `failed`, `timeout`, `canceled`, `interrupted`, `validation_failed`, `execution_failed`, `unavailable`, `auth_missing`, and `task_graph_invalid` as event terminal reasons.
 - [x] Smoke/conformance classifications keep `success`, `real_run_skipped`, `auth_missing`, `unavailable_executable`, `unsupported_flag`, `needs_verification`, `unexpected_output`, `cwd_mutated`, `timeout`, and `failed`.
 - [x] Docs state that skipped evidence is not success, `auth_missing` is not unavailable, and `needs_verification` must not be guessed into a flag mapping.

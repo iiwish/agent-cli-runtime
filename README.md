@@ -282,15 +282,16 @@ void goalRequest;
 void runtime.shutdown();
 ```
 
-The daemon embedding gate installs the packed tarball into a temporary consumer, then executes fake-CLI detect/conformance, run, goal, replay, diagnostics, store inspection, shutdown, and reopen checks. The runtime safety gate uses the same installed-package boundary for repeated run/goal execution, slow event consumption, cancel/timeout churn, repeated shutdown, lease close, and reopen checks. The published daemon consumer gate installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary daemon-style consumer and exercises the published package lifecycle with fake Codex/Claude/OpenCode binaries:
+The daemon embedding gate installs the packed tarball into a temporary consumer, then executes fake-CLI detect/conformance, run, goal, replay, diagnostics, store inspection, shutdown, and reopen checks. The runtime safety gate uses the same installed-package boundary for repeated run/goal execution, slow event consumption, cancel/timeout churn, repeated shutdown, lease close, and reopen checks. The published daemon consumer gate installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary daemon-style consumer and exercises the published package lifecycle with fake Codex/Claude/OpenCode binaries. The published adapter gate installs the published package from the npm registry and verifies built-in Codex, Claude, and OpenCode adapter detection, argv shape, stdin prompt transport, parser behavior, redaction, and failure isolation with fake CLIs:
 
 ```bash
 npm run daemon:verify
 npm run runtime:safety
 npm run published:daemon:verify
+npm run published:adapters:verify
 ```
 
-The broader release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run daemon:verify`, `npm run runtime:safety`, `npm run published:daemon:verify`, `npm run dogfood`, and [docs/release-checklist.md](./docs/release-checklist.md).
+The broader release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run daemon:verify`, `npm run runtime:safety`, `npm run published:daemon:verify`, `npm run published:adapters:verify`, `npm run dogfood`, and [docs/release-checklist.md](./docs/release-checklist.md).
 
 Required local agent CLIs are optional by scenario:
 
@@ -338,6 +339,7 @@ npm run ci
 npm run daemon:verify
 npm run runtime:safety
 npm run published:daemon:verify
+npm run published:adapters:verify
 npm run dogfood
 npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
@@ -358,11 +360,14 @@ Post-alpha verification:
 npm run release:post-alpha:verify
 npm run smoke:published
 npm run published:daemon:verify
+npm run published:adapters:verify
 ```
 
 `release:post-alpha:verify` compares the npm registry tarball with the `v0.1.0-alpha.1` GitHub Release tarball. Raw gzip SHA1/SHA256 values may differ because the registry tarball and Release asset are separate packaging artifacts; the package content boundary is npm registry `shasum`/`integrity`, matching unpacked package file list and content, and `npm run release:verify -- --dir <downloaded-github-release-assets-dir>`.
 
 `published:daemon:verify` installs the already published npm package from the registry, not the local checkout or local `dist/`, and emits `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"` with `packageSource: "npm-registry"`. It uses fake CLIs only and covers detect, run, goal, cancel, timeout, replay, read-only inspection while a writer is active, second-writer refusal, shutdown/reopen, and stale owner recovery without launching authenticated real agent runs.
+
+`published:adapters:verify` also installs from the npm registry and emits `schemaVersion: "agent-runtime.publishedAdapters.v1"` with `packageSource: "npm-registry"`. It uses fake Codex/Claude/OpenCode binaries to verify the published package's built-in adapter invocation shape, stdin prompt transport, parser noise tolerance, redaction, and per-adapter failure isolation. This is fake-CLI adapter contract evidence, not authenticated real CLI compatibility success evidence.
 
 To create a local release-candidate artifact set without publishing, run:
 

@@ -74,6 +74,22 @@ export const CLI_SCHEMA_INVENTORY = [
     redactionRules: ["observedTextTail is bounded and redacted", "diagnostics are redacted", ...commonRedactionRules],
   },
   {
+    schemaVersion: "agent-runtime.publishedAdapters.v1",
+    requiredTopLevelFields: [
+      "schemaVersion",
+      "ok",
+      "packageName",
+      "version",
+      "packageSource",
+      "checks",
+      "agents",
+      "diagnostics",
+      "noAuthenticatedRealRun",
+    ],
+    classificationFields: ["ok", "checks.failureIsolation", "agents[].terminalStatus"],
+    redactionRules: ["no temp paths", "no raw stdout/stderr", "no full prompt", ...commonRedactionRules],
+  },
+  {
     schemaVersion: "agent-runtime.realSmoke.v1",
     requiredTopLevelFields: [
       "schemaVersion",

@@ -46,6 +46,7 @@ const releaseVerifier = path.join(root, "scripts", "verify-release-artifacts.mjs
 const postAlphaVerifier = path.join(root, "scripts", "verify-post-alpha-release.mjs");
 const publishedSmoke = path.join(root, "scripts", "smoke-published.mjs");
 const publishedDaemonConsumerVerifier = path.join(root, "scripts", "verify-published-daemon-consumer.mjs");
+const publishedAdaptersVerifier = path.join(root, "scripts", "verify-published-adapters.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
@@ -321,20 +322,25 @@ describe("public contract", () => {
   it("keeps installed-package daemon and runtime safety gates out of the default test matrix", async () => {
     const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
       scripts: Record<string, string>;
+      files: string[];
     };
     const daemonScript = await readFile(daemonVerifier, "utf8");
     const runtimeSafetyScript = await readFile(runtimeSafetyVerifier, "utf8");
     const publishedDaemonScript = await readFile(publishedDaemonConsumerVerifier, "utf8");
+    const publishedAdaptersScript = await readFile(publishedAdaptersVerifier, "utf8");
 
     expect(manifest.scripts.test).not.toContain("daemon:verify");
     expect(manifest.scripts.test).not.toContain("runtime:safety");
     expect(manifest.scripts.test).not.toContain("published:daemon:verify");
+    expect(manifest.scripts.test).not.toContain("published:adapters:verify");
     expect(manifest.scripts.ci).not.toContain("daemon:verify");
     expect(manifest.scripts.ci).not.toContain("runtime:safety");
     expect(manifest.scripts.ci).not.toContain("published:daemon:verify");
+    expect(manifest.scripts.ci).not.toContain("published:adapters:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:daemon:verify");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("published:adapters:verify");
 
     expect(daemonScript).toContain("agent-runtime.daemonVerification.v1");
     expect(daemonScript).toContain("installed-tarball");
@@ -362,6 +368,68 @@ describe("public contract", () => {
     expect(publishedDaemonScript).not.toContain("--allow-real-run");
     expect(publishedDaemonScript).not.toMatch(/\bnpm publish\b/u);
     expect(publishedDaemonScript).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(manifest.scripts["published:adapters:verify"]).toBe("node ./scripts/verify-published-adapters.mjs");
+    expect(manifest.files).not.toContain("scripts/verify-published-adapters.mjs");
+    expect(publishedAdaptersScript).toContain("agent-runtime.publishedAdapters.v1");
+    expect(publishedAdaptersScript).toContain("packageSource: \"npm-registry\"");
+    expect(publishedAdaptersScript).toContain("\"install\", spec");
+    expect(publishedAdaptersScript).toContain("createAgentRuntime");
+    expect(publishedAdaptersScript).toContain("conformance");
+    expect(publishedAdaptersScript).toContain("failureIsolation");
+    expect(publishedAdaptersScript).toContain("promptNotInArgv");
+    expect(publishedAdaptersScript).not.toContain("--allow-real-run");
+    expect(publishedAdaptersScript).not.toMatch(/\bnpm publish\b/u);
+    expect(publishedAdaptersScript).not.toContain("NODE_AUTH_TOKEN");
+  });
+
+  it("keeps published adapters verifier schema, redaction, and failure isolation stable", async () => {
+    const { stdout } = await execFileP(process.execPath, [publishedAdaptersVerifier, "--self-test"]);
+    const payload = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageName: string;
+      version: string;
+      packageSource: string;
+      checks: Record<string, boolean>;
+      agents: Array<{ adapter: string; promptInArgv: boolean; invocationShapeMatched: boolean; argvShape: string[]; stdinBytesObserved: boolean; stdinFormatMatched: boolean }>;
+      diagnostics: { conformanceSchemaVersion: string; failureIsolation: { agents: Array<{ adapter: string; terminalStatus: string }> } };
+      noAuthenticatedRealRun: boolean;
+    };
+    const text = JSON.stringify(payload);
+
+    expect(payload).toMatchObject({
+      schemaVersion: "agent-runtime.publishedAdapters.v1",
+      ok: true,
+      packageName: "agent-cli-runtime",
+      packageSource: "npm-registry",
+      noAuthenticatedRealRun: true,
+    });
+    expect(payload.checks).toMatchObject({
+      cliAgentsDetectsFakeAdapters: true,
+      conformanceFakeSchema: true,
+      summariesForAllAdapters: true,
+      invocationShapeMatched: true,
+      promptNotInArgv: true,
+      parserExpectedText: true,
+      diagnosticsRedacted: true,
+      failureIsolation: true,
+      packageBoundaryRepoOnly: true,
+    });
+    expect(payload.agents.map((agent) => agent.adapter).sort()).toEqual(["claude", "codex", "opencode"]);
+    expect(payload.agents.every((agent) => agent.invocationShapeMatched && agent.promptInArgv === false && agent.stdinBytesObserved && agent.stdinFormatMatched)).toBe(true);
+    expect(payload.agents.find((agent) => agent.adapter === "codex")?.argvShape).toEqual(["exec", "--json", "--skip-git-repo-check", "-C", "<cwd>"]);
+    expect(payload.agents.find((agent) => agent.adapter === "claude")?.argvShape).toEqual(["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]);
+    expect(payload.agents.find((agent) => agent.adapter === "opencode")?.argvShape).toEqual(["run", "--format", "json", "--dir", "<cwd>"]);
+    expect(payload.diagnostics.conformanceSchemaVersion).toBe("agent-runtime.conformance.v1");
+    expect(payload.diagnostics.failureIsolation.agents).toEqual(expect.arrayContaining([
+      { adapter: "claude", terminalStatus: "failed", diagnosticsCount: 1 },
+      { adapter: "codex", terminalStatus: "succeeded", diagnosticsCount: 0 },
+      { adapter: "opencode", terminalStatus: "succeeded", diagnosticsCount: 0 },
+    ]));
+    for (const forbidden of ["/tmp/", "/private/tmp/", "/var/folders/", process.env.HOME, "P5_PUBLISHED_ADAPTER_COMPAT_PROMPT_", "Bearer ", "ANTHROPIC_AUTH_TOKEN=", "sk-"].filter(Boolean)) {
+      expect(text).not.toContain(forbidden);
+    }
   });
 
   it("keeps published daemon consumer verifier error JSON stable and redacted", async () => {
