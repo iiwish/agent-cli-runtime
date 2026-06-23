@@ -2,13 +2,14 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { get as httpsGet } from "node:https";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const SCHEMA_VERSION = "agent-cli-runtime.postAlphaEvidence.v1";
 const DEFAULT_PACKAGE = "agent-cli-runtime";
+const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_RETRIES = 3;
 
 function parseArgs(argv) {
   const options = {
@@ -139,28 +140,73 @@ function basenameFromUrl(url) {
   }
 }
 
-function download(url, destination, redirects = 0) {
-  return new Promise((resolve, reject) => {
-    httpsGet(url, { headers: { "user-agent": "agent-cli-runtime-release-verifier" } }, (response) => {
-      if ([301, 302, 303, 307, 308].includes(response.statusCode ?? 0) && response.headers.location) {
-        response.resume();
-        if (redirects > 5) reject(new Error("too many redirects while downloading release asset"));
-        else resolve(download(new URL(response.headers.location, url).toString(), destination, redirects + 1));
-        return;
-      }
-      if (response.statusCode !== 200) {
-        response.resume();
-        reject(new Error(`download failed with HTTP ${response.statusCode}`));
-        return;
-      }
-      const chunks = [];
-      response.on("data", (chunk) => chunks.push(chunk));
-      response.on("end", () => {
-        writeFileSync(destination, Buffer.concat(chunks));
-        resolve();
+function githubReleaseApiUrl(repo, tag) {
+  const encodedRepo = repo.split("/").map((part) => encodeURIComponent(part)).join("/");
+  return `https://api.github.com/repos/${encodedRepo}/releases/tags/${encodeURIComponent(tag)}`;
+}
+
+async function fetchWithRetry(url, options = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= REQUEST_RETRIES; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        redirect: "follow",
+        signal: controller.signal,
+        headers: {
+          "user-agent": "agent-cli-runtime-release-verifier",
+          ...options.headers,
+        },
       });
-    }).on("error", reject);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt === REQUEST_RETRIES) break;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw new Error(`request failed: ${redact(url)}: ${stableErrorMessage(lastError)}`);
+}
+
+async function fetchJson(url) {
+  try {
+    const response = await fetchWithRetry(url, { headers: { accept: "application/vnd.github+json" } });
+    return response.json();
+  } catch {
+    return JSON.parse(runCurl(["--header", "accept: application/vnd.github+json", url]));
+  }
+}
+
+async function download(url, destination) {
+  try {
+    const response = await fetchWithRetry(url);
+    writeFileSync(destination, Buffer.from(await response.arrayBuffer()));
+  } catch {
+    runCurl(["--output", destination, url]);
+  }
+}
+
+function runCurl(args) {
+  const result = spawnSync("curl", [
+    "--fail",
+    "--location",
+    "--silent",
+    "--show-error",
+    "--max-time",
+    "60",
+    ...args,
+  ], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
   });
+  if (result.status !== 0) {
+    throw new Error(`curl request failed\n${redact(`${result.stdout ?? ""}${result.stderr ?? ""}`)}`);
+  }
+  return result.stdout ?? "";
 }
 
 function normalizeNpmView(data) {
@@ -180,7 +226,7 @@ function normalizeGithubRelease(data) {
       name: asset.name,
       size: asset.size,
       digest: asset.digest ?? null,
-      url: asset.url ?? asset.browser_download_url ?? null,
+      url: asset.browser_download_url ?? asset.url ?? null,
     })),
   };
 }
@@ -208,15 +254,7 @@ async function resolveInputs(options, tmp) {
   const release =
     options.githubReleaseJson !== undefined
       ? normalizeGithubRelease(readJson(options.githubReleaseJson))
-      : normalizeGithubRelease(runJson("gh", [
-          "release",
-          "view",
-          githubTag,
-          "--repo",
-          options.githubRepo,
-          "--json",
-          "tagName,targetCommitish,isPrerelease,isDraft,assets,url",
-        ]));
+      : normalizeGithubRelease(await fetchJson(githubReleaseApiUrl(options.githubRepo, githubTag)));
 
   const filename = `${options.packageName.replace(/^@/u, "").replace(/\//gu, "-")}-${version}.tgz`;
   const npmTarball = path.join(tmp, "npm-registry.tgz");
