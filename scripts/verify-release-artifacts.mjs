@@ -27,6 +27,7 @@ const REQUIRED_GATE_EVIDENCE = [
 ];
 
 const disallowedPathPatterns = [
+  { code: "volatile_release_evidence", pattern: /^\.release-evidence(?:\/|$)/u },
   { code: "reference_material", pattern: /^\.reference(?:\/|$)/u },
   { code: "tests", pattern: /^tests(?:\/|$)/u },
   { code: "fixture_material", pattern: /fixtures?/iu },

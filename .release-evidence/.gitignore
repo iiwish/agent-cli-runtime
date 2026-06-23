@@ -1,0 +1,6 @@
+# Volatile evidence is local to the reviewer and must not change the commit
+# proved by a release-candidate workflow.
+*.local.json
+*.local.md
+downloaded/
+normalized/

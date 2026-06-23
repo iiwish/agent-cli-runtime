@@ -24,7 +24,7 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 
 发布边界说明：
 - 这是 P3-7 API / CLI schema freeze 阶段，不承诺稳定 API，也不是 npm 发布记录。
-- P3-10 记录提交证据文档前的 release-candidate 证据和人工门禁 alpha publish packet；不改变 API 边界，也不发布 npm。
+- P3-11 将 current-head release-candidate 证据保存在 npm 包外的 `.release-evidence/`；包内文档只描述稳定流程和人工门禁 alpha publish 边界。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、API server、WAL、database 或 remote runtime 模式承诺。
 - 运行时定位是可嵌入 daemon/product shell 的 local-first execution kernel，不替代托管平台服务。

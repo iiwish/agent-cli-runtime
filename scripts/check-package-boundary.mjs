@@ -74,6 +74,7 @@ const requiredFiles = [
   "docs/release-publish-runbook.md",
   "docs/api-schema-contract.md",
   "docs/daemon-ready-contract.md",
+  "docs/ssot.md",
   "docs/production-readiness.md",
   "docs/compatibility.md",
   "examples/cli-dogfood.md",
@@ -85,6 +86,7 @@ for (const required of requiredFiles) {
 }
 
 const disallowedPathPatterns = [
+  /^\.release-evidence(?:\/|$)/u,
   /^\.reference(?:\/|$)/u,
   /^tests(?:\/|$)/u,
   /fixtures?/iu,
@@ -105,8 +107,19 @@ for (const file of packedFiles) {
   }
 }
 
+const packageTextFiles = packedFiles
+  .filter((file) => !file.startsWith("dist/"))
+  .map((file) => path.join(root, file))
+  .filter((file) => {
+    try {
+      const stat = statSync(file);
+      return stat.isFile();
+    } catch (error) {
+      return false;
+    }
+  });
 const scanRoots = ["examples", "scripts", "docs"].map((dir) => path.join(root, dir));
-const textFiles = scanRoots.flatMap(walk).filter((file) => {
+const textFiles = [...new Set([...packageTextFiles, ...scanRoots.flatMap(walk)])].filter((file) => {
   const stat = statSync(file);
   return stat.isFile();
 });
@@ -122,13 +135,36 @@ const secretPatterns = [
   { name: "private user path", pattern: /(?:\/Users\/|\/home\/[^<\s/]+|[A-Z]:\\Users\\)/u },
 ];
 
+const publishOverclaimPatterns = [
+  {
+    name: "dry-run described as real publish",
+    pattern: /npm publish --dry-run[^\n]*(?:really published|published to npm|真实发布成功|已经发布到 npm|已发布到 npm)/iu,
+  },
+  {
+    name: "release-candidate workflow described as publishing",
+    pattern: /release-candidate workflow[^\n]*(?:publishes npm|published npm|发布到 npm)/iu,
+  },
+  {
+    name: "current-head evidence stored inside package docs",
+    pattern: /P3-11[^\n]*(?:current HEAD|当前 HEAD)[^\n]*(?:run `?\d{8,}`?|artifact digest|tarball shasum|npm pack shasum|包 shasum|证据 run)/iu,
+  },
+];
+
 for (const file of textFiles) {
+  const relativeFile = path.relative(root, file);
   const bytes = readFileSync(file);
   if (isLikelyBinary(bytes)) continue;
   const text = bytes.toString("utf8");
   for (const { name, pattern } of secretPatterns) {
     if (pattern.test(text)) {
-      fail(`package boundary violation: ${name} in ${path.relative(root, file)}`);
+      fail(`package boundary violation: ${name} in ${relativeFile}`);
+    }
+  }
+  if (/^(?:README(?:\.zh-CN)?\.md|docs\/.+\.md)$/u.test(relativeFile)) {
+    for (const { name, pattern } of publishOverclaimPatterns) {
+      if (pattern.test(text)) {
+        fail(`package boundary violation: ${name} in ${relativeFile}`);
+      }
     }
   }
 }

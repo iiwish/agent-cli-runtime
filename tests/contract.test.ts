@@ -1965,6 +1965,8 @@ setInterval(() => {}, 1000);
     expect(files).toContain("docs/release-report.md");
     expect(files).toContain("docs/release-publish-runbook.md");
     expect(files).toContain("docs/api-schema-contract.md");
+    expect(files).toContain("docs/ssot.md");
+    expect(files).not.toContainEqual(expect.stringMatching(/^\.release-evidence\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\//u));
@@ -2185,6 +2187,7 @@ setInterval(() => {}, 1000);
     const fakePrivatePath = "/" + "Users/example/private-output.json";
     const files = [
       "dist/index.js",
+      ".release-evidence/current-head.local.json",
       ".reference/open-design/secret.txt",
       "tests/contract.test.ts",
       "tests/fixtures/streams/raw.jsonl",
@@ -2214,6 +2217,7 @@ setInterval(() => {}, 1000);
       "reference_material",
       "tests",
       "fixture_material",
+      "volatile_release_evidence",
       "raw_real_cli_output",
       "unsafe_package_path",
       "private_user_path",
@@ -2346,6 +2350,39 @@ setInterval(() => {}, 1000);
     }
   });
 
+  it("keeps volatile current-head release evidence outside packaged docs", async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as { files: string[] };
+    const boundary = await readFile(path.join(root, "scripts", "check-package-boundary.mjs"), "utf8");
+    const verifier = await readFile(releaseVerifier, "utf8");
+    const evidenceReadme = await readFile(path.join(root, ".release-evidence", "README.md"), "utf8");
+    const evidenceIgnore = await readFile(path.join(root, ".release-evidence", ".gitignore"), "utf8");
+    const packagedDocs = [
+      "README.md",
+      "README.zh-CN.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/release-publish-runbook.md",
+      "docs/production-readiness.md",
+      "docs/ssot.md",
+    ];
+
+    expect(manifest.files).not.toContain(".release-evidence");
+    expect(boundary).toContain("^\\.release-evidence");
+    expect(verifier).toContain("volatile_release_evidence");
+    expect(evidenceReadme).toContain("outside the npm package boundary");
+    expect(evidenceReadme).toContain("GitHub Actions run ids");
+    expect(evidenceIgnore).toContain("*.local.json");
+    expect(evidenceIgnore).toContain("*.local.md");
+
+    for (const doc of packagedDocs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text).toContain(".release-evidence/");
+      expect(text).not.toMatch(/P3-11[^\n]*(?:current HEAD|当前 HEAD)[^\n]*(?:run `?\d{8,}`?|artifact digest|artifact id|tarball shasum|npm pack shasum|包 shasum)/iu);
+      expect(text).not.toMatch(/P3-11[^\n]*(?:proves|证明)[^\n]*(?:current HEAD|当前 HEAD)/iu);
+      expect(text).not.toMatch(/npm publish --dry-run[^\n]*(?:really published|published to npm|真实发布成功|已经发布到 npm|已发布到 npm)/iu);
+    }
+  });
+
   it("documents P3-10 pre-documentation workflow evidence without self-referential current-HEAD reuse", async () => {
     const docs = [
       "README.md",
@@ -2462,7 +2499,7 @@ setInterval(() => {}, 1000);
     expect(runbook).toContain("trusted publishing");
     expect(runbook).toContain("provenance");
     expect(runbook).toContain("not configured");
-    expect(runbook).toContain("P3-10 does not publish npm");
+    expect(runbook).toContain("P3-11 does not publish npm");
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
     expect(ci).not.toMatch(/\bnpm publish\b/u);

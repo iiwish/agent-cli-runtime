@@ -1,5 +1,13 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P3-11 current-head release candidate evidence boundary
+
+- [x] Current-head release evidence uses `.release-evidence/` as the non-package local evidence landing zone.
+- [x] Package docs describe stable release rules only and do not store current run ids, artifact digests, tarball shasums, or npm pack shasums.
+- [x] `npm pack` / `package:check` must not include `.release-evidence/`, `.reference/`, tests, fixtures, temporary downloads, private paths, or token-looking values.
+- [x] A fresh release-candidate workflow proves only its own `headSha`; historical runs are not reused as proof for later commits.
+- [x] `npm publish --dry-run --ignore-scripts --tag alpha` remains a dry-run gate, not a real publish.
+
 ## P3-7 API / CLI schema freeze
 
 - [x] `docs/api-schema-contract.md` records the public root boundary and package-root value export remains `createAgentRuntime`.

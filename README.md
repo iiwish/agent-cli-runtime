@@ -24,7 +24,7 @@ This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
 - This is a P3-7 API / CLI schema freeze track, not a stable-contract or npm publication record.
-- P3-10 records pre-documentation release-candidate evidence and a human-gated alpha publish packet; it does not change the API boundary or publish npm.
+- P3-11 keeps current-head release-candidate evidence outside the npm package under `.release-evidence/`; packaged docs only describe the stable workflow and human-gated alpha publish boundary.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no API server, no WAL, no database, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended as a local-first execution kernel for embedding in a daemon or product shell, not as a hosted control plane.

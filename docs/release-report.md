@@ -1,21 +1,35 @@
-# Release Report: 0.1.0-alpha.0 P3-10 alpha release candidate evidence packet
+# Release Report: 0.1.0-alpha.0 alpha release candidate evidence packet
 
-Status: P3-10 Pre-Documentation Release Candidate Evidence & Human-Gated Publish Packet
-Last updated: 2026-06-22
+Status: P3-11 Current-Head Release Candidate Evidence Boundary & Human-Gated Publish Packet
+Last updated: 2026-06-23
 
-This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, and P3-10 pre-documentation release-candidate evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
+This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, and the P3-11 non-package evidence boundary for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
 
 ## Verdict
 
-P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, version bump policy, and failure taxonomy in [docs/api-schema-contract.md](./api-schema-contract.md), with drift tests tying the docs to source-level schema/failure vocabularies. P3-10 records release-candidate evidence for pre-documentation HEAD SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204`: GitHub Actions run `27945938663` completed successfully, uploaded all five release-candidate artifacts, and the downloaded artifacts passed `npm run release:verify -- --dir /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized` with `agent-cli-runtime.releaseVerification.v1`. Because this report and the P3-10 contract-test changes are included in the npm package file list, committing this packet changes the package shasum; run `27945938663` must not be used as final post-documentation publish evidence. The human-gated publish packet stops at `npm publish --dry-run --ignore-scripts --tag alpha`; a true npm publish has not occurred and still requires a later separate human authorization plus a fresh release-candidate workflow after committing this packet. It preserves the release boundary: no npm publish, no trusted publishing setup, no npm token, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`; Historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, version bump policy, and failure taxonomy in [docs/api-schema-contract.md](./api-schema-contract.md), with drift tests tying the docs to source-level schema/failure vocabularies.
+
+P3-11 moves current-head release-candidate run evidence out of packaged docs: volatile run ids, artifact ids, artifact digests, tarball shasums, and pack shasums belong under `.release-evidence/`. Packaged docs keep stable rules only: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, verify the workflow head SHA equals that commit, and stop publish work at `npm publish --dry-run --ignore-scripts --tag alpha` unless a maintainer later gives separate real-publish authorization.
+
+It preserves the release boundary: no npm publish, no trusted publishing setup, no npm token, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`; Historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+
+## P3-11 Current-Head Evidence Boundary
+
+P3-11 solves the P3-10 self-reference problem by separating stable package docs from volatile current-run evidence:
+
+- Package docs may describe the release-candidate workflow, required artifacts, verification command, dry-run boundary, human publish gate, and historical evidence as historical only.
+- Package docs must not record the current run id, artifact ids, artifact digests, tarball shasum, npm pack shasum, or private downloaded-artifact paths for the commit being considered.
+- Volatile current-head evidence is recorded under `.release-evidence/`, which is outside `package.json` `files` and is explicitly rejected by package-boundary checks if it appears in npm pack metadata.
+- A release-candidate workflow proves only the commit in its `headSha`. Historical runs must not be reused as proof for later commits.
+- A dry-run is not a real publish. A true npm publish remains human-gated and requires a later explicit authorization.
 
 ## P3-10 Pre-Documentation Alpha Release Candidate Evidence
 
 P3-10 refreshes release-candidate evidence for pre-documentation HEAD SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204` after the P3-9 evidence-recording repair commit. It does not add runtime APIs, publish npm, configure npm tokens/trusted publishing, execute authenticated real agent runs, or add daemon/API server/database/WAL/remote-worker/UI/telemetry layers.
 
-This report is the repository-resident evidence packet. The remote workflow evidence is intentionally commit-specific and proves only the pre-documentation SHA above and the tarball produced from that SHA.
+This report is the repository-resident evidence packet. The remote workflow evidence is intentionally commit-specific and proves only the pre-documentation SHA above and the tarball produced from that SHA. Run `27945938663` must not be used as final post-documentation publish evidence.
 
-This repository includes `docs/release-report.md`, `docs/release-checklist.md`, `docs/release-publish-runbook.md`, and other release docs in `package.json` `files`. Any commit that records the P3-10 evidence packet changes packaged content and therefore changes `npm pack` shasum. The final package selected for a real publish must be proven by a fresh release-candidate workflow after committing this packet, then re-downloaded and re-verified before publish.
+This repository includes `docs/release-report.md`, `docs/release-checklist.md`, `docs/release-publish-runbook.md`, and other release docs in `package.json` `files`. This means committing this packet changes the package shasum. Any commit that records the P3-10 evidence packet changes packaged content and therefore changes `npm pack` shasum. The final package selected for a real publish must be proven by a fresh release-candidate workflow after committing this packet, then re-downloaded and re-verified before publish.
 
 Historical runs, including P3-9 run `27943672095`, must not be reused for this stage. The rule for later evidence-recording commits is that each must trigger its own fresh release-candidate run before being described as current release-candidate evidence.
 
