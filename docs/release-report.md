@@ -1,17 +1,17 @@
-# Release Report: 0.1.0-alpha.0 alpha release candidate evidence packet
+# Release Report: 0.1.0-alpha.1 corrective alpha candidate
 
-Status: P3-11 Current-Head Release Candidate Evidence Boundary & Human-Gated Publish Packet
+Status: Post-publish documentation repair candidate with non-package release evidence
 Last updated: 2026-06-23
 
-This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, and the P3-11 non-package evidence boundary for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
+This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, the P3-11 non-package evidence boundary, and the corrective alpha path for `agent-cli-runtime@0.1.0-alpha.1`. Immutable npm version `0.1.0-alpha.0` was published and has GitHub pre-release `v0.1.0-alpha.0`, but its package docs contain stale pre-publish status text; `0.1.0-alpha.1` is the repair release candidate.
 
 ## Verdict
 
 P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, version bump policy, and failure taxonomy in [docs/api-schema-contract.md](./api-schema-contract.md), with drift tests tying the docs to source-level schema/failure vocabularies.
 
-P3-11 moves current-head release-candidate run evidence out of packaged docs: volatile run ids, artifact ids, artifact digests, tarball shasums, and pack shasums belong under `.release-evidence/`. Packaged docs keep stable rules only: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, verify the workflow head SHA equals that commit, and stop publish work at `npm publish --dry-run --ignore-scripts --tag alpha` unless a maintainer later gives separate real-publish authorization.
+P3-11 moves current-head release-candidate run evidence out of packaged docs: volatile run ids, artifact ids, artifact digests, tarball shasums, and pack shasums belong under `.release-evidence/` or durable GitHub Release assets. Packaged docs keep stable rules only: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, verify the workflow head SHA equals that commit, and run `npm publish --dry-run --ignore-scripts --tag alpha` before any separately authorized real publish.
 
-It preserves the release boundary: no npm publish, no trusted publishing setup, no npm token, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`; Historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+It preserves the product boundary: no trusted publishing setup, no committed npm token, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`; Historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. The package remains a pre-alpha developer preview, does not claim a stable API, and does not claim OpenDesign daemon parity.
 
 ## P3-11 Current-Head Evidence Boundary
 
@@ -118,17 +118,17 @@ Downloaded artifact re-verification result:
 - gate evidence flags: `noAuthenticatedRealRun: true`, `noNpmPublish: true`, `noNpmToken: true`
 - package file review: 151 entries and no `.reference/`, `tests/`, fixture paths, raw real CLI output, private paths, token-looking values, Bearer values, or auth env assignments.
 
-## P3-10 Human-Gated Alpha Publish Packet
+## 0.1.0-alpha.1 Corrective Alpha Publish Packet
 
-Current package candidate: `agent-cli-runtime@0.1.0-alpha.0`.
+Current package candidate: `agent-cli-runtime@0.1.0-alpha.1`.
 
-Stop point for this task:
+Dry-run checkpoint before a separately authorized publish:
 
 ```bash
 npm publish --dry-run --ignore-scripts --tag alpha
 ```
 
-P3-10 stops at the dry-run command above. The real publish commands below are documentation only and must not be executed unless the user later gives a separate explicit publish authorization:
+The real publish commands below must not be executed unless the user gives explicit publish authorization for this immutable version:
 
 ```bash
 npm publish --tag alpha
@@ -138,12 +138,12 @@ npm publish --tag alpha --access public
 Before any future real publish, a maintainer must manually confirm:
 
 - `git rev-parse HEAD` and `git rev-parse origin/main` still match the intended reviewed SHA.
-- After committing this P3-10 evidence packet, trigger a fresh `.github/workflows/release-candidate.yml` run for the new commit and verify that `gh run view <new-run-id> --json headSha,status,conclusion,url,jobs` shows that post-documentation commit SHA and success.
-- Do not use run `27945938663` as the final publish evidence after the P3-10 docs/tests are committed; it proves only pre-documentation SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204`.
+- After committing this corrective package-doc update, trigger a fresh `.github/workflows/release-candidate.yml` run for the new commit and verify that `gh run view <new-run-id> --json headSha,status,conclusion,url,jobs` shows that exact commit SHA and success.
+- Do not use run `27945938663` or run `27998762396` as final publish evidence for a later corrective commit; each run proves only its own workflow `headSha`.
 - `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run package:check`, `npm run dogfood`, `npm run daemon:verify`, `npm run runtime:safety`, `npm run release:candidate -- --out-dir <tmp>`, `npm run release:verify -- --dir <tmp>`, `npm audit --omit=dev`, `npm pack --dry-run --json --ignore-scripts`, `npm publish --dry-run --ignore-scripts --tag alpha`, `node ./dist/cli/main.js agents --json`, `node ./dist/cli/main.js doctor --json`, and `git diff --check` pass.
 - `npm publish --dry-run --ignore-scripts --tag alpha` reports dry-run mode and `tag alpha`; if it reports `latest`, stop.
-- `npm view agent-cli-runtime@0.1.0-alpha.0 version --json` does not show an already-created immutable version.
-- `npm dist-tag ls agent-cli-runtime` confirms `latest` will not move to this pre-alpha version.
+- `npm view agent-cli-runtime@0.1.0-alpha.1 version --json` does not show an already-created immutable version before publish.
+- `npm dist-tag ls agent-cli-runtime` is captured after publish; if npm keeps `latest` on the only published pre-alpha version, record the exact tag state.
 - npm 2FA or the package's configured publish policy is ready for the maintainer account.
 - Trusted publishing is not configured for P3-10. A future trusted-publishing path would need a separate publish workflow, npm-side trusted publisher configuration, and explicit `id-token: write`; none of that is present in this release-candidate workflow.
 - Manual local publish must not claim GitHub Actions provenance. Provenance is a future trusted-publishing concern, not a P3-10 dry-run claim.
@@ -151,15 +151,15 @@ Before any future real publish, a maintainer must manually confirm:
 Post-publish checks for a separately authorized future publish:
 
 ```bash
-npm view agent-cli-runtime@0.1.0-alpha.0 version dist-tags --json
+npm view agent-cli-runtime@0.1.0-alpha.1 version dist-tags --json
 npm dist-tag ls agent-cli-runtime
 ```
 
 Rollback boundary:
 
-- If only the dist-tag is wrong, use `npm dist-tag add agent-cli-runtime@0.1.0-alpha.0 alpha` and, only after confirming it points at the accidental alpha, `npm dist-tag rm agent-cli-runtime latest`.
-- If package contents are wrong, publish a new corrected pre-release version; npm does not allow overwriting `agent-cli-runtime@0.1.0-alpha.0`.
-- Use `npm unpublish agent-cli-runtime@0.1.0-alpha.0` only if npm policy allows it and a maintainer accepts the registry impact; otherwise deprecate the bad version.
+- If only the dist-tag is wrong, use `npm dist-tag add agent-cli-runtime@0.1.0-alpha.1 alpha` and, only after confirming it points at an unintended pre-alpha, `npm dist-tag rm agent-cli-runtime latest`.
+- If package contents are wrong, publish a new corrected pre-release version; npm does not allow overwriting `agent-cli-runtime@0.1.0-alpha.1`.
+- Use `npm unpublish agent-cli-runtime@0.1.0-alpha.1` only if npm policy allows it and a maintainer accepts the registry impact; otherwise deprecate the bad version.
 
 ## P3-7 API / CLI Schema Freeze
 

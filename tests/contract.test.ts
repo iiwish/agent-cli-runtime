@@ -412,7 +412,7 @@ describe("public contract", () => {
 
     expect(manifest).toMatchObject({
       name: "agent-cli-runtime",
-      version: "0.1.0-alpha.0",
+      version: "0.1.0-alpha.1",
       license: "Apache-2.0",
       type: "module",
       bin: { "agent-runtime": "dist/cli/main.js" },
@@ -2493,17 +2493,45 @@ setInterval(() => {}, 1000);
     expect(runbook).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
     expect(runbook).toContain("npm publish --tag alpha");
     expect(runbook).toContain("npm dist-tag ls agent-cli-runtime");
-    expect(runbook).toContain("npm dist-tag add agent-cli-runtime@0.1.0-alpha.0 alpha");
-    expect(runbook).toContain("npm unpublish agent-cli-runtime@0.1.0-alpha.0");
+    expect(runbook).toContain("npm dist-tag add agent-cli-runtime@0.1.0-alpha.1 alpha");
+    expect(runbook).toContain("npm unpublish agent-cli-runtime@0.1.0-alpha.1");
     expect(runbook).toContain("2FA");
     expect(runbook).toContain("trusted publishing");
     expect(runbook).toContain("provenance");
     expect(runbook).toContain("not configured");
-    expect(runbook).toContain("P3-11 does not publish npm");
+    expect(runbook).toContain("corrective alpha");
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
     expect(ci).not.toMatch(/\bnpm publish\b/u);
     expect(ci).not.toContain("NODE_AUTH_TOKEN");
+  });
+
+  it("keeps packaged public docs free of stale current publish-state claims", async () => {
+    const docs = [
+      "README.md",
+      "README.zh-CN.md",
+      "docs/production-readiness.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/release-publish-runbook.md",
+      "docs/ssot.md",
+    ];
+    const staleClaims = [
+      /The package is not published to npm/iu,
+      /npm publish has not occurred/iu,
+      /npm publish 尚未发生/u,
+      /P3-11 does not publish npm/iu,
+      /Do not run a real `npm publish` during P3-11/iu,
+      /Do not publish a GitHub release/iu,
+      /不发布 GitHub release/u,
+    ];
+
+    for (const doc of docs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      for (const staleClaim of staleClaims) {
+        expect(text, `${doc} contains stale publish-state claim ${staleClaim}`).not.toMatch(staleClaim);
+      }
+    }
   });
 
   it("runs the shipped library examples without real agent credentials", async () => {

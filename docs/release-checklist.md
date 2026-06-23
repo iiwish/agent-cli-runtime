@@ -1,5 +1,16 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## 0.1.0-alpha.1 corrective alpha package
+
+- [ ] Confirm `package.json` and `package-lock.json` version are `0.1.0-alpha.1`.
+- [ ] Confirm packaged README/docs no longer describe the current package as unpublished or forbid the already-created GitHub pre-release.
+- [ ] Confirm `0.1.0-alpha.0` is treated as immutable historical npm/GitHub Release evidence, not overwritten.
+- [ ] Trigger a fresh Release Candidate workflow for the corrective commit and verify its `headSha` equals that commit.
+- [ ] Download all five release-candidate artifacts and run `npm run release:verify -- --dir <normalized-artifact-dir>`.
+- [ ] Run local gates: `npm run typecheck`, `npm run lint`, `npm test`, `npm run package:check`, and `npm publish --dry-run --ignore-scripts --tag alpha`.
+- [ ] Publish `agent-cli-runtime@0.1.0-alpha.1` only after explicit maintainer authorization and interactive npm authentication.
+- [ ] Create GitHub pre-release `v0.1.0-alpha.1` and attach durable release evidence assets.
+
 ## P3-11 current-head release candidate evidence boundary
 
 - [x] Current-head release evidence uses `.release-evidence/` as the non-package local evidence landing zone.

@@ -1,9 +1,9 @@
 # Alpha Publish Readiness Runbook
 
-Status: P3-11 current-head release candidate evidence uses non-package evidence storage; human publish gate required
+Status: 0.1.0-alpha.1 corrective alpha publish runbook; human publish gate required
 Last updated: 2026-06-23
 
-This runbook is a decision and execution checklist for a future `agent-cli-runtime@0.1.0-alpha.0` npm alpha publish. P3-11 does not publish npm, does not create or commit npm credentials, and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, and tarball shasums are recorded outside the npm package under `.release-evidence/`; package docs keep only stable process rules and the human-gated alpha publish boundary.
+This runbook is a decision and execution checklist for `agent-cli-runtime@0.1.0-alpha.1`, the corrective alpha for the stale pre-publish status text shipped in immutable npm version `0.1.0-alpha.0`. It does not create or commit npm credentials and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, and tarball shasums are recorded outside the npm package under `.release-evidence/` or attached as GitHub Release assets; package docs keep only stable process rules and the human-gated alpha publish boundary.
 
 ## Decision
 
@@ -12,20 +12,18 @@ Recommended state for the next human gate:
 - Package metadata is ready for an alpha package page: `name`, `version`, `description`, `license`, `type`, `bin`, `main`, `types`, `exports`, `files`, `engines`, `repository`, `homepage`, `bugs`, `keywords`, and `publishConfig.tag` are present and intentional.
 - The package root value API remains `createAgentRuntime` only; public TypeScript types are exposed through the root declarations, not as runtime values.
 - The release-candidate workflow remains artifact-only: it creates and verifies the tarball but does not publish and does not require registry credentials.
-- The future publish must use the `alpha` dist-tag. Do not publish this pre-alpha version as `latest`.
-- Current publishable package candidate: `agent-cli-runtime@0.1.0-alpha.0`.
+- The corrective publish must use the `alpha` dist-tag. If npm keeps `latest` on the only available pre-release, record that post-publish state rather than pretending it was removed.
+- Current publishable package candidate: `agent-cli-runtime@0.1.0-alpha.1`.
 - Current-head evidence rule: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, and record the volatile run evidence under `.release-evidence/`.
 - Because this runbook and release report are included in the npm package, do not write current run ids, artifact digests, tarball shasums, or pack shasums into package docs.
 - Before any real publish, confirm the fresh release-candidate workflow head SHA matches the commit being published.
 - Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
 - Do not reuse historical workflow runs as publish evidence for a later commit.
 
-## Non-Goals
+## Boundaries
 
-- Do not run a real `npm publish` during P3-11.
 - Do not add npm tokens, GitHub tokens, registry credential environment variables, or private auth files.
 - Do not configure real npm trusted publishing during P2-13.
-- Do not publish a GitHub release.
 - Do not add daemon, database, WAL, remote worker, web UI, telemetry, scheduler expansion, or package-root value exports.
 
 ## Pre-Publish Checks
@@ -57,8 +55,8 @@ git rev-parse --abbrev-ref HEAD
 git rev-parse HEAD
 git rev-parse origin/main
 gh workflow run release-candidate.yml --ref main
-gh run view <post-documentation-run-id> --json headSha,status,conclusion,url,jobs
-npm view agent-cli-runtime@0.1.0-alpha.0 version --json
+gh run view <current-release-candidate-run-id> --json headSha,status,conclusion,url,jobs
+npm view agent-cli-runtime@0.1.0-alpha.1 version --json
 npm dist-tag ls agent-cli-runtime
 ```
 
@@ -70,7 +68,7 @@ npm publish --dry-run --ignore-scripts --tag alpha
 
 The command must report a dry run and must show `tag alpha`. If it reports `latest`, stop and fix the command or metadata before publishing.
 
-P3-11 stop point: stop after `npm publish --dry-run --ignore-scripts --tag alpha`. A true publish requires a separate later user authorization and fresh current-head release-candidate evidence.
+Dry-run stop point: stop after `npm publish --dry-run --ignore-scripts --tag alpha` until a maintainer separately authorizes the true publish and fresh current-head release-candidate evidence has passed.
 
 ## Human Confirmation Points
 
@@ -82,13 +80,13 @@ Before a real publish, a maintainer must confirm:
 - `.reference/`, `tests/`, fixtures, raw real CLI output, private paths, token-looking values, and repair backups are absent from the packed files.
 - `dist/index.js` runtime value exports remain limited to `createAgentRuntime`.
 - `dist/index.d.ts` exposes public types without re-exporting storage/parser/store internals as the package-root contract.
-- The alpha tag is intentional and `latest` must not move.
+- The alpha tag is intentional. If this is still the only package version and npm also points `latest` at it, document that exact post-publish state.
 - The npm account/package publishing policy is understood: 2FA or an approved token path is required by npm package settings.
 - The publisher accepts the provenance choice below and has the right npm package permissions.
 
 ## Real Publish Commands
 
-These commands are documentation only in P2-13. Do not run them until the human publish gate is explicitly approved.
+Do not run these commands until the human publish gate is explicitly approved.
 
 Manual local publish with interactive npm authentication:
 
@@ -109,19 +107,19 @@ If npm asks for a second factor, complete the interactive 2FA prompt or use the 
 Immediately after any real publish:
 
 ```bash
-npm view agent-cli-runtime@0.1.0-alpha.0 version dist-tags --json
+npm view agent-cli-runtime@0.1.0-alpha.1 version dist-tags --json
 npm dist-tag ls agent-cli-runtime
 ```
 
 Expected result:
 
-- `alpha` points to `0.1.0-alpha.0`.
-- `latest` is absent or still points to a stable version, not this pre-alpha version.
+- `alpha` points to `0.1.0-alpha.1`.
+- `latest` is absent, points to a stable version, or is explicitly documented as pointing to the only published pre-alpha version if npm does not allow removing it.
 
 If the wrong tag is attached but the package version itself is acceptable, fix the tag rather than republishing the same version:
 
 ```bash
-npm dist-tag add agent-cli-runtime@0.1.0-alpha.0 alpha
+npm dist-tag add agent-cli-runtime@0.1.0-alpha.1 alpha
 npm dist-tag rm agent-cli-runtime latest
 npm dist-tag ls agent-cli-runtime
 ```
@@ -170,7 +168,7 @@ If real publish fails before package creation:
 
 - Capture the redacted error class only.
 - Do not commit npm debug logs if they contain local paths, auth state, or registry session details.
-- Re-run `npm view agent-cli-runtime@0.1.0-alpha.0 version --json` before retrying to confirm the version was not created.
+- Re-run `npm view agent-cli-runtime@0.1.0-alpha.1 version --json` before retrying to confirm the version was not created.
 
 If real publish succeeds but post-publish checks fail:
 
@@ -180,13 +178,13 @@ If real publish succeeds but post-publish checks fail:
 - If the package is unsafe and still eligible under npm policy, consider unpublish only as an emergency path:
 
 ```bash
-npm unpublish agent-cli-runtime@0.1.0-alpha.0
+npm unpublish agent-cli-runtime@0.1.0-alpha.1
 ```
 
 Unpublish has strict policy limits and cannot make the same `name@version` reusable. If unpublish is not allowed or would break consumers, prefer deprecation:
 
 ```bash
-npm deprecate agent-cli-runtime@0.1.0-alpha.0 "Do not use this alpha; upgrade to a later pre-release."
+npm deprecate agent-cli-runtime@0.1.0-alpha.1 "Do not use this alpha; upgrade to a later pre-release."
 ```
 
 ## Rollback Boundary
@@ -198,4 +196,4 @@ Rollback means one of these actions:
 - Unpublish only when npm policy allows it and a maintainer accepts the registry impact.
 - Publish a new corrected pre-release version.
 
-Rollback does not mean overwriting `agent-cli-runtime@0.1.0-alpha.0`; npm does not permit replacing an already published package version.
+Rollback does not mean overwriting `agent-cli-runtime@0.1.0-alpha.1`; npm does not permit replacing an already published package version.
