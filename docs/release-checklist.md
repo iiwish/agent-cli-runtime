@@ -1,5 +1,19 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P5-4 remote published verification evidence closure
+
+- [x] P5-3 published package verification workflow was merged to `main` before triggering P5-4 evidence.
+- [x] A fresh `gh workflow run published-package-verification.yml --ref main` was triggered after the clean-runner post-alpha verifier fix reached `main`.
+- [x] `gh run view <run-id> --json headSha,status,conclusion,url,jobs,createdAt,updatedAt` confirmed the run `headSha` matches the P5-4 target SHA recorded in `.release-evidence/p5-4-published-verification.json`.
+- [x] The run completed with `status: "completed"` and `conclusion: "success"`.
+- [x] Artifact `agent-cli-runtime-published-verification` was downloaded and normalized to a directory containing `published-verification.json`.
+- [x] `npm run published:verify:evidence -- --dir <normalized-downloaded-artifact-dir>` passed with `schemaVersion: "agent-cli-runtime.publishedVerification.v1"` and `ok: true`.
+- [x] Downloaded evidence confirms `smoke:published`, `published:daemon:verify`, `published:adapters:verify`, and `release:post-alpha:verify` all passed.
+- [x] Downloaded evidence confirms `registry.ok: true` and dist-tags remain `alpha -> 0.1.0-alpha.1` and `latest -> 0.1.0-alpha.1`.
+- [x] Downloaded evidence confirms `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` are all `true`.
+- [x] Volatile run id, artifact id/digest/size/expiry, target SHA, and local verification command are recorded in `.release-evidence/p5-4-published-verification.json`, outside the npm package boundary.
+- [x] Packaged docs describe P5-4 as remote post-publish verification evidence closure only; they do not present the run as evidence for future commits or as a publish workflow.
+
 ## P5-3 published package remote verification evidence workflow
 
 - [x] `npm run published:verify` exists and emits `schemaVersion: "agent-cli-runtime.publishedVerification.v1"` evidence under `published-verification/` by default.

@@ -1,0 +1,62 @@
+{
+  "stage": "P5-4",
+  "targetSha": "ced58dfe76d3c86ec2794e4de2c086ba1a67acd4",
+  "runId": 28017044702,
+  "runUrl": "https://github.com/iiwish/agent-cli-runtime/actions/runs/28017044702",
+  "status": "completed",
+  "conclusion": "success",
+  "createdAt": "2026-06-23T09:40:18Z",
+  "updatedAt": "2026-06-23T09:40:42Z",
+  "artifact": {
+    "name": "agent-cli-runtime-published-verification",
+    "id": 7817079824,
+    "digest": "sha256:146db5a905310f16caa74478417f4a7c723e1b2ad386759a60c6ed983067e87e",
+    "sizeInBytes": 1839,
+    "expiresAt": "2026-07-07T09:40:37Z"
+  },
+  "downloadedVerification": {
+    "schemaVersion": "agent-cli-runtime.publishedVerification.v1",
+    "ok": true,
+    "checkedAt": "2026-06-23T09:40:37.300Z"
+  },
+  "checkedGates": [
+    {
+      "script": "smoke:published",
+      "ok": true,
+      "schemaVersion": "agent-cli-runtime.publishedSmoke.v1"
+    },
+    {
+      "script": "published:daemon:verify",
+      "ok": true,
+      "schemaVersion": "agent-runtime.publishedDaemonConsumer.v1"
+    },
+    {
+      "script": "published:adapters:verify",
+      "ok": true,
+      "schemaVersion": "agent-runtime.publishedAdapters.v1"
+    },
+    {
+      "script": "release:post-alpha:verify",
+      "ok": true,
+      "schemaVersion": "agent-cli-runtime.postAlphaEvidence.v1"
+    }
+  ],
+  "registry": {
+    "version": "0.1.0-alpha.1",
+    "distTags": {
+      "alpha": "0.1.0-alpha.1",
+      "latest": "0.1.0-alpha.1"
+    },
+    "dist": {
+      "shasum": "5b6062197b5f5543010e364da625ac682c5b087c",
+      "integrity": "sha512-+bWmKNGlzEo9FC2HnoT2MQBZ2d1D6AYnEv9XbCfTntkVg47lfetyVuMjKML/FHUIsIc7t+WE3bVQu7AEKCdFLw==",
+      "fileCount": 151,
+      "unpackedSize": 985439,
+      "tarball": "agent-cli-runtime-0.1.0-alpha.1.tgz"
+    }
+  },
+  "localVerificationCommand": "npm run published:verify:evidence -- --dir <normalized-downloaded-artifact-dir>",
+  "noAuthenticatedRealRun": true,
+  "noNpmPublish": true,
+  "noNpmToken": true
+}
