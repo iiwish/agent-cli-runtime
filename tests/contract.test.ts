@@ -45,6 +45,7 @@ const cli = path.join(root, "dist", "cli", "main.js");
 const releaseVerifier = path.join(root, "scripts", "verify-release-artifacts.mjs");
 const postAlphaVerifier = path.join(root, "scripts", "verify-post-alpha-release.mjs");
 const publishedSmoke = path.join(root, "scripts", "smoke-published.mjs");
+const publishedDaemonConsumerVerifier = path.join(root, "scripts", "verify-published-daemon-consumer.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
@@ -323,13 +324,17 @@ describe("public contract", () => {
     };
     const daemonScript = await readFile(daemonVerifier, "utf8");
     const runtimeSafetyScript = await readFile(runtimeSafetyVerifier, "utf8");
+    const publishedDaemonScript = await readFile(publishedDaemonConsumerVerifier, "utf8");
 
     expect(manifest.scripts.test).not.toContain("daemon:verify");
     expect(manifest.scripts.test).not.toContain("runtime:safety");
+    expect(manifest.scripts.test).not.toContain("published:daemon:verify");
     expect(manifest.scripts.ci).not.toContain("daemon:verify");
     expect(manifest.scripts.ci).not.toContain("runtime:safety");
+    expect(manifest.scripts.ci).not.toContain("published:daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("published:daemon:verify");
 
     expect(daemonScript).toContain("agent-runtime.daemonVerification.v1");
     expect(daemonScript).toContain("installed-tarball");
@@ -346,6 +351,47 @@ describe("public contract", () => {
     expect(runtimeSafetyScript).not.toContain("--allow-real-run");
     expect(runtimeSafetyScript).not.toMatch(/\bnpm publish\b/u);
     expect(runtimeSafetyScript).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(manifest.scripts["published:daemon:verify"]).toBe("node ./scripts/verify-published-daemon-consumer.mjs");
+    expect(publishedDaemonScript).toContain("agent-runtime.publishedDaemonConsumer.v1");
+    expect(publishedDaemonScript).toContain("packageSource: \"npm-registry\"");
+    expect(publishedDaemonScript).toContain("\"install\", spec");
+    expect(publishedDaemonScript).toContain("createAgentRuntime");
+    expect(publishedDaemonScript).toContain("secondWriterRefusal");
+    expect(publishedDaemonScript).toContain("staleOwnerRecovery");
+    expect(publishedDaemonScript).not.toContain("--allow-real-run");
+    expect(publishedDaemonScript).not.toMatch(/\bnpm publish\b/u);
+    expect(publishedDaemonScript).not.toContain("NODE_AUTH_TOKEN");
+  });
+
+  it("keeps published daemon consumer verifier error JSON stable and redacted", async () => {
+    const failure = await execCliFailureViaNode([
+      publishedDaemonConsumerVerifier,
+      "/tmp/leak sk-" + "A".repeat(24) + " Bearer " + "B".repeat(20) + " /private/tmp/leak /var/folders/leak /Users/example/leak",
+    ]);
+    const payload = JSON.parse(failure.stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageSource: string;
+      version: string | null;
+      checks: Record<string, unknown>;
+      diagnostics: Array<{ message?: string }>;
+      noAuthenticatedRealRun: boolean;
+    };
+    const text = JSON.stringify(payload);
+
+    expect(failure.code).toBe(1);
+    expect(payload).toMatchObject({
+      schemaVersion: "agent-runtime.publishedDaemonConsumer.v1",
+      ok: false,
+      packageSource: "npm-registry",
+      version: null,
+      checks: {},
+      noAuthenticatedRealRun: true,
+    });
+    for (const forbidden of ["/tmp/", "/private/tmp/", "/var/folders/", "/Users/example", "sk-" + "A".repeat(24), "Bearer " + "B".repeat(20)]) {
+      expect(text).not.toContain(forbidden);
+    }
   });
 
   it("keeps the package root focused on the runtime facade and public types", async () => {

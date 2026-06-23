@@ -280,14 +280,15 @@ void goalRequest;
 void runtime.shutdown();
 ```
 
-Daemon embedding gate 会把 packed tarball 安装到临时 consumer，再用 fake CLI 跑 detect/conformance、run、goal、replay、diagnostics、store inspection、shutdown 和 reopen。Runtime safety gate 使用同样的 installed-package 边界，覆盖 repeated run/goal、慢 event consumer、cancel/timeout churn、repeated shutdown、lease close 和 reopen：
+Daemon embedding gate 会把 packed tarball 安装到临时 consumer，再用 fake CLI 跑 detect/conformance、run、goal、replay、diagnostics、store inspection、shutdown 和 reopen。Runtime safety gate 使用同样的 installed-package 边界，覆盖 repeated run/goal、慢 event consumer、cancel/timeout churn、repeated shutdown、lease close 和 reopen。Published daemon consumer gate 会从 npm registry 安装 `agent-cli-runtime@0.1.0-alpha.1` 到临时 daemon-style consumer，并用 fake Codex/Claude/OpenCode binaries 验证已发布包的嵌入生命周期：
 
 ```bash
 npm run daemon:verify
 npm run runtime:safety
+npm run published:daemon:verify
 ```
 
-更完整的 release gate 会把 packed tarball 安装到临时 TypeScript 项目，执行 `tsc --noEmit`，再用 fake CLI 跑 library run / goal / replay / diagnostics smoke。见 `npm run daemon:verify`、`npm run runtime:safety`、`npm run dogfood` 和 [docs/release-checklist.md](./docs/release-checklist.md)。
+更完整的 release gate 会把 packed tarball 安装到临时 TypeScript 项目，执行 `tsc --noEmit`，再用 fake CLI 跑 library run / goal / replay / diagnostics smoke。见 `npm run daemon:verify`、`npm run runtime:safety`、`npm run published:daemon:verify`、`npm run dogfood` 和 [docs/release-checklist.md](./docs/release-checklist.md)。
 
 本机 agent CLI 按场景安装即可：
 
@@ -334,6 +335,7 @@ export HTTP_PROXY=http://127.0.0.1:7897
 npm run ci
 npm run daemon:verify
 npm run runtime:safety
+npm run published:daemon:verify
 npm run dogfood
 npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
@@ -353,9 +355,12 @@ post-alpha 验证：
 ```bash
 npm run release:post-alpha:verify
 npm run smoke:published
+npm run published:daemon:verify
 ```
 
 `release:post-alpha:verify` 会比较 npm registry tarball 与 `v0.1.0-alpha.1` GitHub Release tarball。两者 raw gzip SHA1/SHA256 可以不同，因为 registry tarball 和 Release asset 是不同 packaging artifact；package 内容边界以 npm registry `shasum`/`integrity`、解包后的 package 文件列表和内容一致性，以及 `npm run release:verify -- --dir <downloaded-github-release-assets-dir>` 为准。
+
+`published:daemon:verify` 安装的是已经发布到 npm registry 的包，不依赖本地 checkout 或本地 `dist/`，输出 `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"` 且 `packageSource: "npm-registry"`。它只使用 fake CLI，覆盖 detect、run、goal、cancel、timeout、replay、writer active 时的 read-only inspection、second-writer refusal、shutdown/reopen 和 stale owner recovery，不启动 authenticated real agent run。
 
 如需在本地生成可审查的 release-candidate artifact set：
 

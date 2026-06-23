@@ -1,5 +1,17 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P5-1 published-package daemon consumer harness
+
+- [x] `npm run published:daemon:verify` exists and emits `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"`.
+- [x] The gate installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary consumer project, not from local `dist/` or a freshly packed tarball.
+- [x] The consumer imports only `createAgentRuntime` from the package root and does not expand package-root value exports.
+- [x] Fake Codex, Claude, and OpenCode binaries are used; no authenticated real Codex/Claude/OpenCode run is launched.
+- [x] The gate covers detect, run success, goal success, cancel, timeout, run/goal replay, read-only inspection while writer ownership is active, second-writer refusal, shutdown/reopen, and stale owner recovery.
+- [x] Output includes `packageSource: "npm-registry"`, `version`, `checks`, `diagnostics`, and `noAuthenticatedRealRun`.
+- [x] Output and failure JSON are redacted for temp paths, private user paths, token-looking values, Bearer values, auth env assignments, and full prompts.
+- [x] Contract tests verify the script exists, the npm script is stable, the script contains no `--allow-real-run`, no npm publish command, and no `NODE_AUTH_TOKEN`, and package boundary checks keep temporary artifacts, `.reference/`, and `.release-evidence/` out of npm pack.
+- [x] P5-1 does not publish npm, add daemon/API server, database, WAL, remote worker, queue service, UI, telemetry, hosted control plane, or OpenDesign code.
+
 ## 0.1.0-alpha.1 post-alpha evidence normalization
 
 - [x] Confirm `package.json` and `package-lock.json` version are `0.1.0-alpha.1`.

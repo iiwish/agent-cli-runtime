@@ -282,14 +282,15 @@ void goalRequest;
 void runtime.shutdown();
 ```
 
-The daemon embedding gate installs the packed tarball into a temporary consumer, then executes fake-CLI detect/conformance, run, goal, replay, diagnostics, store inspection, shutdown, and reopen checks. The runtime safety gate uses the same installed-package boundary for repeated run/goal execution, slow event consumption, cancel/timeout churn, repeated shutdown, lease close, and reopen checks:
+The daemon embedding gate installs the packed tarball into a temporary consumer, then executes fake-CLI detect/conformance, run, goal, replay, diagnostics, store inspection, shutdown, and reopen checks. The runtime safety gate uses the same installed-package boundary for repeated run/goal execution, slow event consumption, cancel/timeout churn, repeated shutdown, lease close, and reopen checks. The published daemon consumer gate installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary daemon-style consumer and exercises the published package lifecycle with fake Codex/Claude/OpenCode binaries:
 
 ```bash
 npm run daemon:verify
 npm run runtime:safety
+npm run published:daemon:verify
 ```
 
-The broader release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run daemon:verify`, `npm run runtime:safety`, `npm run dogfood`, and [docs/release-checklist.md](./docs/release-checklist.md).
+The broader release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run daemon:verify`, `npm run runtime:safety`, `npm run published:daemon:verify`, `npm run dogfood`, and [docs/release-checklist.md](./docs/release-checklist.md).
 
 Required local agent CLIs are optional by scenario:
 
@@ -336,6 +337,7 @@ Use one of the quick verification command sets before release:
 npm run ci
 npm run daemon:verify
 npm run runtime:safety
+npm run published:daemon:verify
 npm run dogfood
 npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
@@ -355,9 +357,12 @@ Post-alpha verification:
 ```bash
 npm run release:post-alpha:verify
 npm run smoke:published
+npm run published:daemon:verify
 ```
 
 `release:post-alpha:verify` compares the npm registry tarball with the `v0.1.0-alpha.1` GitHub Release tarball. Raw gzip SHA1/SHA256 values may differ because the registry tarball and Release asset are separate packaging artifacts; the package content boundary is npm registry `shasum`/`integrity`, matching unpacked package file list and content, and `npm run release:verify -- --dir <downloaded-github-release-assets-dir>`.
+
+`published:daemon:verify` installs the already published npm package from the registry, not the local checkout or local `dist/`, and emits `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"` with `packageSource: "npm-registry"`. It uses fake CLIs only and covers detect, run, goal, cancel, timeout, replay, read-only inspection while a writer is active, second-writer refusal, shutdown/reopen, and stale owner recovery without launching authenticated real agent runs.
 
 To create a local release-candidate artifact set without publishing, run:
 
