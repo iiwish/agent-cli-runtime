@@ -2822,6 +2822,20 @@ setInterval(() => {}, 1000);
     const verifier = await readFile(releaseVerifier, "utf8");
     const evidenceReadme = await readFile(path.join(root, ".release-evidence", "README.md"), "utf8");
     const evidenceIgnore = await readFile(path.join(root, ".release-evidence", ".gitignore"), "utf8");
+    const p5EvidenceText = await readFile(path.join(root, ".release-evidence", "p5-4-published-verification.json"), "utf8");
+    const p5Evidence = JSON.parse(p5EvidenceText) as {
+      stage: string;
+      targetSha: string;
+      runId: number;
+      artifact: { id: number; digest: string };
+      downloadedVerification: { schemaVersion: string; ok: boolean };
+      checkedGates: Array<{ script: string; ok: boolean }>;
+      registry: { version: string; distTags: Record<string, string> };
+      localVerificationCommand: string;
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+    };
     const packagedDocs = [
       "README.md",
       "README.zh-CN.md",
@@ -2837,14 +2851,39 @@ setInterval(() => {}, 1000);
     expect(verifier).toContain("volatile_release_evidence");
     expect(evidenceReadme).toContain("outside the npm package boundary");
     expect(evidenceReadme).toContain("GitHub Actions run ids");
+    expect(evidenceReadme).toContain("published package verification");
     expect(evidenceIgnore).toContain("*.local.json");
     expect(evidenceIgnore).toContain("*.local.md");
+    expect(p5Evidence.stage).toBe("P5-4");
+    expect(p5Evidence.targetSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(p5Evidence.downloadedVerification).toEqual({
+      schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+      ok: true,
+      checkedAt: expect.any(String),
+    });
+    expect(p5Evidence.checkedGates.map((gate) => gate.script).sort()).toEqual([
+      "published:adapters:verify",
+      "published:daemon:verify",
+      "release:post-alpha:verify",
+      "smoke:published",
+    ]);
+    expect(p5Evidence.checkedGates.every((gate) => gate.ok)).toBe(true);
+    expect(p5Evidence.registry.distTags).toMatchObject({ alpha: "0.1.0-alpha.1", latest: "0.1.0-alpha.1" });
+    expect(p5Evidence.localVerificationCommand).toBe("npm run published:verify:evidence -- --dir <normalized-downloaded-artifact-dir>");
+    expect(p5Evidence.noAuthenticatedRealRun).toBe(true);
+    expect(p5Evidence.noNpmPublish).toBe(true);
+    expect(p5Evidence.noNpmToken).toBe(true);
+    expect(p5EvidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
 
     for (const doc of packagedDocs) {
       const text = await readFile(path.join(root, doc), "utf8");
       expect(text).toContain(".release-evidence/");
+      expect(text).not.toContain(String(p5Evidence.runId));
+      expect(text).not.toContain(String(p5Evidence.artifact.id));
+      expect(text).not.toContain(p5Evidence.artifact.digest);
       expect(text).not.toMatch(/P3-11[^\n]*(?:current HEAD|当前 HEAD)[^\n]*(?:run `?\d{8,}`?|artifact digest|artifact id|tarball shasum|npm pack shasum|包 shasum)/iu);
       expect(text).not.toMatch(/P3-11[^\n]*(?:proves|证明)[^\n]*(?:current HEAD|当前 HEAD)/iu);
+      expect(text).not.toMatch(/P5-4[^\n]*(?:proves|证明)(?![^\n]*(?:only|只|不得|must not|not be reused))[^\n]*(?:future commit|未来 commit|future publish|未来 publish)/iu);
       expect(text).not.toMatch(/npm publish --dry-run[^\n]*(?:really published|published to npm|真实发布成功|已经发布到 npm|已发布到 npm)/iu);
     }
   });

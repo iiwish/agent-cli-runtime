@@ -3,7 +3,7 @@
 Status: `0.1.0-alpha.1` published; post-alpha evidence normalized
 Last updated: 2026-06-23
 
-This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, the P3-11 non-package evidence boundary, and the post-alpha evidence path for `agent-cli-runtime@0.1.0-alpha.1`. Immutable npm version `0.1.0-alpha.0` was published and has GitHub pre-release `v0.1.0-alpha.0`, but its package docs contain stale pre-publish status text; `0.1.0-alpha.0` is now deprecated. `agent-cli-runtime@0.1.0-alpha.1` is published to npm and has GitHub pre-release `v0.1.0-alpha.1`.
+This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, the P3-11 non-package evidence boundary, and the post-alpha evidence path for `agent-cli-runtime@0.1.0-alpha.1`. Immutable npm version `0.1.0-alpha.0` was published and has GitHub pre-release `v0.1.0-alpha.0`, but its package docs contain stale pre-publish status text; `0.1.0-alpha.0` is now deprecated. `agent-cli-runtime@0.1.0-alpha.1` is published to npm and has GitHub pre-release `v0.1.0-alpha.1`. P5-4 closes the remote published-package verification evidence loop for the current verification workflow by storing volatile run and artifact metadata outside the npm package.
 
 Current npm registry state:
 
@@ -31,6 +31,28 @@ P3-11 solves the P3-10 self-reference problem by separating stable package docs 
 - Volatile current-head evidence is recorded under `.release-evidence/`, which is outside `package.json` `files` and is explicitly rejected by package-boundary checks if it appears in npm pack metadata.
 - A release-candidate workflow proves only the commit in its `headSha`. Historical runs must not be reused as proof for later commits.
 - A dry-run is not a real publish. A true npm publish remains human-gated and requires a later explicit authorization.
+
+## P5-4 Remote Published Verification Evidence Closure
+
+P5-4 records the fresh remote `Published Package Verification` workflow result outside the npm package in `.release-evidence/p5-4-published-verification.json`.
+
+That package-out evidence file records the target SHA, run id, run URL, status/conclusion, artifact id/digest/size/expiry, downloaded verification schema/ok result, checked gate summaries, registry version/dist-tags, and the redacted local verification command. The packaged report intentionally does not inline the current run id or artifact id.
+
+The workflow proves only its own `headSha`. It must not be reused as evidence for future commits, future workflow changes, a future npm publish, or authenticated real Codex/Claude/OpenCode success. The P5-4 workflow is post-publish verification of the already published package: it does not publish npm, modify dist-tags, configure npm tokens, configure trusted publishing/provenance, or add daemon/API server/database/WAL/remote worker/UI/telemetry surfaces.
+
+Downloaded artifact re-verification command:
+
+```bash
+npm run published:verify:evidence -- --dir <normalized-downloaded-artifact-dir>
+```
+
+Required downloaded verification result:
+
+- `schemaVersion: "agent-cli-runtime.publishedVerification.v1"`.
+- `ok: true`.
+- Gates `smoke:published`, `published:daemon:verify`, `published:adapters:verify`, and `release:post-alpha:verify` all pass.
+- `registry.ok: true`.
+- `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` are all `true`.
 
 ## P3-10 Pre-Documentation Alpha Release Candidate Evidence
 
