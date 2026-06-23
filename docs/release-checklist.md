@@ -1,15 +1,18 @@
 # Release Checklist (pre-alpha / developer preview)
 
-## 0.1.0-alpha.1 corrective alpha package
+## 0.1.0-alpha.1 post-alpha evidence normalization
 
-- [ ] Confirm `package.json` and `package-lock.json` version are `0.1.0-alpha.1`.
-- [ ] Confirm packaged README/docs no longer describe the current package as unpublished or forbid the already-created GitHub pre-release.
-- [ ] Confirm `0.1.0-alpha.0` is treated as immutable historical npm/GitHub Release evidence, not overwritten.
-- [ ] Trigger a fresh Release Candidate workflow for the corrective commit and verify its `headSha` equals that commit.
-- [ ] Download all five release-candidate artifacts and run `npm run release:verify -- --dir <normalized-artifact-dir>`.
-- [ ] Run local gates: `npm run typecheck`, `npm run lint`, `npm test`, `npm run package:check`, and `npm publish --dry-run --ignore-scripts --tag alpha`.
-- [ ] Publish `agent-cli-runtime@0.1.0-alpha.1` only after explicit maintainer authorization and interactive npm authentication.
-- [ ] Create GitHub pre-release `v0.1.0-alpha.1` and attach durable release evidence assets.
+- [x] Confirm `package.json` and `package-lock.json` version are `0.1.0-alpha.1`.
+- [x] Confirm `agent-cli-runtime@0.1.0-alpha.1` is published to npm.
+- [x] Confirm GitHub pre-release `v0.1.0-alpha.1` exists.
+- [x] Confirm `agent-cli-runtime@0.1.0-alpha.0` is deprecated and treated as immutable historical npm/GitHub Release evidence, not overwritten.
+- [x] Record current npm dist-tags as `alpha -> 0.1.0-alpha.1` and `latest -> 0.1.0-alpha.1`; this is current pre-alpha registry state while no stable version exists.
+- [x] Run `npm run release:post-alpha:verify` and confirm raw npm/GitHub gzip hashes may differ only when unpacked package files and content match.
+- [x] Download GitHub Release assets for `v0.1.0-alpha.1` and run `npm run release:verify -- --dir <downloaded-github-release-assets-dir>`.
+- [x] Run `npm run smoke:published` to verify registry install, package-root ESM import, and `agent-runtime agents --json` parse.
+- [x] Confirm packaged README/docs describe `0.1.0-alpha.1` as published and keep the already-created GitHub pre-release as valid evidence.
+- [x] Run local gates: `npm run typecheck`, `npm run lint`, `npm test`, and `npm run package:check`.
+- [x] No new npm version is published for P4-1.
 
 ## P3-11 current-head release candidate evidence boundary
 

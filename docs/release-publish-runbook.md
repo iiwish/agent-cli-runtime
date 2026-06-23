@@ -1,22 +1,25 @@
 # Alpha Publish Readiness Runbook
 
-Status: 0.1.0-alpha.1 corrective alpha publish runbook; human publish gate required
+Status: `0.1.0-alpha.1` published; future publish gates remain human-controlled
 Last updated: 2026-06-23
 
-This runbook is a decision and execution checklist for `agent-cli-runtime@0.1.0-alpha.1`, the corrective alpha for the stale pre-publish status text shipped in immutable npm version `0.1.0-alpha.0`. It does not create or commit npm credentials and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, and tarball shasums are recorded outside the npm package under `.release-evidence/` or attached as GitHub Release assets; package docs keep only stable process rules and the human-gated alpha publish boundary.
+This runbook records the publish and registry boundary after `agent-cli-runtime@0.1.0-alpha.1` was published. `0.1.0-alpha.1` corrects the stale pre-publish status text shipped in immutable npm version `0.1.0-alpha.0`; `0.1.0-alpha.0` is now deprecated. It does not create or commit npm credentials and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, and tarball shasums are recorded outside the npm package under `.release-evidence/` or attached as GitHub Release assets; package docs keep only stable process rules, current post-alpha registry state, and the human-gated boundary for any future publish.
 
 ## Decision
 
-Recommended state for the next human gate:
+Current state and future human gate:
 
 - Package metadata is ready for an alpha package page: `name`, `version`, `description`, `license`, `type`, `bin`, `main`, `types`, `exports`, `files`, `engines`, `repository`, `homepage`, `bugs`, `keywords`, and `publishConfig.tag` are present and intentional.
 - The package root value API remains `createAgentRuntime` only; public TypeScript types are exposed through the root declarations, not as runtime values.
 - The release-candidate workflow remains artifact-only: it creates and verifies the tarball but does not publish and does not require registry credentials.
-- The corrective publish must use the `alpha` dist-tag. If npm keeps `latest` on the only available pre-release, record that post-publish state rather than pretending it was removed.
-- Current publishable package candidate: `agent-cli-runtime@0.1.0-alpha.1`.
+- Published package: `agent-cli-runtime@0.1.0-alpha.1`.
+- GitHub pre-release: `v0.1.0-alpha.1`.
+- Deprecated package: `agent-cli-runtime@0.1.0-alpha.0`.
+- Current npm dist-tags: `alpha -> 0.1.0-alpha.1`, `latest -> 0.1.0-alpha.1`.
+- `latest -> 0.1.0-alpha.1` is recorded as current pre-alpha registry reality while there is no stable release; do not pretend it was removed.
 - Current-head evidence rule: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, and record the volatile run evidence under `.release-evidence/`.
 - Because this runbook and release report are included in the npm package, do not write current run ids, artifact digests, tarball shasums, or pack shasums into package docs.
-- Before any real publish, confirm the fresh release-candidate workflow head SHA matches the commit being published.
+- Before any future real publish, confirm the fresh release-candidate workflow head SHA matches the commit being published.
 - Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
 - Do not reuse historical workflow runs as publish evidence for a later commit.
 
@@ -26,9 +29,9 @@ Recommended state for the next human gate:
 - Do not configure real npm trusted publishing during P2-13.
 - Do not add daemon, database, WAL, remote worker, web UI, telemetry, scheduler expansion, or package-root value exports.
 
-## Pre-Publish Checks
+## Future Pre-Publish Checks
 
-Run from the repository root on a clean `main` checkout:
+Run from the repository root on a clean `main` checkout before any future package version is published:
 
 ```bash
 git status --short
@@ -48,7 +51,7 @@ node ./dist/cli/main.js doctor --json
 git diff --check
 ```
 
-Before a real publish, also confirm the current branch and evidence target:
+Before a future real publish, also confirm the current branch and evidence target:
 
 ```bash
 git rev-parse --abbrev-ref HEAD
@@ -56,7 +59,7 @@ git rev-parse HEAD
 git rev-parse origin/main
 gh workflow run release-candidate.yml --ref main
 gh run view <current-release-candidate-run-id> --json headSha,status,conclusion,url,jobs
-npm view agent-cli-runtime@0.1.0-alpha.1 version --json
+npm view agent-cli-runtime@<next-version> version --json
 npm dist-tag ls agent-cli-runtime
 ```
 
@@ -68,11 +71,11 @@ npm publish --dry-run --ignore-scripts --tag alpha
 
 The command must report a dry run and must show `tag alpha`. If it reports `latest`, stop and fix the command or metadata before publishing.
 
-Dry-run stop point: stop after `npm publish --dry-run --ignore-scripts --tag alpha` until a maintainer separately authorizes the true publish and fresh current-head release-candidate evidence has passed.
+Dry-run stop point: stop after `npm publish --dry-run --ignore-scripts --tag alpha` until a maintainer separately authorizes the true publish of a new immutable version and fresh current-head release-candidate evidence has passed.
 
 ## Human Confirmation Points
 
-Before a real publish, a maintainer must confirm:
+Before a future real publish, a maintainer must confirm:
 
 - The version is exactly the intended immutable npm version. A published `name@version` cannot be overwritten.
 - The release-candidate run head SHA matches the commit being published; historical runs are insufficient for later commits.
@@ -80,7 +83,7 @@ Before a real publish, a maintainer must confirm:
 - `.reference/`, `tests/`, fixtures, raw real CLI output, private paths, token-looking values, and repair backups are absent from the packed files.
 - `dist/index.js` runtime value exports remain limited to `createAgentRuntime`.
 - `dist/index.d.ts` exposes public types without re-exporting storage/parser/store internals as the package-root contract.
-- The alpha tag is intentional. If this is still the only package version and npm also points `latest` at it, document that exact post-publish state.
+- The alpha tag is intentional. If there is still no stable version and npm also points `latest` at the pre-alpha, document that exact post-publish state.
 - The npm account/package publishing policy is understood: 2FA or an approved token path is required by npm package settings.
 - The publisher accepts the provenance choice below and has the right npm package permissions.
 
