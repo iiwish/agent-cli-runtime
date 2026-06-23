@@ -82,6 +82,54 @@ The gate emits `schemaVersion: "agent-runtime.runtimeSafety.v1"` JSON with redac
 
 P3-3 is intentionally still local-kernel hardening. It does not implement HTTP, IPC, RPC, auth, users, tenants, queue admission, remote workers, Docker/SSH, telemetry, database, WAL, compaction, UI/artifact layers, or OpenDesign daemon parity.
 
+## P5-1 Published Package Consumer Gate
+
+`npm run published:daemon:verify` is the P5-1 published-package daemon consumer harness. It installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary consumer project, imports only the package root, and runs a long-lived daemon-style process with fake Codex, Claude, and OpenCode binaries on `PATH`.
+
+The gate exercises the published package path, not the local checkout, local `dist/`, or a freshly packed tarball:
+
+1. create a runtime with an isolated `storageDir`;
+2. detect the fake Codex adapter;
+3. run a successful fake task;
+4. create a successful fake goal through the planner/task path;
+5. cancel a running run;
+6. time out a running run;
+7. replay run and goal events;
+8. run read-only store inspection while a writer runtime is active;
+9. verify a second writer for the same `storageDir` is refused without mutating live records;
+10. shut down and reopen terminal records;
+11. recover stale active run/goal records after simulated crash ownership.
+
+The gate emits `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"` JSON with `packageSource: "npm-registry"`, `version`, `checks`, `diagnostics`, and `noAuthenticatedRealRun`. The output is a redacted summary only: it must not include temp paths, private user paths, tokens, raw secrets, or full prompts. It uses fake CLIs only and does not launch authenticated real Codex, Claude Code, or OpenCode runs.
+
+P5-1 is evidence for embeddability of the already published npm package. It does not publish a new npm version, expand package-root value exports, add a daemon/API server, database, WAL, remote worker, queue service, UI, telemetry, or hosted control plane.
+
+## P5-2 Published Package Built-In Adapter Gate
+
+`npm run published:adapters:verify` is the P5-2 published-package built-in adapter compatibility gate. It installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary consumer project, creates fake Codex, Claude, and OpenCode executables, and exercises the already published package's built-in adapter definitions through package-root `createAgentRuntime` and the installed `agent-runtime` CLI.
+
+The gate verifies the published package path, not the local checkout, local `dist/`, or a freshly packed tarball:
+
+1. `agent-runtime agents --json` detects the three fake built-in adapters;
+2. `agent-runtime conformance --mode fake --json` emits `agent-runtime.conformance.v1`;
+3. each built-in adapter runs through its real argv builder, stdin prompt transport, and parser path;
+4. long prompts stay out of argv for Codex, Claude, and OpenCode;
+5. Claude stdin uses stream-json JSONL, while Codex and OpenCode use stdin text;
+6. Claude stream-json partial/unknown events and non-JSON noise do not fail parsing;
+7. Codex and OpenCode non-JSON noise is ignored by parsers;
+8. a forced single-adapter failure still leaves summaries for the other adapters;
+9. token-looking diagnostics, Bearer values, auth env assignments, full prompts, temp paths, private paths, and raw stdout/stderr are excluded from the emitted summary.
+
+The gate emits `schemaVersion: "agent-runtime.publishedAdapters.v1"` with `packageSource: "npm-registry"`, `agents`, `checks`, `diagnostics`, and `noAuthenticatedRealRun`. Stable classification fields include `checks.failureIsolation` and `agents[].terminalStatus`. This is fake-CLI compatibility evidence for the published package's built-in adapter contract. It is not authenticated real Codex, Claude Code, or OpenCode run evidence, and it does not publish npm, expand package-root value exports, or add a daemon/API server, database, WAL, remote worker, queue service, UI, telemetry, or hosted control plane.
+
+## P5-3 Published Package Remote Verification Evidence
+
+`npm run published:verify -- --out-dir published-verification` is the repo-only P5-3 aggregation gate for post-publish evidence. It runs the published package smoke, the P5-1 daemon consumer gate, the P5-2 adapter gate, post-alpha npm/GitHub Release verification, and an npm registry metadata lookup for the current `package.json` version.
+
+The summary is written as `published-verification/published-verification.json` with `schemaVersion: "agent-cli-runtime.publishedVerification.v1"`, `packageSource: "npm-registry"`, gate summaries, registry metadata, `gitSha`, `checkedAt`, and explicit `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` flags. It records gate commands, pass/fail state, output schema versions, durations, selected summary fields, and redacted diagnostics only. It does not store raw stdout/stderr, temp paths, private paths, full prompts, token values, Bearer values, or auth environment assignments.
+
+`.github/workflows/published-package-verification.yml` is manual `workflow_dispatch` only. It runs on Node.js 22, executes `npm ci`, creates and verifies the published verification evidence, and uploads `agent-cli-runtime-published-verification` with the same 14-day retention window as release-candidate artifacts. It is evidence for the already published package on a clean runner; it is not a publish workflow and does not configure registry credentials, provenance, authenticated real agent runs, or hosted daemon behavior.
+
 ## Writer Lease And Store Ownership
 
 The local lease is a best-effort same-machine writer guard. It is not a distributed lock, daemon consensus protocol, WAL, database transaction, or multi-host scheduler.
@@ -176,6 +224,9 @@ Stable daemon-facing schemas:
 | Store health | `agent-runtime.storeHealth.v1` | `schemaVersion`, `ok`, `storageDir`, `checkedAt`, `lock`, `totals`, `corruptManifests`, `corruptEventLogs`, `partialTails`, `activeRecords`, `activeInterrupted`, `warnings`, `storageDiagnostics`, `diagnostics` |
 | Store repair | `agent-runtime.storeRepair.v1` | `schemaVersion`, `storageDir`, `checkedAt`, `dryRun`, `applied`, `ok`, optional `blockedReason`, `actions`, `diagnostics` |
 | CLI JSON error | `agent-runtime.cliError.v1` | `schemaVersion`, `ok`, `error` |
+| Published daemon consumer | `agent-runtime.publishedDaemonConsumer.v1` | `schemaVersion`, `ok`, `packageName`, `version`, `packageSource`, `checks`, `diagnostics`, `noAuthenticatedRealRun` |
+| Published built-in adapter gate | `agent-runtime.publishedAdapters.v1` | `schemaVersion`, `ok`, `packageName`, `version`, `packageSource`, `checks`, `agents`, `diagnostics`, `noAuthenticatedRealRun` |
+| Published verification evidence | `agent-cli-runtime.publishedVerification.v1` | `schemaVersion`, `ok`, `packageName`, `version`, `gitSha`, `checkedAt`, `packageSource`, `gates`, `registry`, `diagnostics`, `noAuthenticatedRealRun`, `noNpmPublish`, `noNpmToken` |
 | Release verification | `agent-cli-runtime.releaseVerification.v1` | `schemaVersion`, `ok`, `checkedFiles`, `tarball`, `diagnostics`, `artifactNames`, `gateEvidence`, `packageName`, `version` |
 | Release gate evidence | `agent-cli-runtime.releaseGateEvidence.v1` | `schemaVersion`, `generatedAt`, `gates`, `noAuthenticatedRealRun`, `noNpmPublish`, `noNpmToken` |
 

@@ -23,13 +23,15 @@ Modern local coding agents already know how to plan, edit files, run tools, ask 
 This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
-- This is a P3-7 API / CLI schema freeze track, not a stable-contract or npm publication record.
-- P3-11 keeps current-head release-candidate evidence outside the npm package under `.release-evidence/`; packaged docs only describe the stable workflow and human-gated alpha publish boundary.
+- `agent-cli-runtime@0.1.0-alpha.1` is published on npm and has GitHub pre-release `v0.1.0-alpha.1`.
+- `agent-cli-runtime@0.1.0-alpha.0` is deprecated because its immutable package docs shipped stale pre-publish state.
+- Current npm dist-tags are `alpha -> 0.1.0-alpha.1` and `latest -> 0.1.0-alpha.1`; because there is no stable version yet, this is recorded as current pre-alpha registry state, not as a failed release.
+- Post-alpha evidence keeps current-head release and downloaded artifact details outside the npm package under `.release-evidence/` or GitHub Release assets.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no API server, no WAL, no database, and no remote runtime mode are included in this pre-alpha track.
 - The package is intended as a local-first execution kernel for embedding in a daemon or product shell, not as a hosted control plane.
 
-The API and CLI schema contract is [docs/api-schema-contract.md](./docs/api-schema-contract.md), the daemon-ready embedding contract is [docs/daemon-ready-contract.md](./docs/daemon-ready-contract.md), the SSOT is [docs/ssot.md](./docs/ssot.md), the release-candidate evidence entrypoint is [docs/release-report.md](./docs/release-report.md), and the future alpha publish runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). The current implementation is a contract-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, package-root API contract tests, tarball TypeScript consumer smoke, installed-package daemon embedding verification, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance/real-smoke/store/release-artifact contracts, redacted diagnostics, parser fixtures, local/remote release artifact verification, remote CI/artifact audit checks, alpha publish readiness docs, and thin local smoke/query CLI commands.
+The API and CLI schema contract is [docs/api-schema-contract.md](./docs/api-schema-contract.md), the daemon-ready embedding contract is [docs/daemon-ready-contract.md](./docs/daemon-ready-contract.md), the SSOT is [docs/ssot.md](./docs/ssot.md), the post-alpha evidence entrypoint is [docs/release-report.md](./docs/release-report.md), and the publish/runbook boundary is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). The current implementation is a contract-hardening library-first Node.js/TypeScript implementation with memory-only default run and goal scheduling, optional durable local replay storage with crash/recovery health reporting, fault-injected consistency coverage, package-root API contract tests, tarball TypeScript consumer smoke, installed-package daemon embedding verification, compatibility profiles for the built-in CLIs, hardened planner/task-graph validation, versioned event/diagnostics/conformance/real-smoke/store/release-artifact contracts, redacted diagnostics, parser fixtures, local/remote release artifact verification, post-alpha registry/GitHub Release evidence normalization, published npm install smoke, remote CI/artifact audit checks, alpha publish readiness docs, and thin local smoke/query CLI commands.
 
 ## Why
 
@@ -280,14 +282,18 @@ void goalRequest;
 void runtime.shutdown();
 ```
 
-The daemon embedding gate installs the packed tarball into a temporary consumer, then executes fake-CLI detect/conformance, run, goal, replay, diagnostics, store inspection, shutdown, and reopen checks. The runtime safety gate uses the same installed-package boundary for repeated run/goal execution, slow event consumption, cancel/timeout churn, repeated shutdown, lease close, and reopen checks:
+The daemon embedding gate installs the packed tarball into a temporary consumer, then executes fake-CLI detect/conformance, run, goal, replay, diagnostics, store inspection, shutdown, and reopen checks. The runtime safety gate uses the same installed-package boundary for repeated run/goal execution, slow event consumption, cancel/timeout churn, repeated shutdown, lease close, and reopen checks. The published daemon consumer gate installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary daemon-style consumer and exercises the published package lifecycle with fake Codex/Claude/OpenCode binaries. The published adapter gate installs the published package from the npm registry and verifies built-in Codex, Claude, and OpenCode adapter detection, argv shape, stdin prompt transport, parser behavior, redaction, and failure isolation with fake CLIs. The published verification gate aggregates those post-publish checks plus registry metadata into a redacted artifact:
 
 ```bash
 npm run daemon:verify
 npm run runtime:safety
+npm run published:daemon:verify
+npm run published:adapters:verify
+npm run published:verify -- --out-dir published-verification
+npm run published:verify:evidence -- --dir published-verification
 ```
 
-The broader release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run daemon:verify`, `npm run runtime:safety`, `npm run dogfood`, and [docs/release-checklist.md](./docs/release-checklist.md).
+The broader release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run daemon:verify`, `npm run runtime:safety`, `npm run published:daemon:verify`, `npm run published:adapters:verify`, `npm run published:verify`, `npm run dogfood`, and [docs/release-checklist.md](./docs/release-checklist.md).
 
 Required local agent CLIs are optional by scenario:
 
@@ -334,6 +340,10 @@ Use one of the quick verification command sets before release:
 npm run ci
 npm run daemon:verify
 npm run runtime:safety
+npm run published:daemon:verify
+npm run published:adapters:verify
+npm run published:verify -- --out-dir published-verification
+npm run published:verify:evidence -- --dir published-verification
 npm run dogfood
 npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
@@ -346,7 +356,26 @@ node ./dist/cli/main.js smoke --mode real --agent codex --json
 
 CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node release-gates job runs `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` so the full matrix does not launch redundant installed-package gates. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
 
-For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, daemon embedding verification, runtime safety verification, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`; the generated artifact set includes `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`. Version `0.1.0-alpha.0` was published to npm and has a GitHub pre-release at `v0.1.0-alpha.0`; that immutable tarball contains stale pre-publish status text, so `0.1.0-alpha.1` is the corrective alpha candidate. Because release docs are included in the npm package, volatile current-run evidence must stay outside packaged docs under `.release-evidence/` or GitHub Release assets. A real alpha publish requires a fresh release-candidate workflow for the exact commit being published, downloaded artifacts passing `npm run release:verify -- --dir <normalized-artifact-dir>`, and explicit maintainer authorization for `npm publish --tag alpha`.
+For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, daemon embedding verification, runtime safety verification, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`; the generated artifact set includes `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`. Version `0.1.0-alpha.1` is now published to npm and has GitHub pre-release `v0.1.0-alpha.1`; version `0.1.0-alpha.0` is deprecated because its immutable tarball contains stale pre-publish status text. Current npm dist-tags are `alpha -> 0.1.0-alpha.1` and `latest -> 0.1.0-alpha.1`, which is acceptable while only pre-alpha versions exist. Because release docs are included in the npm package, volatile current-run evidence must stay outside packaged docs under `.release-evidence/` or GitHub Release assets.
+
+Post-alpha verification:
+
+```bash
+npm run release:post-alpha:verify
+npm run smoke:published
+npm run published:daemon:verify
+npm run published:adapters:verify
+npm run published:verify -- --out-dir published-verification
+npm run published:verify:evidence -- --dir published-verification
+```
+
+`release:post-alpha:verify` compares the npm registry tarball with the `v0.1.0-alpha.1` GitHub Release tarball. Raw gzip SHA1/SHA256 values may differ because the registry tarball and Release asset are separate packaging artifacts; the package content boundary is npm registry `shasum`/`integrity`, matching unpacked package file list and content, and `npm run release:verify -- --dir <downloaded-github-release-assets-dir>`.
+
+`published:daemon:verify` installs the already published npm package from the registry, not the local checkout or local `dist/`, and emits `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"` with `packageSource: "npm-registry"`. It uses fake CLIs only and covers detect, run, goal, cancel, timeout, replay, read-only inspection while a writer is active, second-writer refusal, shutdown/reopen, and stale owner recovery without launching authenticated real agent runs.
+
+`published:adapters:verify` also installs from the npm registry and emits `schemaVersion: "agent-runtime.publishedAdapters.v1"` with `packageSource: "npm-registry"`. It uses fake Codex/Claude/OpenCode binaries to verify the published package's built-in adapter invocation shape, stdin prompt transport, parser noise tolerance, redaction, and per-adapter failure isolation. This is fake-CLI adapter contract evidence, not authenticated real CLI compatibility success evidence.
+
+`published:verify` emits `schemaVersion: "agent-cli-runtime.publishedVerification.v1"` and writes `published-verification/published-verification.json` by default. It aggregates `smoke:published`, `published:daemon:verify`, `published:adapters:verify`, `release:post-alpha:verify`, and npm registry metadata without storing raw stdout/stderr or requiring publish credentials. The manual GitHub Actions `Published Package Verification` workflow runs the same post-publish verification on Node.js 22 and uploads `agent-cli-runtime-published-verification`.
 
 To create a local release-candidate artifact set without publishing, run:
 
@@ -357,7 +386,7 @@ npm run release:verify -- --dir release-candidate
 
 `release:candidate` writes `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, the tarball, and `release-verification.json` to the output directory. `release:verify` can also validate the same files after downloading GitHub Actions artifacts, including proof that `daemon:verify` and `runtime:safety` were recorded for the candidate.
 
-The release evidence summary is [docs/release-report.md](./docs/release-report.md). The alpha publish decision runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate.
+The release evidence summary is [docs/release-report.md](./docs/release-report.md). The alpha publish decision runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate. Published package verification is a separate manual post-publish workflow, not a publish workflow.
 
 Runnable examples are in [examples/library-run.js](./examples/library-run.js), [examples/library-goal.js](./examples/library-goal.js), and [examples/cli-dogfood.md](./examples/cli-dogfood.md). The JavaScript examples create local fake CLIs and do not require real provider secrets.
 

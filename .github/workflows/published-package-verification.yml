@@ -1,0 +1,57 @@
+name: Published Package Verification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  published-package-verification:
+    name: Verify published package on Node.js 22.x
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Assert audit-only workflow boundary
+        run: |
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const text = fs.readFileSync(".github/workflows/published-package-verification.yml", "utf8");
+          const blocked = [
+            "npm " + "publish",
+            "NODE" + "_AUTH_TOKEN",
+            "NPM" + "_TOKEN",
+            "id" + "-token",
+            "trusted " + "publishing",
+            "--allow" + "-real-run",
+          ];
+          for (const value of blocked) {
+            if (text.includes(value)) {
+              console.error("blocked release credential or real-run boundary found");
+              process.exit(1);
+            }
+          }
+          NODE
+
+      - name: Create published package verification evidence
+        run: npm run published:verify -- --out-dir published-verification
+
+      - name: Verify published package evidence
+        run: npm run published:verify:evidence -- --dir published-verification
+
+      - name: Upload published verification artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: agent-cli-runtime-published-verification
+          path: published-verification
+          if-no-files-found: error
+          retention-days: 14

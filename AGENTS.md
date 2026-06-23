@@ -18,6 +18,14 @@
 - Keep the user's real goal in view. If the request is "add Chinese i18n," optimize for a usable Chinese product, not perfect documentation choreography.
 - Before adding more process, ask: does this reduce product risk, or is it workflow theater?
 
+## Git 工作流
+
+- `0.1.0-alpha.1` 已发布后，默认不要直接在 `main` 上提交后续改动。
+- 默认流程是从当前目标分出 `codex/<short-topic>` 分支，完成实现、验证和本地提交后，通过 PR 合并。
+- release、workflow、schema、README/docs、package boundary、publish/runbook、evidence 相关改动必须优先走分支 + PR，因为这些内容会影响下一次 release evidence 或 npm package 内容。
+- 只有用户明确要求“直接提交到 main”或“在当前分支提交”时，才可以跳过分支/PR 流程。
+- 合并到 `main` 后，涉及 release/published verification 的改动需要重新触发 fresh workflow；历史 workflow run 只能证明自己的 head SHA。
+
 ## i18n Boundary
 
 - Translate user-visible application chrome: navigation, settings, dialogs, errors, empty states, help content, command labels, tooltips, and status messages.

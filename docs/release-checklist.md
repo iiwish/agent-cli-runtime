@@ -1,15 +1,56 @@
 # Release Checklist (pre-alpha / developer preview)
 
-## 0.1.0-alpha.1 corrective alpha package
+## P5-3 published package remote verification evidence workflow
 
-- [ ] Confirm `package.json` and `package-lock.json` version are `0.1.0-alpha.1`.
-- [ ] Confirm packaged README/docs no longer describe the current package as unpublished or forbid the already-created GitHub pre-release.
-- [ ] Confirm `0.1.0-alpha.0` is treated as immutable historical npm/GitHub Release evidence, not overwritten.
-- [ ] Trigger a fresh Release Candidate workflow for the corrective commit and verify its `headSha` equals that commit.
-- [ ] Download all five release-candidate artifacts and run `npm run release:verify -- --dir <normalized-artifact-dir>`.
-- [ ] Run local gates: `npm run typecheck`, `npm run lint`, `npm test`, `npm run package:check`, and `npm publish --dry-run --ignore-scripts --tag alpha`.
-- [ ] Publish `agent-cli-runtime@0.1.0-alpha.1` only after explicit maintainer authorization and interactive npm authentication.
-- [ ] Create GitHub pre-release `v0.1.0-alpha.1` and attach durable release evidence assets.
+- [x] `npm run published:verify` exists and emits `schemaVersion: "agent-cli-runtime.publishedVerification.v1"` evidence under `published-verification/` by default.
+- [x] The aggregator runs `smoke:published`, `published:daemon:verify`, `published:adapters:verify`, `release:post-alpha:verify`, and npm registry metadata lookup for the current package version.
+- [x] `npm run published:verify:evidence` verifies the schema, all four gate summaries, npm registry source, redaction boundaries, and `noAuthenticatedRealRun` / `noNpmPublish` / `noNpmToken` flags.
+- [x] `.github/workflows/published-package-verification.yml` is manual `workflow_dispatch`, uses Node.js 22, runs `npm ci`, creates and verifies `published-verification`, and uploads `agent-cli-runtime-published-verification` with 14-day retention.
+- [x] The workflow remains post-publish verification only: it does not publish npm, configure registry credentials, configure provenance/trusted publishing, pass `--allow-real-run`, or launch authenticated real Codex/Claude/OpenCode runs.
+- [x] `published-verification/` and the repo-only P5-3 scripts are outside package runtime API and excluded from npm pack.
+- [x] Contract tests cover npm script presence, workflow safety boundary, artifact name/retention, schema inventory, package boundary, and verifier self-test for redaction plus failed-gate summaries.
+
+## P5-2 published-package built-in adapter compatibility gate
+
+- [x] `npm run published:adapters:verify` exists and emits `schemaVersion: "agent-runtime.publishedAdapters.v1"`.
+- [x] The gate installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary consumer project, not from local `dist/` or a freshly packed tarball.
+- [x] The consumer uses package-root `createAgentRuntime` and the installed `agent-runtime` CLI without expanding package-root value exports.
+- [x] Fake `codex`, `claude`, and `opencode-cli`/`opencode` binaries cover built-in adapter detection, argv shape, stdin prompt transport, parser behavior, and diagnostics.
+- [x] Codex uses `codex exec --json --skip-git-repo-check -C <cwd>` with stdin text; Claude uses `claude -p --input-format stream-json --output-format stream-json --verbose` with stdin JSONL; OpenCode uses `opencode run --format json --dir <cwd>` with stdin text.
+- [x] Long prompts are asserted absent from argv for all three adapters.
+- [x] `agent-runtime conformance --mode fake --json` is checked for `agent-runtime.conformance.v1`.
+- [x] Claude stream-json noise plus partial/unknown events and Codex/OpenCode non-JSON noise are parser-tolerated.
+- [x] A forced single-adapter failure still leaves summaries for the other adapters.
+- [x] Output includes `packageSource: "npm-registry"`, `version`, `checks`, `agents`, `diagnostics`, and `noAuthenticatedRealRun`.
+- [x] Output and failure JSON are redacted for temp paths, private user paths, token-looking values, Bearer values, auth env assignments, raw stdout/stderr, and full prompts.
+- [x] Contract tests verify the script schema self-test, redaction boundaries, failure isolation summary, npm script stability, and repo-only package boundary.
+- [x] P5-2 does not publish npm, configure trusted publishing/provenance/npm tokens, launch authenticated real Codex/Claude/OpenCode runs, add daemon/API server/database/WAL/remote worker/UI/telemetry, or expand package-root value exports.
+
+## P5-1 published-package daemon consumer harness
+
+- [x] `npm run published:daemon:verify` exists and emits `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"`.
+- [x] The gate installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary consumer project, not from local `dist/` or a freshly packed tarball.
+- [x] The consumer imports only `createAgentRuntime` from the package root and does not expand package-root value exports.
+- [x] Fake Codex, Claude, and OpenCode binaries are used; no authenticated real Codex/Claude/OpenCode run is launched.
+- [x] The gate covers detect, run success, goal success, cancel, timeout, run/goal replay, read-only inspection while writer ownership is active, second-writer refusal, shutdown/reopen, and stale owner recovery.
+- [x] Output includes `packageSource: "npm-registry"`, `version`, `checks`, `diagnostics`, and `noAuthenticatedRealRun`.
+- [x] Output and failure JSON are redacted for temp paths, private user paths, token-looking values, Bearer values, auth env assignments, and full prompts.
+- [x] Contract tests verify the script exists, the npm script is stable, the script contains no `--allow-real-run`, no npm publish command, and no `NODE_AUTH_TOKEN`, and package boundary checks keep temporary artifacts, `.reference/`, and `.release-evidence/` out of npm pack.
+- [x] P5-1 does not publish npm, add daemon/API server, database, WAL, remote worker, queue service, UI, telemetry, hosted control plane, or OpenDesign code.
+
+## 0.1.0-alpha.1 post-alpha evidence normalization
+
+- [x] Confirm `package.json` and `package-lock.json` version are `0.1.0-alpha.1`.
+- [x] Confirm `agent-cli-runtime@0.1.0-alpha.1` is published to npm.
+- [x] Confirm GitHub pre-release `v0.1.0-alpha.1` exists.
+- [x] Confirm `agent-cli-runtime@0.1.0-alpha.0` is deprecated and treated as immutable historical npm/GitHub Release evidence, not overwritten.
+- [x] Record current npm dist-tags as `alpha -> 0.1.0-alpha.1` and `latest -> 0.1.0-alpha.1`; this is current pre-alpha registry state while no stable version exists.
+- [x] Run `npm run release:post-alpha:verify` and confirm raw npm/GitHub gzip hashes may differ only when unpacked package files and content match.
+- [x] Download GitHub Release assets for `v0.1.0-alpha.1` and run `npm run release:verify -- --dir <downloaded-github-release-assets-dir>`.
+- [x] Run `npm run smoke:published` to verify registry install, package-root ESM import, and `agent-runtime agents --json` parse.
+- [x] Confirm packaged README/docs describe `0.1.0-alpha.1` as published and keep the already-created GitHub pre-release as valid evidence.
+- [x] Run local gates: `npm run typecheck`, `npm run lint`, `npm test`, and `npm run package:check`.
+- [x] No new npm version is published for P4-1.
 
 ## P3-11 current-head release candidate evidence boundary
 
@@ -23,7 +64,7 @@
 
 - [x] `docs/api-schema-contract.md` records the public root boundary and package-root value export remains `createAgentRuntime`.
 - [x] `docs/api-schema-contract.md` records schema versioning policy for optional additive fields, breaking field changes, terminal/failure vocabulary changes, and CLI command/flag semantic changes.
-- [x] Schema inventory covers `agent-runtime.event.v1`, `agent-runtime.diagnostics.v1`, `agent-runtime.conformance.v1`, `agent-runtime.realSmoke.v1`, `agent-runtime.storeHealth.v1`, `agent-runtime.storeRepair.v1`, `agent-runtime.cliError.v1`, `agent-cli-runtime.releaseVerification.v1`, and `agent-cli-runtime.releaseGateEvidence.v1`.
+- [x] Schema inventory covers `agent-runtime.event.v1`, `agent-runtime.diagnostics.v1`, `agent-runtime.conformance.v1`, `agent-runtime.publishedAdapters.v1`, `agent-cli-runtime.publishedVerification.v1`, `agent-runtime.realSmoke.v1`, `agent-runtime.storeHealth.v1`, `agent-runtime.storeRepair.v1`, `agent-runtime.cliError.v1`, `agent-cli-runtime.releaseVerification.v1`, and `agent-cli-runtime.releaseGateEvidence.v1`.
 - [x] Failure taxonomy keeps `success`, `failed`, `timeout`, `canceled`, `interrupted`, `validation_failed`, `execution_failed`, `unavailable`, `auth_missing`, and `task_graph_invalid` as event terminal reasons.
 - [x] Smoke/conformance classifications keep `success`, `real_run_skipped`, `auth_missing`, `unavailable_executable`, `unsupported_flag`, `needs_verification`, `unexpected_output`, `cwd_mutated`, `timeout`, and `failed`.
 - [x] Docs state that skipped evidence is not success, `auth_missing` is not unavailable, and `needs_verification` must not be guessed into a flag mapping.

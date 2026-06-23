@@ -87,6 +87,7 @@ for (const required of requiredFiles) {
 
 const disallowedPathPatterns = [
   /^\.release-evidence(?:\/|$)/u,
+  /^published-verification(?:\/|$)/u,
   /^\.reference(?:\/|$)/u,
   /^tests(?:\/|$)/u,
   /fixtures?/iu,
@@ -136,6 +137,15 @@ const secretPatterns = [
 ];
 
 const publishOverclaimPatterns = [
+  {
+    name: "published alpha described as unpublished",
+    pattern:
+      /(?:0\.1\.0-alpha\.1|alpha\.1)[^\n]*(?:not published|unpublished|has not occurred|未发布|尚未发布|尚未发生)/iu,
+  },
+  {
+    name: "published GitHub release described as forbidden",
+    pattern: /(?:do not publish|don't publish|不要发布|不发布)[^\n]*(?:GitHub release|GitHub pre-release)/iu,
+  },
   {
     name: "dry-run described as real publish",
     pattern: /npm publish --dry-run[^\n]*(?:really published|published to npm|真实发布成功|已经发布到 npm|已发布到 npm)/iu,

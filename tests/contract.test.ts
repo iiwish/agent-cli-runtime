@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { chmod, mkdir, readFile, readdir, writeFile, lstat } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, writeFile, lstat, stat, utimes } from "node:fs/promises";
 import path, { delimiter } from "node:path";
 import { createAgentRuntime } from "../src/index.js";
 import {
@@ -42,6 +43,12 @@ const execFileP = promisify(execFile);
 const root = path.resolve(import.meta.dirname, "..");
 const cli = path.join(root, "dist", "cli", "main.js");
 const releaseVerifier = path.join(root, "scripts", "verify-release-artifacts.mjs");
+const postAlphaVerifier = path.join(root, "scripts", "verify-post-alpha-release.mjs");
+const publishedSmoke = path.join(root, "scripts", "smoke-published.mjs");
+const publishedDaemonConsumerVerifier = path.join(root, "scripts", "verify-published-daemon-consumer.mjs");
+const publishedAdaptersVerifier = path.join(root, "scripts", "verify-published-adapters.mjs");
+const publishedVerificationCreator = path.join(root, "scripts", "create-published-verification-evidence.mjs");
+const publishedVerificationVerifier = path.join(root, "scripts", "verify-published-verification-evidence.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
@@ -52,6 +59,9 @@ const expectedReleaseCandidateArtifacts = [
   "agent-cli-runtime-package-files",
   "agent-cli-runtime-gate-evidence",
   "agent-cli-runtime-release-verification",
+];
+const expectedPublishedVerificationArtifacts = [
+  "agent-cli-runtime-published-verification",
 ];
 
 function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
@@ -156,6 +166,10 @@ function isLikelyBinary(buffer: Buffer): boolean {
     }
   }
   return maxScan > 0 ? suspiciousBytes / maxScan > 0.2 : false;
+}
+
+async function digest(file: string, algorithm: "sha1" | "sha256"): Promise<string> {
+  return createHash(algorithm).update(await readFile(file)).digest("hex");
 }
 
 describe("public contract", () => {
@@ -288,6 +302,7 @@ describe("public contract", () => {
     expect(releaseVerifierText).toContain("agent-cli-runtime.releaseVerification.v1");
     expect(releaseVerifierText).toContain("agent-cli-runtime.releaseGateEvidence.v1");
     expect(releaseCandidateCreatorText).toContain("agent-cli-runtime.releaseGateEvidence.v1");
+    expect(apiContract).toContain("agent-cli-runtime.publishedVerification.v1");
   });
 
   it("keeps public docs from over-claiming API stability or hosted daemon readiness", async () => {
@@ -313,16 +328,30 @@ describe("public contract", () => {
   it("keeps installed-package daemon and runtime safety gates out of the default test matrix", async () => {
     const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
       scripts: Record<string, string>;
+      files: string[];
     };
     const daemonScript = await readFile(daemonVerifier, "utf8");
     const runtimeSafetyScript = await readFile(runtimeSafetyVerifier, "utf8");
+    const publishedDaemonScript = await readFile(publishedDaemonConsumerVerifier, "utf8");
+    const publishedAdaptersScript = await readFile(publishedAdaptersVerifier, "utf8");
+    const publishedVerificationScript = await readFile(publishedVerificationCreator, "utf8");
+    const publishedVerificationVerifierScript = await readFile(publishedVerificationVerifier, "utf8");
 
     expect(manifest.scripts.test).not.toContain("daemon:verify");
     expect(manifest.scripts.test).not.toContain("runtime:safety");
+    expect(manifest.scripts.test).not.toContain("published:daemon:verify");
+    expect(manifest.scripts.test).not.toContain("published:adapters:verify");
+    expect(manifest.scripts.test).not.toContain("published:verify");
     expect(manifest.scripts.ci).not.toContain("daemon:verify");
     expect(manifest.scripts.ci).not.toContain("runtime:safety");
+    expect(manifest.scripts.ci).not.toContain("published:daemon:verify");
+    expect(manifest.scripts.ci).not.toContain("published:adapters:verify");
+    expect(manifest.scripts.ci).not.toContain("published:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("published:daemon:verify");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("published:adapters:verify");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("published:verify");
 
     expect(daemonScript).toContain("agent-runtime.daemonVerification.v1");
     expect(daemonScript).toContain("installed-tarball");
@@ -339,6 +368,194 @@ describe("public contract", () => {
     expect(runtimeSafetyScript).not.toContain("--allow-real-run");
     expect(runtimeSafetyScript).not.toMatch(/\bnpm publish\b/u);
     expect(runtimeSafetyScript).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(manifest.scripts["published:daemon:verify"]).toBe("node ./scripts/verify-published-daemon-consumer.mjs");
+    expect(publishedDaemonScript).toContain("agent-runtime.publishedDaemonConsumer.v1");
+    expect(publishedDaemonScript).toContain("packageSource: \"npm-registry\"");
+    expect(publishedDaemonScript).toContain("\"install\", spec");
+    expect(publishedDaemonScript).toContain("createAgentRuntime");
+    expect(publishedDaemonScript).toContain("secondWriterRefusal");
+    expect(publishedDaemonScript).toContain("staleOwnerRecovery");
+    expect(publishedDaemonScript).not.toContain("--allow-real-run");
+    expect(publishedDaemonScript).not.toMatch(/\bnpm publish\b/u);
+    expect(publishedDaemonScript).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(manifest.scripts["published:adapters:verify"]).toBe("node ./scripts/verify-published-adapters.mjs");
+    expect(manifest.files).not.toContain("scripts/verify-published-adapters.mjs");
+    expect(publishedAdaptersScript).toContain("agent-runtime.publishedAdapters.v1");
+    expect(publishedAdaptersScript).toContain("packageSource: \"npm-registry\"");
+    expect(publishedAdaptersScript).toContain("\"install\", spec");
+    expect(publishedAdaptersScript).toContain("createAgentRuntime");
+    expect(publishedAdaptersScript).toContain("conformance");
+    expect(publishedAdaptersScript).toContain("failureIsolation");
+    expect(publishedAdaptersScript).toContain("promptNotInArgv");
+    expect(publishedAdaptersScript).not.toContain("--allow-real-run");
+    expect(publishedAdaptersScript).not.toMatch(/\bnpm publish\b/u);
+    expect(publishedAdaptersScript).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(manifest.scripts["published:verify"]).toBe("node ./scripts/create-published-verification-evidence.mjs");
+    expect(manifest.scripts["published:verify:evidence"]).toBe("node ./scripts/verify-published-verification-evidence.mjs");
+    expect(manifest.files).not.toContain("scripts/create-published-verification-evidence.mjs");
+    expect(manifest.files).not.toContain("scripts/verify-published-verification-evidence.mjs");
+    expect(publishedVerificationScript).toContain("agent-cli-runtime.publishedVerification.v1");
+    expect(publishedVerificationScript).toContain("npm run smoke:published");
+    expect(publishedVerificationScript).toContain("npm run published:daemon:verify");
+    expect(publishedVerificationScript).toContain("npm run published:adapters:verify");
+    expect(publishedVerificationScript).toContain("npm run release:post-alpha:verify");
+    expect(publishedVerificationScript).toContain("npm view");
+    expect(publishedVerificationScript).toContain("noAuthenticatedRealRun: true");
+    expect(publishedVerificationScript).toContain("noNpmPublish: true");
+    expect(publishedVerificationScript).toContain("noNpmToken: true");
+    expect(publishedVerificationScript).toContain("outDir: displayPath(outDir)");
+    expect(publishedVerificationScript).toContain("return path.basename(file)");
+    expect(publishedVerificationScript).not.toMatch(/\bnpm publish\b/u);
+    expect(publishedVerificationScript).not.toContain("--allow-real-run");
+    expect(publishedVerificationVerifierScript).toContain("agent-cli-runtime.publishedVerification.v1");
+    expect(publishedVerificationVerifierScript).toContain("failedGateRejected");
+    expect(publishedVerificationVerifierScript).toContain("unsafeContentRejected");
+    expect(publishedVerificationVerifierScript).not.toMatch(/\bnpm publish\b/u);
+    expect(publishedVerificationVerifierScript).not.toContain("--allow-real-run");
+  });
+
+  it("keeps published verification evidence verifier strict, redacted, and offline testable", async () => {
+    const { stdout } = await execFileP(process.execPath, [publishedVerificationVerifier, "--self-test"]);
+    const result = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      checks: {
+        validSummaryAccepted: boolean;
+        failedGateRejected: boolean;
+        unsafeContentRejected: boolean;
+        safetyFlagsChecked: boolean;
+      };
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+    };
+
+    expect(result).toMatchObject({
+      schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+      ok: true,
+      checks: {
+        validSummaryAccepted: true,
+        failedGateRejected: true,
+        unsafeContentRejected: true,
+        safetyFlagsChecked: true,
+      },
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+  });
+
+  it("keeps published verification creator stdout from leaking external temp paths on usage errors", async () => {
+    const externalOutDir = path.join(await tempDir("agent-runtime-published-verification-out-"), "evidence");
+    const failure = await execCliFailureViaNode([
+      publishedVerificationCreator,
+      "--out-dir",
+      externalOutDir,
+      "--unknown",
+    ]);
+    const payload = JSON.parse(failure.stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      diagnostics: Array<{ code: string; message: string }>;
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+    };
+
+    expect(failure.code).toBe(1);
+    expect(payload).toMatchObject({
+      schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+      ok: false,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+    expect(failure.stdout).not.toContain(externalOutDir);
+    expect(failure.stdout).not.toContain("/tmp/");
+    expect(failure.stdout).not.toContain("/private/tmp/");
+    expect(failure.stdout).not.toContain("/var/folders/");
+  });
+
+  it("keeps published adapters verifier schema, redaction, and failure isolation stable", async () => {
+    const { stdout } = await execFileP(process.execPath, [publishedAdaptersVerifier, "--self-test"]);
+    const payload = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageName: string;
+      version: string;
+      packageSource: string;
+      checks: Record<string, boolean>;
+      agents: Array<{ adapter: string; promptInArgv: boolean; invocationShapeMatched: boolean; argvShape: string[]; stdinBytesObserved: boolean; stdinFormatMatched: boolean }>;
+      diagnostics: { conformanceSchemaVersion: string; failureIsolation: { agents: Array<{ adapter: string; terminalStatus: string }> } };
+      noAuthenticatedRealRun: boolean;
+    };
+    const text = JSON.stringify(payload);
+
+    expect(payload).toMatchObject({
+      schemaVersion: "agent-runtime.publishedAdapters.v1",
+      ok: true,
+      packageName: "agent-cli-runtime",
+      packageSource: "npm-registry",
+      noAuthenticatedRealRun: true,
+    });
+    expect(payload.checks).toMatchObject({
+      cliAgentsDetectsFakeAdapters: true,
+      conformanceFakeSchema: true,
+      summariesForAllAdapters: true,
+      invocationShapeMatched: true,
+      promptNotInArgv: true,
+      parserExpectedText: true,
+      diagnosticsRedacted: true,
+      failureIsolation: true,
+      packageBoundaryRepoOnly: true,
+    });
+    expect(payload.agents.map((agent) => agent.adapter).sort()).toEqual(["claude", "codex", "opencode"]);
+    expect(payload.agents.every((agent) => agent.invocationShapeMatched && agent.promptInArgv === false && agent.stdinBytesObserved && agent.stdinFormatMatched)).toBe(true);
+    expect(payload.agents.find((agent) => agent.adapter === "codex")?.argvShape).toEqual(["exec", "--json", "--skip-git-repo-check", "-C", "<cwd>"]);
+    expect(payload.agents.find((agent) => agent.adapter === "claude")?.argvShape).toEqual(["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]);
+    expect(payload.agents.find((agent) => agent.adapter === "opencode")?.argvShape).toEqual(["run", "--format", "json", "--dir", "<cwd>"]);
+    expect(payload.diagnostics.conformanceSchemaVersion).toBe("agent-runtime.conformance.v1");
+    expect(payload.diagnostics.failureIsolation.agents).toEqual(expect.arrayContaining([
+      { adapter: "claude", terminalStatus: "failed", diagnosticsCount: 1 },
+      { adapter: "codex", terminalStatus: "succeeded", diagnosticsCount: 0 },
+      { adapter: "opencode", terminalStatus: "succeeded", diagnosticsCount: 0 },
+    ]));
+    for (const forbidden of ["/tmp/", "/private/tmp/", "/var/folders/", process.env.HOME, "P5_PUBLISHED_ADAPTER_COMPAT_PROMPT_", "Bearer ", "ANTHROPIC_AUTH_TOKEN=", "sk-"].filter(Boolean)) {
+      expect(text).not.toContain(forbidden);
+    }
+  });
+
+  it("keeps published daemon consumer verifier error JSON stable and redacted", async () => {
+    const failure = await execCliFailureViaNode([
+      publishedDaemonConsumerVerifier,
+      "/tmp/leak sk-" + "A".repeat(24) + " Bearer " + "B".repeat(20) + " /private/tmp/leak /var/folders/leak /Users/example/leak",
+    ]);
+    const payload = JSON.parse(failure.stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageSource: string;
+      version: string | null;
+      checks: Record<string, unknown>;
+      diagnostics: Array<{ message?: string }>;
+      noAuthenticatedRealRun: boolean;
+    };
+    const text = JSON.stringify(payload);
+
+    expect(failure.code).toBe(1);
+    expect(payload).toMatchObject({
+      schemaVersion: "agent-runtime.publishedDaemonConsumer.v1",
+      ok: false,
+      packageSource: "npm-registry",
+      version: null,
+      checks: {},
+      noAuthenticatedRealRun: true,
+    });
+    for (const forbidden of ["/tmp/", "/private/tmp/", "/var/folders/", "/Users/example", "sk-" + "A".repeat(24), "Bearer " + "B".repeat(20)]) {
+      expect(text).not.toContain(forbidden);
+    }
   });
 
   it("keeps the package root focused on the runtime facade and public types", async () => {
@@ -1966,6 +2183,7 @@ setInterval(() => {}, 1000);
     expect(files).toContain("docs/release-publish-runbook.md");
     expect(files).toContain("docs/api-schema-contract.md");
     expect(files).toContain("docs/ssot.md");
+    expect(files).not.toContainEqual(expect.stringMatching(/^published-verification\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^\.release-evidence\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^\.reference\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\//u));
@@ -2083,6 +2301,218 @@ setInterval(() => {}, 1000);
     ]);
     expect([...verification.artifactNames].sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
     expect(stdout).not.toContain(dir);
+  });
+
+  it("accepts different npm and GitHub tarball gzip hashes when unpacked package content matches", async () => {
+    const dir = await tempDir("agent-runtime-post-alpha-fixture-");
+    const npmRoot = path.join(dir, "npm-root", "package");
+    const githubRoot = path.join(dir, "github-root", "package");
+    for (const packageRoot of [npmRoot, githubRoot]) {
+      await mkdir(path.join(packageRoot, "dist"), { recursive: true });
+      await writeFile(path.join(packageRoot, "package.json"), JSON.stringify({
+        name: "agent-cli-runtime",
+        version: "0.1.0-alpha.1",
+        type: "module",
+      }, null, 2), "utf8");
+      await writeFile(path.join(packageRoot, "README.md"), "published alpha package docs\n", "utf8");
+      await writeFile(path.join(packageRoot, "dist", "index.js"), "export function createAgentRuntime() {}\n", "utf8");
+    }
+    const future = new Date("2030-01-01T00:00:00.000Z");
+    await utimes(path.join(githubRoot, "README.md"), future, future);
+
+    const npmTgz = path.join(dir, "npm-registry.tgz");
+    const githubTgz = path.join(dir, "github-release.tgz");
+    await execFileP("tar", ["-czf", npmTgz, "-C", path.join(dir, "npm-root"), "package"]);
+    await execFileP("tar", ["-czf", githubTgz, "-C", path.join(dir, "github-root"), "package"]);
+
+    const npmDistJson = path.join(dir, "npm-dist.json");
+    const githubReleaseJson = path.join(dir, "github-release.json");
+    const distTagsJson = path.join(dir, "dist-tags.json");
+    await writeFile(npmDistJson, JSON.stringify({
+      dist: {
+        shasum: await digest(npmTgz, "sha1"),
+        integrity: "sha512-fixture",
+        tarball: "https://registry.npmjs.org/agent-cli-runtime/-/agent-cli-runtime-0.1.0-alpha.1.tgz",
+        fileCount: 3,
+        unpackedSize: 123,
+      },
+    }), "utf8");
+    await writeFile(githubReleaseJson, JSON.stringify({
+      tagName: "v0.1.0-alpha.1",
+      targetCommitish: "e173d65f0abc2aaf070ca27debb97178d30092d4",
+      isPrerelease: true,
+      isDraft: false,
+      assets: [{
+        name: "agent-cli-runtime-0.1.0-alpha.1.tgz",
+        size: (await stat(githubTgz)).size,
+        digest: `sha256:${await digest(githubTgz, "sha256")}`,
+        url: "https://github.com/iiwish/agent-cli-runtime/releases/download/v0.1.0-alpha.1/agent-cli-runtime-0.1.0-alpha.1.tgz",
+      }],
+    }), "utf8");
+    await writeFile(distTagsJson, JSON.stringify({
+      alpha: "0.1.0-alpha.1",
+      latest: "0.1.0-alpha.1",
+    }), "utf8");
+
+    const { stdout } = await execFileP(process.execPath, [
+      postAlphaVerifier,
+      "--version",
+      "0.1.0-alpha.1",
+      "--npm-tarball",
+      npmTgz,
+      "--github-tarball",
+      githubTgz,
+      "--npm-dist-json",
+      npmDistJson,
+      "--github-release-json",
+      githubReleaseJson,
+      "--dist-tags-json",
+      distTagsJson,
+    ]);
+    const result = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      npm: { distTags: Record<string, string>; registryShasumMatches: boolean };
+      githubRelease: { tarballAsset: { digestMatchesDownloadedSha256: boolean } };
+      comparison: {
+        gzipHashesMatch: boolean;
+        expectedDifferentGzipPackaging: boolean;
+        acceptable: boolean;
+        rule: string;
+        contentBoundary: string;
+        unpackedPackage: { match: boolean; fileCount: number; changed: string[] };
+      };
+    };
+
+    expect(result).toMatchObject({
+      schemaVersion: "agent-cli-runtime.postAlphaEvidence.v1",
+      ok: true,
+      npm: {
+        distTags: { alpha: "0.1.0-alpha.1", latest: "0.1.0-alpha.1" },
+        registryShasumMatches: true,
+      },
+      githubRelease: {
+        tarballAsset: { digestMatchesDownloadedSha256: true },
+      },
+      comparison: {
+        gzipHashesMatch: false,
+        expectedDifferentGzipPackaging: true,
+        acceptable: true,
+        unpackedPackage: { match: true, fileCount: 3, changed: [] },
+      },
+    });
+    expect(result.comparison.rule).toContain("gzip tarball hashes may differ");
+    expect(result.comparison.contentBoundary).toContain("npm registry shasum/integrity");
+    expect(stdout).not.toContain(dir);
+  });
+
+  it("fails post-alpha verification when unpacked npm and GitHub package content differs", async () => {
+    const dir = await tempDir("agent-runtime-post-alpha-mismatch-");
+    const npmRoot = path.join(dir, "npm-root", "package");
+    const githubRoot = path.join(dir, "github-root", "package");
+    for (const packageRoot of [npmRoot, githubRoot]) {
+      await mkdir(packageRoot, { recursive: true });
+      await writeFile(path.join(packageRoot, "package.json"), JSON.stringify({ name: "agent-cli-runtime", version: "0.1.0-alpha.1" }), "utf8");
+    }
+    await writeFile(path.join(npmRoot, "README.md"), "npm registry content\n", "utf8");
+    await writeFile(path.join(githubRoot, "README.md"), "different release content\n", "utf8");
+    const npmTgz = path.join(dir, "npm-registry.tgz");
+    const githubTgz = path.join(dir, "github-release.tgz");
+    await execFileP("tar", ["-czf", npmTgz, "-C", path.join(dir, "npm-root"), "package"]);
+    await execFileP("tar", ["-czf", githubTgz, "-C", path.join(dir, "github-root"), "package"]);
+    const npmDistJson = path.join(dir, "npm-dist.json");
+    const githubReleaseJson = path.join(dir, "github-release.json");
+    const distTagsJson = path.join(dir, "dist-tags.json");
+    await writeFile(npmDistJson, JSON.stringify({ dist: { shasum: await digest(npmTgz, "sha1"), integrity: "sha512-fixture" } }), "utf8");
+    await writeFile(githubReleaseJson, JSON.stringify({
+      tagName: "v0.1.0-alpha.1",
+      assets: [{ name: "agent-cli-runtime-0.1.0-alpha.1.tgz", digest: `sha256:${await digest(githubTgz, "sha256")}` }],
+    }), "utf8");
+    await writeFile(distTagsJson, JSON.stringify({ alpha: "0.1.0-alpha.1", latest: "0.1.0-alpha.1" }), "utf8");
+
+    const failure = await execCliFailureViaNode([
+      postAlphaVerifier,
+      "--version",
+      "0.1.0-alpha.1",
+      "--npm-tarball",
+      npmTgz,
+      "--github-tarball",
+      githubTgz,
+      "--npm-dist-json",
+      npmDistJson,
+      "--github-release-json",
+      githubReleaseJson,
+      "--dist-tags-json",
+      distTagsJson,
+    ]);
+    const result = JSON.parse(failure.stdout) as {
+      ok: boolean;
+      diagnostics: Array<{ code: string }>;
+      comparison: { acceptable: boolean; unpackedPackage: { match: boolean; changed: string[] } };
+    };
+
+    expect(failure.code).toBe(1);
+    expect(result.ok).toBe(false);
+    expect(result.comparison.acceptable).toBe(false);
+    expect(result.comparison.unpackedPackage.match).toBe(false);
+    expect(result.comparison.unpackedPackage.changed).toContain("README.md");
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "unpacked_package_content_mismatch" }),
+    ]));
+    expect(failure.stdout).not.toContain(dir);
+  });
+
+  it("redacts post-alpha verifier failed input paths and temp paths without stack traces", async () => {
+    const dir = await tempDir("agent-runtime-post-alpha-redaction-");
+    const missingTarball = path.join(dir, "does-not-exist.tgz");
+    const npmDistJson = path.join(dir, "npm-dist.json");
+    const githubReleaseJson = path.join(dir, "github-release.json");
+    const distTagsJson = path.join(dir, "dist-tags.json");
+    await writeFile(npmDistJson, JSON.stringify({
+      dist: {
+        shasum: "fixture-shasum",
+        integrity: "sha512-fixture",
+        tarball: "https://registry.npmjs.org/agent-cli-runtime/-/agent-cli-runtime-0.1.0-alpha.1.tgz",
+      },
+    }), "utf8");
+    await writeFile(githubReleaseJson, JSON.stringify({
+      tagName: "v0.1.0-alpha.1",
+      assets: [{ name: "agent-cli-runtime-0.1.0-alpha.1.tgz", digest: "sha256:fixture" }],
+    }), "utf8");
+    await writeFile(distTagsJson, JSON.stringify({ alpha: "0.1.0-alpha.1", latest: "0.1.0-alpha.1" }), "utf8");
+
+    const failure = await execCliFailureViaNode([
+      postAlphaVerifier,
+      "--version",
+      "0.1.0-alpha.1",
+      "--npm-tarball",
+      missingTarball,
+      "--github-tarball",
+      missingTarball,
+      "--npm-dist-json",
+      npmDistJson,
+      "--github-release-json",
+      githubReleaseJson,
+      "--dist-tags-json",
+      distTagsJson,
+    ]);
+    const result = JSON.parse(failure.stdout) as { ok: boolean; diagnostics: Array<{ code: string; message: string }> };
+
+    expect(failure.code).toBe(1);
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "post_alpha_verification_error",
+        message: expect.any(String),
+      }),
+    ]);
+    expect(failure.stdout).not.toContain(dir);
+    expect(failure.stdout).not.toContain(missingTarball);
+    expect(failure.stdout).not.toContain("/tmp/agent-runtime-post-alpha-");
+    expect(failure.stdout).not.toContain("/private/tmp/");
+    expect(failure.stdout).not.toContain("/var/folders/");
+    expect(failure.stdout).not.toMatch(/\n\s+at\s+/u);
+    expect(failure.stderr).toBe("");
   });
 
   it("keeps release verification error envelopes aligned with the documented schema", async () => {
@@ -2245,7 +2675,9 @@ setInterval(() => {}, 1000);
   it("keeps remote CI and release-candidate workflows audit-only and artifact-focused", async () => {
     const ci = await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
     const releaseCandidate = await readFile(path.join(root, ".github", "workflows", "release-candidate.yml"), "utf8");
+    const publishedPackageVerification = await readFile(path.join(root, ".github", "workflows", "published-package-verification.yml"), "utf8");
     const creator = await readFile(releaseCandidateCreator, "utf8");
+    const publishedCreator = await readFile(publishedVerificationCreator, "utf8");
     const manifest = await readFile(path.join(root, "package.json"), "utf8");
     const ciCompact = ci.replace(/\s+/gu, "");
     const releaseArtifactNames = [...releaseCandidate.matchAll(/^\s+name:\s+(agent-cli-runtime-[^\n]+)$/gmu)].map((match) => match[1].trim());
@@ -2278,7 +2710,7 @@ setInterval(() => {}, 1000);
     expect(releaseGateBuild).toBeLessThan(daemonGate);
     expect(ci).not.toContain("Package install smoke");
     expect(ci).not.toContain("agent-runtime-release-smoke");
-    for (const releaseSurface of [ci, releaseCandidate, creator, manifest]) {
+    for (const releaseSurface of [ci, releaseCandidate, publishedPackageVerification, creator, publishedCreator, manifest]) {
       expect(releaseSurface).not.toContain("--allow-real-run");
       expect(releaseSurface).not.toMatch(/\bnpm publish\b/u);
       expect(releaseSurface).not.toContain("NODE_AUTH_TOKEN");
@@ -2303,6 +2735,20 @@ setInterval(() => {}, 1000);
     expect(releaseArtifactNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
     expect(releaseCandidate).toContain("retention-days: 14");
     expect(releaseCandidate).not.toMatch(/const disallowed|disallowed package artifact path/u);
+
+    expect(publishedPackageVerification).toMatch(/on:\n\s+workflow_dispatch:/u);
+    expect(publishedPackageVerification).toContain("node-version: 22.x");
+    expect(publishedPackageVerification).toContain("npm ci");
+    expect(publishedPackageVerification).toContain("npm run published:verify -- --out-dir published-verification");
+    expect(publishedPackageVerification).toContain("npm run published:verify:evidence -- --dir published-verification");
+    expect(publishedPackageVerification).toContain("actions/checkout@v5");
+    expect(publishedPackageVerification).toContain("actions/setup-node@v5");
+    expect(publishedPackageVerification).toContain("actions/upload-artifact@v6");
+    expect(publishedPackageVerification).toContain("name: agent-cli-runtime-published-verification");
+    expect(publishedPackageVerification).toContain("path: published-verification");
+    expect(publishedPackageVerification).toContain("retention-days: 14");
+    const publishedArtifactNames = [...publishedPackageVerification.matchAll(/^\s+name:\s+(agent-cli-runtime-[^\n]+)$/gmu)].map((match) => match[1].trim());
+    expect(publishedArtifactNames.sort()).toEqual([...expectedPublishedVerificationArtifacts].sort());
   });
 
   it("keeps prepublish and release candidate gates aligned with daemon-ready scripts", async () => {
@@ -2311,9 +2757,15 @@ setInterval(() => {}, 1000);
     };
     const creator = await readFile(releaseCandidateCreator, "utf8");
     const dogfood = await readFile(path.join(root, "scripts", "dogfood.mjs"), "utf8");
+    const postAlpha = await readFile(postAlphaVerifier, "utf8");
+    const smokePublished = await readFile(publishedSmoke, "utf8");
 
     expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
+    expect(manifest.scripts["release:post-alpha:verify"]).toBe("node ./scripts/verify-post-alpha-release.mjs");
+    expect(manifest.scripts["smoke:published"]).toBe("node ./scripts/smoke-published.mjs");
+    expect(manifest.scripts["published:verify"]).toBe("node ./scripts/create-published-verification-evidence.mjs");
+    expect(manifest.scripts["published:verify:evidence"]).toBe("node ./scripts/verify-published-verification-evidence.mjs");
     expect(manifest.scripts.dogfood).not.toContain("--allow-real-run");
     expect(manifest.scripts["prepublish:check"]).not.toContain("--allow-real-run");
     expect(manifest.scripts["release:candidate"]).not.toContain("--allow-real-run");
@@ -2325,6 +2777,17 @@ setInterval(() => {}, 1000);
     expect(creator).not.toContain("NODE_AUTH_TOKEN");
     expect(creator).not.toContain("--allow-real-run");
     expect(dogfood).not.toContain("--allow-real-run");
+    expect(postAlpha).toContain("agent-cli-runtime.postAlphaEvidence.v1");
+    expect(postAlpha).toContain("gzip tarball hashes may differ");
+    expect(postAlpha).not.toMatch(/\bnpm publish\b/u);
+    expect(postAlpha).not.toContain("NODE_AUTH_TOKEN");
+    expect(postAlpha).not.toContain("--allow-real-run");
+    expect(smokePublished).toContain("agent-cli-runtime.publishedSmoke.v1");
+    expect(smokePublished).toContain("agent-runtime");
+    expect(smokePublished).toContain("agents");
+    expect(smokePublished).not.toMatch(/\bnpm publish\b/u);
+    expect(smokePublished).not.toContain("NODE_AUTH_TOKEN");
+    expect(smokePublished).not.toContain("--allow-real-run");
   });
 
   it("keeps public docs free of real token and provider-specific secret examples", async () => {
@@ -2499,7 +2962,8 @@ setInterval(() => {}, 1000);
     expect(runbook).toContain("trusted publishing");
     expect(runbook).toContain("provenance");
     expect(runbook).toContain("not configured");
-    expect(runbook).toContain("corrective alpha");
+    expect(runbook).toContain("post-alpha registry state");
+    expect(runbook).toContain("Published package: `agent-cli-runtime@0.1.0-alpha.1`");
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
     expect(ci).not.toMatch(/\bnpm publish\b/u);
@@ -2518,6 +2982,8 @@ setInterval(() => {}, 1000);
     ];
     const staleClaims = [
       /The package is not published to npm/iu,
+      /0\.1\.0-alpha\.1[^\n]*(?:not published|unpublished|has not occurred)/iu,
+      /alpha\.1[^\n]*(?:未发布|尚未发布|尚未发生)/iu,
       /npm publish has not occurred/iu,
       /npm publish 尚未发生/u,
       /P3-11 does not publish npm/iu,
@@ -2531,6 +2997,26 @@ setInterval(() => {}, 1000);
       for (const staleClaim of staleClaims) {
         expect(text, `${doc} contains stale publish-state claim ${staleClaim}`).not.toMatch(staleClaim);
       }
+    }
+  });
+
+  it("documents post-alpha registry and release reality without treating latest -> alpha.1 as failure", async () => {
+    const docs = [
+      "README.md",
+      "README.zh-CN.md",
+      "docs/production-readiness.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/release-publish-runbook.md",
+      "docs/ssot.md",
+    ];
+
+    for (const doc of docs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text).toContain("0.1.0-alpha.1");
+      expect(text).toMatch(/latest[^\n]*0\.1\.0-alpha\.1|`latest`[^\n]*`0\.1\.0-alpha\.1`|latest -> 0\.1\.0-alpha\.1/u);
+      expect(text).toMatch(/0\.1\.0-alpha\.0[^\n]*(?:deprecated|deprecate|deprecate|已 deprecate|已弃用)/iu);
+      expect(text).toMatch(/v0\.1\.0-alpha\.1/u);
     }
   });
 
