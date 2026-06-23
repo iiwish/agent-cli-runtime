@@ -2241,6 +2241,8 @@ setInterval(() => {}, 1000);
   it("keeps remote CI and release-candidate workflows audit-only and artifact-focused", async () => {
     const ci = await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
     const releaseCandidate = await readFile(path.join(root, ".github", "workflows", "release-candidate.yml"), "utf8");
+    const creator = await readFile(releaseCandidateCreator, "utf8");
+    const manifest = await readFile(path.join(root, "package.json"), "utf8");
     const ciCompact = ci.replace(/\s+/gu, "");
     const releaseArtifactNames = [...releaseCandidate.matchAll(/^\s+name:\s+(agent-cli-runtime-[^\n]+)$/gmu)].map((match) => match[1].trim());
 
@@ -2272,13 +2274,14 @@ setInterval(() => {}, 1000);
     expect(releaseGateBuild).toBeLessThan(daemonGate);
     expect(ci).not.toContain("Package install smoke");
     expect(ci).not.toContain("agent-runtime-release-smoke");
-    for (const workflow of [ci, releaseCandidate]) {
-      expect(workflow).not.toContain("--allow-real-run");
-      expect(workflow).not.toMatch(/\bnpm publish\b/u);
-      expect(workflow).not.toContain("NODE_AUTH_TOKEN");
-      expect(workflow).not.toContain("NPM_TOKEN");
-      expect(workflow).not.toContain("id-token: write");
-      expect(workflow).not.toContain("registry-url:");
+    for (const releaseSurface of [ci, releaseCandidate, creator, manifest]) {
+      expect(releaseSurface).not.toContain("--allow-real-run");
+      expect(releaseSurface).not.toMatch(/\bnpm publish\b/u);
+      expect(releaseSurface).not.toContain("NODE_AUTH_TOKEN");
+      expect(releaseSurface).not.toContain("NPM_TOKEN");
+      expect(releaseSurface).not.toContain("id-token: write");
+      expect(releaseSurface).not.toContain("registry-url:");
+      expect(releaseSurface).not.toMatch(/trusted[-_ ]?publish(?:ing)?/iu);
     }
 
     expect(releaseCandidate).toMatch(/on:\n\s+workflow_dispatch:/u);
@@ -2343,7 +2346,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("documents P3-9 evidence-target workflow evidence without pending status or historical-run reuse", async () => {
+  it("documents P3-10 pre-documentation workflow evidence without self-referential current-HEAD reuse", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
@@ -2354,8 +2357,10 @@ setInterval(() => {}, 1000);
       "docs/release-report.md",
       "docs/ssot.md",
     ];
-    const evidenceRun = "27943672095";
-    const evidenceTargetSha = "65fac505ca3eb830a06d8656068cf4ed5f6dd46a";
+    const preDocumentationEvidenceRun = "27945938663";
+    const preDocumentationEvidenceSha = "fdba3ebccb2e57a0ad295101028a2a3937a92204";
+    const historicalP39Run = "27943672095";
+    const historicalP39Sha = "65fac505ca3eb830a06d8656068cf4ed5f6dd46a";
     const historicalP39InterimRun = "27942743285";
     const historicalP39InterimSha = "a0299a7d81bb614661922bebc8c75496cf0a3d11";
     const historicalP38Run = "27940814340";
@@ -2366,14 +2371,23 @@ setInterval(() => {}, 1000);
     const report = await readFile(path.join(root, "docs", "release-report.md"), "utf8");
     const checklist = await readFile(path.join(root, "docs", "release-checklist.md"), "utf8");
     const ssot = await readFile(path.join(root, "docs", "ssot.md"), "utf8");
-    expect(report).toContain("later evidence-recording commits");
-    expect(report).not.toContain("later documentation-only commits");
+    expect(report).toContain("pre-documentation");
+    expect(report).toContain("committing this packet changes the package shasum");
+    expect(report).toContain("must not be used as final post-documentation publish evidence");
+    expect(report).toContain("fresh release-candidate workflow after committing this packet");
+    expect(report).not.toMatch(new RegExp(`${preDocumentationEvidenceRun}[^\\n]*(?:proves|证明)[^\\n]*(?:current HEAD|当前 HEAD)`, "iu"));
 
     for (const doc of docs) {
       const text = await readFile(path.join(root, doc), "utf8");
       expect(text).not.toContain("remote_evidence`: pending");
-      expect(text).not.toMatch(/P3-9[^\n]*(?:pending|待触发|待复验|待闭环)/u);
-      expect(text).not.toMatch(/P3-9[^\n]*(?:current-HEAD|current HEAD|当前 HEAD)/iu);
+      expect(text).not.toMatch(/P3-10[^\n]*(?:pending|待触发|待复验|待闭环)/u);
+      expect(text).not.toMatch(new RegExp(`${preDocumentationEvidenceRun}[^\\n]*(?:\\bserves as\\b|\\bproves\\b|证明)[^\\n]*(?:final|post-documentation|最终|提交后)[^\\n]*(?:evidence|证据)`, "iu"));
+      expect(text).not.toMatch(new RegExp(`${preDocumentationEvidenceRun}[^\\n]*(?:proves|证明)[^\\n]*(?:current HEAD|当前 HEAD)`, "iu"));
+      expect(text).not.toMatch(/P3-9[^\n]*(?:current-HEAD|current HEAD|当前 HEAD|当前证据|current evidence)/iu);
+      expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target|current HEAD) SHA[:：]?\\s*${historicalP39Sha}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标|当前 HEAD) SHA[:：]?\\s*${historicalP39Sha}`, "u"));
+      expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target|current HEAD) run[:：]?\\s*${historicalP39Run}`, "iu"));
+      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标|当前 HEAD) run[:：]?\\s*${historicalP39Run}`, "u"));
       expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target) SHA[:：]?\\s*${historicalP39InterimSha}`, "iu"));
       expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) SHA[:：]?\\s*${historicalP39InterimSha}`, "u"));
       expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target) run[:：]?\\s*${historicalP39InterimRun}`, "iu"));
@@ -2391,16 +2405,23 @@ setInterval(() => {}, 1000);
     }
 
     for (const text of [report, checklist, ssot]) {
-      expect(text).toContain(evidenceRun);
-      expect(text).toContain(evidenceTargetSha);
-      expect(text).toMatch(/target SHA|Target SHA|evidence target SHA|证据目标 SHA/u);
+      expect(text).toContain(preDocumentationEvidenceRun);
+      expect(text).toContain(preDocumentationEvidenceSha);
+      expect(text).toMatch(/pre-documentation SHA|pre-documentation HEAD SHA|target SHA|Target SHA|evidence target SHA|提交证据文档前的 SHA|证据目标 SHA/u);
+      expect(text).toMatch(/fresh release-candidate workflow|fresh workflow run|重新触发 fresh release-candidate run|fresh release-candidate run/u);
+      expect(text).toMatch(/package shasum|pack shasum|npm pack shasum/u);
+      for (const artifact of expectedReleaseCandidateArtifacts) {
+        expect(text).toContain(artifact);
+      }
       expect(text).toContain("agent-cli-runtime-gate-evidence");
       expect(text).toContain("installed-tarball");
-      expect(text).toContain("npm run release:verify -- --dir /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized");
+      expect(text).toContain("npm run release:verify -- --dir /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized");
       expect(text).toContain("agent-cli-runtime.releaseVerification.v1");
+      expect(text).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
       expect(text).toMatch(/`ok`:\s*`true`|ok: true/u);
       expect(text).toContain("diagnostics");
     }
+    expect(report).toContain("Historical P3-9 run `27943672095`");
     expect(report).toContain("Historical P3-9 interim run `27942743285`");
     expect(report).toMatch(/historical P3-8 run `27940814340`/iu);
     expect(report).toMatch(/historical P3-5 run `27932628093`/iu);
@@ -2441,7 +2462,7 @@ setInterval(() => {}, 1000);
     expect(runbook).toContain("trusted publishing");
     expect(runbook).toContain("provenance");
     expect(runbook).toContain("not configured");
-    expect(runbook).toContain("P3-9 does not publish npm");
+    expect(runbook).toContain("P3-10 does not publish npm");
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
     expect(ci).not.toMatch(/\bnpm publish\b/u);

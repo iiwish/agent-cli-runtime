@@ -1,9 +1,9 @@
 # Alpha Publish Readiness Runbook
 
-Status: P3-9 final alpha dry-run evidence locked
+Status: P3-10 pre-documentation release candidate evidence recorded; post-commit human publish gate required
 Last updated: 2026-06-22
 
-This runbook is a decision and execution checklist for a future `agent-cli-runtime@0.1.0-alpha.0` npm alpha publish. P3-9 does not publish npm, does not create or commit npm credentials, and does not configure trusted publishing. It only locks evidence-target release-candidate evidence and the local alpha publish dry-run boundary for a human maintainer to review and execute later.
+This runbook is a decision and execution checklist for a future `agent-cli-runtime@0.1.0-alpha.0` npm alpha publish. P3-10 does not publish npm, does not create or commit npm credentials, and does not configure trusted publishing. It records pre-documentation release-candidate evidence and keeps the alpha publish boundary human-gated for a maintainer to review and execute later.
 
 ## Decision
 
@@ -13,11 +13,16 @@ Recommended state for the next human gate:
 - The package root value API remains `createAgentRuntime` only; public TypeScript types are exposed through the root declarations, not as runtime values.
 - The release-candidate workflow remains artifact-only: it creates and verifies the tarball but does not publish and does not require registry credentials.
 - The future publish must use the `alpha` dist-tag. Do not publish this pre-alpha version as `latest`.
-- Latest locked evidence: locked evidence target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`, release-candidate workflow run `27943672095`, downloaded artifact verification `ok: true`, and local `npm publish --dry-run --ignore-scripts --tag alpha` passed with `tag alpha`.
+- Current publishable package candidate: `agent-cli-runtime@0.1.0-alpha.0`.
+- Latest pre-documentation evidence: SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204`, release-candidate workflow run `27945938663`, five downloaded artifacts verified with `agent-cli-runtime.releaseVerification.v1` at `/tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized`, and the local publish simulation boundary is `npm publish --dry-run --ignore-scripts --tag alpha`.
+- Because this runbook and release report are included in the npm package, committing this packet changes package shasum. Run `27945938663` is not final publish evidence for any post-documentation commit.
+- Before any real publish, trigger and verify a fresh release-candidate workflow for the commit that contains this packet.
+- Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
+- Do not reuse historical workflow runs as publish evidence for a later commit.
 
 ## Non-Goals
 
-- Do not run a real `npm publish` during P3-9.
+- Do not run a real `npm publish` during P3-10.
 - Do not add npm tokens, GitHub tokens, registry credential environment variables, or private auth files.
 - Do not configure real npm trusted publishing during P2-13.
 - Do not publish a GitHub release.
@@ -45,6 +50,18 @@ node ./dist/cli/main.js doctor --json
 git diff --check
 ```
 
+Before a real publish, also confirm the current branch and evidence target:
+
+```bash
+git rev-parse --abbrev-ref HEAD
+git rev-parse HEAD
+git rev-parse origin/main
+gh workflow run release-candidate.yml --ref main
+gh run view <post-documentation-run-id> --json headSha,status,conclusion,url,jobs
+npm view agent-cli-runtime@0.1.0-alpha.0 version --json
+npm dist-tag ls agent-cli-runtime
+```
+
 The dry-run command is the required local npm publish simulation for this stage:
 
 ```bash
@@ -53,11 +70,14 @@ npm publish --dry-run --ignore-scripts --tag alpha
 
 The command must report a dry run and must show `tag alpha`. If it reports `latest`, stop and fix the command or metadata before publishing.
 
+P3-10 stop point: stop after `npm publish --dry-run --ignore-scripts --tag alpha`. A true publish requires a separate later user authorization and fresh post-documentation release-candidate evidence.
+
 ## Human Confirmation Points
 
 Before a real publish, a maintainer must confirm:
 
 - The version is exactly the intended immutable npm version. A published `name@version` cannot be overwritten.
+- The post-documentation release-candidate run head SHA matches the commit being published; run `27945938663` alone is insufficient after this packet is committed.
 - `npm pack --dry-run` and `npm publish --dry-run --ignore-scripts --tag alpha` show only expected files.
 - `.reference/`, `tests/`, fixtures, raw real CLI output, private paths, token-looking values, and repair backups are absent from the packed files.
 - `dist/index.js` runtime value exports remain limited to `createAgentRuntime`.

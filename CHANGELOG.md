@@ -2,6 +2,12 @@
 
 ## 0.1.0-alpha.0 — pre-alpha developer preview (release-candidate hardening)
 
+- P3-10 pre-documentation alpha release-candidate evidence and human-gated publish packet:
+  - refreshed pre-documentation release-candidate evidence for `fdba3ebccb2e57a0ad295101028a2a3937a92204` through GitHub Actions run `27945938663`;
+  - re-verified all five downloaded artifacts with `agent-cli-runtime.releaseVerification.v1` and empty diagnostics;
+  - documented that committing this packaged evidence packet changes npm pack shasum, so run `27945938663` is not final post-documentation publish evidence;
+  - retained P3-9 run `27943672095` for `65fac505ca3eb830a06d8656068cf4ed5f6dd46a` as historical evidence only;
+  - kept the publish boundary human-gated at `npm publish --dry-run --ignore-scripts --tag alpha`; no npm publish occurred, and a true publish requires fresh post-documentation release-candidate evidence.
 - P3-9 final alpha dry-run and evidence-target release readiness lock:
   - refreshed evidence-target release-candidate evidence for `65fac505ca3eb830a06d8656068cf4ed5f6dd46a` through GitHub Actions run `27943672095`;
   - re-verified all five downloaded artifacts with `agent-cli-runtime.releaseVerification.v1` and empty diagnostics;

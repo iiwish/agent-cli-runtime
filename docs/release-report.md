@@ -1,28 +1,32 @@
-# Release Report: 0.1.0-alpha.0 P3-9 final alpha dry-run and evidence-target release readiness lock
+# Release Report: 0.1.0-alpha.0 P3-10 alpha release candidate evidence packet
 
-Status: P3-9 Final Alpha Dry-Run & Evidence-Target Release Readiness Lock
+Status: P3-10 Pre-Documentation Release Candidate Evidence & Human-Gated Publish Packet
 Last updated: 2026-06-22
 
-This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, and P3-9 evidence-target release-candidate evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
+This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, and P3-10 pre-documentation release-candidate evidence for `agent-cli-runtime@0.1.0-alpha.0`. It is a pre-alpha developer-preview audit and decision package, not an npm publication record.
 
 ## Verdict
 
-P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, version bump policy, and failure taxonomy in [docs/api-schema-contract.md](./api-schema-contract.md), with drift tests tying the docs to source-level schema/failure vocabularies. P3-9 refreshes the final pre-alpha release-candidate evidence for locked evidence target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`: GitHub Actions run `27943672095` completed successfully, uploaded all five release-candidate artifacts, and the downloaded artifacts passed local `npm run release:verify` after normalization. The local `npm publish --dry-run --ignore-scripts --tag alpha` check passed and explicitly reported `tag alpha` in dry-run mode. It preserves the release boundary: no npm publish, no trusted publishing setup, no npm token, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. Historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; Historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
+P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, version bump policy, and failure taxonomy in [docs/api-schema-contract.md](./api-schema-contract.md), with drift tests tying the docs to source-level schema/failure vocabularies. P3-10 records release-candidate evidence for pre-documentation HEAD SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204`: GitHub Actions run `27945938663` completed successfully, uploaded all five release-candidate artifacts, and the downloaded artifacts passed `npm run release:verify -- --dir /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized` with `agent-cli-runtime.releaseVerification.v1`. Because this report and the P3-10 contract-test changes are included in the npm package file list, committing this packet changes the package shasum; run `27945938663` must not be used as final post-documentation publish evidence. The human-gated publish packet stops at `npm publish --dry-run --ignore-scripts --tag alpha`; a true npm publish has not occurred and still requires a later separate human authorization plus a fresh release-candidate workflow after committing this packet. It preserves the release boundary: no npm publish, no trusted publishing setup, no npm token, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`; Historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. The package is not published to npm, does not claim a stable API, and does not claim OpenDesign daemon parity.
 
-## P3-9 Final Alpha Dry-Run & Evidence-Target Release Readiness Lock
+## P3-10 Pre-Documentation Alpha Release Candidate Evidence
 
-P3-9 refreshes release-candidate evidence for locked evidence target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a` after the P3-8 documentation evidence commit. It does not add runtime APIs, publish npm, configure npm tokens/trusted publishing, execute authenticated real agent runs, or add daemon/API server/database/WAL/remote-worker/UI/telemetry layers.
+P3-10 refreshes release-candidate evidence for pre-documentation HEAD SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204` after the P3-9 evidence-recording repair commit. It does not add runtime APIs, publish npm, configure npm tokens/trusted publishing, execute authenticated real agent runs, or add daemon/API server/database/WAL/remote-worker/UI/telemetry layers.
 
-This report is the repository-resident evidence lock. The remote workflow evidence is intentionally commit-specific and proves the locked evidence target SHA above; later evidence-recording commits that record this evidence must not be treated as the workflow head unless a new release-candidate run is triggered for them.
+This report is the repository-resident evidence packet. The remote workflow evidence is intentionally commit-specific and proves only the pre-documentation SHA above and the tarball produced from that SHA.
+
+This repository includes `docs/release-report.md`, `docs/release-checklist.md`, `docs/release-publish-runbook.md`, and other release docs in `package.json` `files`. Any commit that records the P3-10 evidence packet changes packaged content and therefore changes `npm pack` shasum. The final package selected for a real publish must be proven by a fresh release-candidate workflow after committing this packet, then re-downloaded and re-verified before publish.
+
+Historical runs, including P3-9 run `27943672095`, must not be reused for this stage. The rule for later evidence-recording commits is that each must trigger its own fresh release-candidate run before being described as current release-candidate evidence.
 
 Evidence target and worktree state before remote trigger:
 
 - Branch: `main`.
-- Evidence target SHA: `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
-- Initial worktree before the final remote trigger: clean, local `main` was ahead of `origin/main` by one package-boundary/evidence-lock commit.
-- Push required for remote evidence: `git push origin main` advanced remote `main` from `a0299a7d81bb614661922bebc8c75496cf0a3d11` to `65fac505ca3eb830a06d8656068cf4ed5f6dd46a` before triggering the workflow. After push, local `HEAD` and `origin/main` both resolved to `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
+- Pre-documentation HEAD SHA: `fdba3ebccb2e57a0ad295101028a2a3937a92204`.
+- Initial worktree before the P3-10 remote trigger: clean.
+- Local `main`, `origin/main`, and `HEAD` all resolved to `fdba3ebccb2e57a0ad295101028a2a3937a92204` before triggering the workflow.
 
-P3-9 local validation evidence on 2026-06-22:
+P3-10 local validation evidence on 2026-06-22:
 
 - `npm run typecheck`: passed.
 - `npm run lint`: passed.
@@ -32,10 +36,10 @@ P3-9 local validation evidence on 2026-06-22:
 - `npm run dogfood`: passed.
 - `npm run daemon:verify`: passed with `schemaVersion: "agent-runtime.daemonVerification.v1"`, `ok: true`, and `packageSource: "installed-tarball"`.
 - `npm run runtime:safety`: passed with `schemaVersion: "agent-runtime.runtimeSafety.v1"`, `ok: true`, and `packageSource: "installed-tarball"`.
-- `npm run release:candidate -- --out-dir /tmp/agent-runtime-p3-9-final-local-CXrxMX/release-candidate`: passed, producing `agent-cli-runtime-0.1.0-alpha.0.tgz`, `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, and `release-verification.json`.
-- `npm run release:verify -- --dir /tmp/agent-runtime-p3-9-final-local-CXrxMX/release-candidate`: passed with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `151`, five artifact names, empty diagnostics, and gate evidence for `daemon:verify` plus `runtime:safety`.
+- `npm run release:candidate -- --out-dir /tmp/agent-runtime-p3-10-local-release-candidate`: passed, producing `agent-cli-runtime-0.1.0-alpha.0.tgz`, `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, and `release-verification.json`.
+- `npm run release:verify -- --dir /tmp/agent-runtime-p3-10-local-release-candidate`: passed with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `151`, five artifact names, empty diagnostics, and gate evidence for `daemon:verify` plus `runtime:safety`.
 - `npm audit --omit=dev`: passed with `found 0 vulnerabilities`.
-- `npm pack --dry-run --json --ignore-scripts`: passed with `151` files, package size `223282` bytes, unpacked size `964907` bytes, shasum `4a540d197a4d1704ec3a66347447a7a09407b25f`, and tarball `agent-cli-runtime-0.1.0-alpha.0.tgz`.
+- `npm pack --dry-run --json --ignore-scripts`: passed with `151` files and tarball `agent-cli-runtime-0.1.0-alpha.0.tgz`.
 - `npm publish --dry-run --ignore-scripts --tag alpha`: passed as a dry-run; npm reported `Publishing to https://registry.npmjs.org/ with tag alpha and default access (dry-run)` and did not publish.
 - `node ./dist/cli/main.js agents --json`: passed; Codex `codex-cli 0.142.0-alpha.6` and OpenCode `1.15.6` available, Claude Code `2.1.178` available with `auth_missing`.
 - `node ./dist/cli/main.js doctor --json`: passed with `ok: true`; Claude Code remains `auth_missing`.
@@ -43,42 +47,42 @@ P3-9 local validation evidence on 2026-06-22:
 - `node ./dist/cli/main.js smoke --mode real --agent codex --json`: exited `0` as safe preflight with `schemaVersion: "agent-runtime.realSmoke.v1"`, `ok: false`, and `runClassification: "real_run_skipped"`; no authenticated real run was launched.
 - `git diff --check`: passed.
 
-Remote workflow evidence target:
+Remote workflow pre-documentation evidence:
 
 - Branch: `main`.
-- Workflow head SHA: `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
+- Workflow head SHA: `fdba3ebccb2e57a0ad295101028a2a3937a92204`.
 - Trigger command: `gh workflow run release-candidate.yml --ref main`.
-- Run id: `27943672095`.
-- Run URL: `https://github.com/iiwish/agent-cli-runtime/actions/runs/27943672095`.
+- Run id: `27945938663`.
+- Run URL: `https://github.com/iiwish/agent-cli-runtime/actions/runs/27945938663`.
 - Event: `workflow_dispatch`.
 - Workflow: `Release Candidate`.
 - Run status/conclusion: `completed` / `success`.
-- Run created/updated: `2026-06-22T09:40:41Z` / `2026-06-22T09:41:59Z`.
-- Job `Build release candidate artifacts` id `82682936901`, URL `https://github.com/iiwish/agent-cli-runtime/actions/runs/27943672095/job/82682936901`, started at `2026-06-22T09:40:45Z`, completed at `2026-06-22T09:41:58Z`, and concluded `success`.
+- Run created/updated: `2026-06-22T10:22:12Z` / `2026-06-22T10:23:33Z`.
+- Job `Build release candidate artifacts` id `82690587870`, URL `https://github.com/iiwish/agent-cli-runtime/actions/runs/27945938663/job/82690587870`, started at `2026-06-22T10:22:18Z`, completed at `2026-06-22T10:23:33Z`, and concluded `success`.
 - Steps `Install dependencies`, `Run CI gate`, `Run dogfood gate without authenticated real runs`, `Create npm pack artifact and gate evidence without publishing`, `Upload tarball`, `Upload pack metadata`, `Upload package file list`, `Upload daemon-ready gate evidence`, and `Upload release verification` all concluded `success`.
-- Download directory: `/tmp/agent-runtime-p3-9-final-remote-f4Wr9c/downloaded`.
-- Normalized review directory: `/tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized`.
+- Download directory: `/tmp/agent-runtime-p3-10-current-head-remote-66VIhN/downloaded`.
+- Normalized review directory: `/tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized`.
 
 Current artifact metadata from the GitHub Actions API:
 
 | Artifact | GitHub artifact id | Archive size | Digest | Expires |
 | --- | ---: | ---: | --- | --- |
-| `agent-cli-runtime-tarball` | `7788592333` | `224994` bytes | `sha256:c4b9e58fb257f7f1a822ed06d3c786d71bbddc6b02c9252307fe857f1834c0c5` | `2026-07-06T09:41:51Z` |
-| `agent-cli-runtime-pack-metadata` | `7788592690` | `2003` bytes | `sha256:20476663e2cb6ee55681c90981a3409b41ccf908c3ecfe635b986941c11c6dea` | `2026-07-06T09:41:52Z` |
-| `agent-cli-runtime-package-files` | `7788593048` | `961` bytes | `sha256:41af0b24dba14c772ff480421f1d29486a6a2ed871330a1415726c78736ee75b` | `2026-07-06T09:41:53Z` |
-| `agent-cli-runtime-gate-evidence` | `7788593430` | `444` bytes | `sha256:0a642fd02c3f7b9a2880573821732b4b70c2da9f04cd53bbd251f5394ef2eacc` | `2026-07-06T09:41:54Z` |
-| `agent-cli-runtime-release-verification` | `7788593841` | `649` bytes | `sha256:7e7fafedfab789b21bf87c6962f809c06b2f89ee768aeb5a4820e57b7d1cb6e8` | `2026-07-06T09:41:55Z` |
+| `agent-cli-runtime-tarball` | `7789535097` | `225632` bytes | `sha256:698d80cd9ce86643396d7c9305424ac0f85cfe9d11bca654912048ed92118a34` | `2026-07-06T10:23:22Z` |
+| `agent-cli-runtime-pack-metadata` | `7789535626` | `1998` bytes | `sha256:6c902654a5a8ddc8c5cb59c63efd82ef600d81488efc9eab7c98669a3e8eb564` | `2026-07-06T10:23:24Z` |
+| `agent-cli-runtime-package-files` | `7789536134` | `961` bytes | `sha256:18b8adab4fc43d54389137cbdcf6db8e744f0a12c9498f88c0238c759ce39b79` | `2026-07-06T10:23:25Z` |
+| `agent-cli-runtime-gate-evidence` | `7789536677` | `443` bytes | `sha256:458f63ff6b59a7b16ec8a918d7253a12e000563a7f9452ae932924902b6e0179` | `2026-07-06T10:23:27Z` |
+| `agent-cli-runtime-release-verification` | `7789537198` | `649` bytes | `sha256:27e094fd6aad1b317d9073bef75a27336fe08850592c408d8861eb14df6e7633` | `2026-07-06T10:23:28Z` |
 
 Downloaded artifact normalization:
 
 ```bash
-gh run download 27943672095 --dir /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/downloaded
-cp /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/downloaded/agent-cli-runtime-tarball/agent-cli-runtime-0.1.0-alpha.0.tgz /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized/
-cp /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/downloaded/agent-cli-runtime-pack-metadata/npm-pack.json /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized/
-cp /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/downloaded/agent-cli-runtime-package-files/package-files.txt /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized/
-cp /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/downloaded/agent-cli-runtime-gate-evidence/gate-evidence.json /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized/
-cp /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/downloaded/agent-cli-runtime-release-verification/release-verification.json /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized/
-npm run release:verify -- --dir /tmp/agent-runtime-p3-9-final-remote-f4Wr9c/normalized
+gh run download 27945938663 --dir /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/downloaded
+cp /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/downloaded/agent-cli-runtime-tarball/agent-cli-runtime-0.1.0-alpha.0.tgz /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized/
+cp /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/downloaded/agent-cli-runtime-pack-metadata/npm-pack.json /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized/
+cp /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/downloaded/agent-cli-runtime-package-files/package-files.txt /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized/
+cp /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/downloaded/agent-cli-runtime-gate-evidence/gate-evidence.json /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized/
+cp /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/downloaded/agent-cli-runtime-release-verification/release-verification.json /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized/
+npm run release:verify -- --dir /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized
 ```
 
 Downloaded artifact re-verification result:
@@ -89,16 +93,59 @@ Downloaded artifact re-verification result:
 - package file count: `151`
 - artifact names: `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, `agent-cli-runtime-release-verification`
 - tarball: `agent-cli-runtime-0.1.0-alpha.0.tgz`
-- tarball size: `224740` bytes
-- tarball sha256: `99add3355dfdaa6b000484729b784668345b0297df9e613e27d58391b793e5b9`
-- npm pack shasum: `feaaaffc874beeed5003a9c0bdc4f8d0c5f267b8`
-- npm pack integrity: `sha512-XxTEE5yZWQMJz4IxwkPs9HQ7S9ZUZVcx9E95yC4hKe5QbTJ9uE2JV17gVZXeR+2bJ36+zxhT+x15hf2WLZyBiw==`
+- tarball size: `225378` bytes
+- tarball sha256: `b8a9c2beaaed18dd238c27065285362d1c3380e04be57d5f9cec7b198ddd786d`
+- npm pack shasum: `513efc70dcc17d2ef58caed070dcf27a7a0eb90d`
+- npm pack integrity: `sha512-mOpm9L3FbT+24WgKBQxKvbv90V/3odgekzBYmjPdIl4KzW4U0+P6yHk+02FC8ba1Tm1d6fgERoGqwsTiHC5uEA==`
 - package name/version: `agent-cli-runtime@0.1.0-alpha.0`
 - gate evidence schema: `agent-cli-runtime.releaseGateEvidence.v1`
 - gate evidence commands: `npm run daemon:verify`, `npm run runtime:safety`
 - gate evidence package source: both `installed-tarball`
 - gate evidence flags: `noAuthenticatedRealRun: true`, `noNpmPublish: true`, `noNpmToken: true`
 - package file review: 151 entries and no `.reference/`, `tests/`, fixture paths, raw real CLI output, private paths, token-looking values, Bearer values, or auth env assignments.
+
+## P3-10 Human-Gated Alpha Publish Packet
+
+Current package candidate: `agent-cli-runtime@0.1.0-alpha.0`.
+
+Stop point for this task:
+
+```bash
+npm publish --dry-run --ignore-scripts --tag alpha
+```
+
+P3-10 stops at the dry-run command above. The real publish commands below are documentation only and must not be executed unless the user later gives a separate explicit publish authorization:
+
+```bash
+npm publish --tag alpha
+npm publish --tag alpha --access public
+```
+
+Before any future real publish, a maintainer must manually confirm:
+
+- `git rev-parse HEAD` and `git rev-parse origin/main` still match the intended reviewed SHA.
+- After committing this P3-10 evidence packet, trigger a fresh `.github/workflows/release-candidate.yml` run for the new commit and verify that `gh run view <new-run-id> --json headSha,status,conclusion,url,jobs` shows that post-documentation commit SHA and success.
+- Do not use run `27945938663` as the final publish evidence after the P3-10 docs/tests are committed; it proves only pre-documentation SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204`.
+- `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run package:check`, `npm run dogfood`, `npm run daemon:verify`, `npm run runtime:safety`, `npm run release:candidate -- --out-dir <tmp>`, `npm run release:verify -- --dir <tmp>`, `npm audit --omit=dev`, `npm pack --dry-run --json --ignore-scripts`, `npm publish --dry-run --ignore-scripts --tag alpha`, `node ./dist/cli/main.js agents --json`, `node ./dist/cli/main.js doctor --json`, and `git diff --check` pass.
+- `npm publish --dry-run --ignore-scripts --tag alpha` reports dry-run mode and `tag alpha`; if it reports `latest`, stop.
+- `npm view agent-cli-runtime@0.1.0-alpha.0 version --json` does not show an already-created immutable version.
+- `npm dist-tag ls agent-cli-runtime` confirms `latest` will not move to this pre-alpha version.
+- npm 2FA or the package's configured publish policy is ready for the maintainer account.
+- Trusted publishing is not configured for P3-10. A future trusted-publishing path would need a separate publish workflow, npm-side trusted publisher configuration, and explicit `id-token: write`; none of that is present in this release-candidate workflow.
+- Manual local publish must not claim GitHub Actions provenance. Provenance is a future trusted-publishing concern, not a P3-10 dry-run claim.
+
+Post-publish checks for a separately authorized future publish:
+
+```bash
+npm view agent-cli-runtime@0.1.0-alpha.0 version dist-tags --json
+npm dist-tag ls agent-cli-runtime
+```
+
+Rollback boundary:
+
+- If only the dist-tag is wrong, use `npm dist-tag add agent-cli-runtime@0.1.0-alpha.0 alpha` and, only after confirming it points at the accidental alpha, `npm dist-tag rm agent-cli-runtime latest`.
+- If package contents are wrong, publish a new corrected pre-release version; npm does not allow overwriting `agent-cli-runtime@0.1.0-alpha.0`.
+- Use `npm unpublish agent-cli-runtime@0.1.0-alpha.0` only if npm policy allows it and a maintainer accepts the registry impact; otherwise deprecate the bad version.
 
 ## P3-7 API / CLI Schema Freeze
 
@@ -154,7 +201,7 @@ P3-6 local validation evidence on 2026-06-22:
 
 ## Historical P3-5 Remote Release Evidence Closure
 
-P3-5 closed the P3-4 remote evidence gap for its workflow head SHA. It remains historical evidence only and does not prove the P3-8 or P3-9 target SHA.
+P3-5 closed the P3-4 remote evidence gap for its workflow head SHA. It remains historical evidence only and does not prove the P3-8, P3-9, or P3-10 target SHA.
 
 Workflow evidence target:
 
@@ -343,7 +390,7 @@ Expected remote evidence:
 - No workflow runs `npm publish`, sets `NODE_AUTH_TOKEN`, or requires an npm token.
 P2-13 keeps those workflow guarantees and does not add a publish workflow.
 
-Remote GitHub Actions evidence for the P3-9 release-candidate target is run `27943672095` on target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`. Historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` must not be reused as evidence for later release-candidate targets.
+Remote GitHub Actions evidence for the P3-10 pre-documentation release-candidate target is run `27945938663` on SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204`. It must not be reused as final publish evidence after this packaged evidence packet is committed. Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`; historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` must not be reused as evidence for later release-candidate targets.
 
 ## Release-Candidate Artifacts
 
@@ -357,7 +404,7 @@ The manual release-candidate workflow uploads:
 
 Artifacts are retained for 14 days to keep the audit window explicit while avoiding long-lived stale release-candidate evidence.
 
-The P3-9 artifact set has five artifacts and all were re-verified from downloaded GitHub Actions artifacts. The P2-12 downloaded artifact table below is retained as historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`; it predates `agent-cli-runtime-gate-evidence` and must not be reused as current release-candidate evidence.
+The P3-10 artifact set has five artifacts and all were re-verified from downloaded GitHub Actions artifacts. The P2-12 downloaded artifact table below is retained as historical evidence for commit `2f8832119b4ebdb8393077052560589a398ebf56`; it predates `agent-cli-runtime-gate-evidence` and must not be reused as current release-candidate evidence.
 
 Downloaded artifact evidence from run `27869580048`:
 
@@ -436,8 +483,9 @@ Authenticated real runs require explicit `--allow-real-run --expect-text <safe_t
 
 ## Known Risks
 
-- Remote GitHub Actions evidence is commit-specific; P3-9 run `27943672095` proves locked evidence target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`.
-- Historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56` and predates the gate-evidence artifact.
+- Remote GitHub Actions evidence is commit-specific; P3-10 run `27945938663` proves pre-documentation SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204`, not any later commit containing this report.
+- Because release docs are packaged, committing this report changes npm pack output; final publish evidence requires a fresh post-documentation release-candidate workflow and artifact re-verification.
+- Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`; historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56` and predates the gate-evidence artifact.
 - Real CLI behavior, auth state, model lists, and flags can drift after this dated evidence.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume remain in `needsVerification`.
 - Claude Code authenticated run smoke depends on local auth or a correctly configured provider environment.
