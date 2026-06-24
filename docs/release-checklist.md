@@ -1,5 +1,22 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P6-1 real CLI compatibility refresh
+
+- [x] `npm run compat:real:evidence` exists and emits `schemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1"` to `.release-evidence/p6-1-real-cli-compatibility.json`.
+- [x] Default `npm run compat:real:evidence` runs only safe real preflight and does not launch authenticated real agent runs.
+- [x] Authenticated real smoke in the evidence creator requires explicit `--allow-real-run --agent <id> --expect-text <text>` pairs.
+- [x] Evidence includes redacted summaries for `agents --json`, `doctor --json`, `conformance --mode real --agent all --json`, and each adapter `smoke --mode real --json`.
+- [x] Evidence records `gitHeadSha`, `gitDirty`, `gitStatusBeforeWrite`, and `gitStatusAfterWrite` so dirty-tree evidence cannot be mistaken for clean-commit evidence.
+- [x] Evidence excludes raw stdout/stderr, complete prompt text, private paths, token-looking values, Bearer values, and auth environment assignment values.
+- [x] 2026-06-23 Codex evidence records `codex-cli 0.142.0`, safe `real_run_skipped`, opt-in smoke `success`, expected text matched, and cwd not mutated.
+- [x] 2026-06-23 Claude Code evidence records `2.1.178 (Claude Code)`, `auth_missing`, and no authenticated real run attempt.
+- [x] 2026-06-23 OpenCode evidence records `1.15.6`, safe `real_run_skipped`, opt-in smoke `success`, expected text matched, and cwd not mutated.
+- [x] Codex `session` and `authProbe` remain in `needsVerification`; no session/resume or auth probe flag was guessed into default argv.
+- [x] Claude `session.id` and `reasoning` remain in `needsVerification`; `--session-id` is still not emitted by `buildArgs()`.
+- [x] OpenCode `extraAllowedDirs`, `session`, and `permissionPolicy.read-only` remain in `needsVerification`; no explicit read-only/workspace-write or extra-dir flag was guessed into default argv.
+- [x] `docs/compatibility.md`, README pair, `docs/production-readiness.md`, and `docs/ssot.md` describe the P6-1 evidence boundary.
+- [x] `.release-evidence/` remains outside npm package contents and `npm run package:check` / `npm pack --dry-run` must not include P6-1 evidence.
+
 ## P5-4 remote published verification evidence closure
 
 - [x] P5-3 published package verification workflow was merged to `main` before triggering P5-4 evidence.

@@ -14,4 +14,6 @@ For a fresh alpha release-candidate review:
 
 For a fresh published package verification review, trigger `.github/workflows/published-package-verification.yml`, confirm the run `headSha`, download `agent-cli-runtime-published-verification`, run `npm run published:verify:evidence -- --dir <normalized-downloaded-artifact-dir>`, and record only redacted summary metadata here.
 
+For a real CLI compatibility refresh, run `npm run compat:real:evidence` for safe preflight only. Add authenticated smoke evidence only with explicit `--allow-real-run --agent <id> --expect-text <text>` pairs. The evidence file should keep summarized classifications, versions, auth/model sources, `needsVerification` decisions, cwd-mutation result fields, and explicit `gitDirty` / dirty summary fields only; do not store raw CLI stdout/stderr or full prompts.
+
 Do not put `.reference/`, temporary download directories, private user paths, CI tokens, npm tokens, or real provider tokens in this directory.

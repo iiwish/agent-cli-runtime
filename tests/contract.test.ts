@@ -49,6 +49,7 @@ const publishedDaemonConsumerVerifier = path.join(root, "scripts", "verify-publi
 const publishedAdaptersVerifier = path.join(root, "scripts", "verify-published-adapters.mjs");
 const publishedVerificationCreator = path.join(root, "scripts", "create-published-verification-evidence.mjs");
 const publishedVerificationVerifier = path.join(root, "scripts", "verify-published-verification-evidence.mjs");
+const realCompatibilityEvidenceCreator = path.join(root, "scripts", "create-real-compatibility-evidence.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
@@ -336,22 +337,26 @@ describe("public contract", () => {
     const publishedAdaptersScript = await readFile(publishedAdaptersVerifier, "utf8");
     const publishedVerificationScript = await readFile(publishedVerificationCreator, "utf8");
     const publishedVerificationVerifierScript = await readFile(publishedVerificationVerifier, "utf8");
+    const realCompatibilityEvidenceScript = await readFile(realCompatibilityEvidenceCreator, "utf8");
 
     expect(manifest.scripts.test).not.toContain("daemon:verify");
     expect(manifest.scripts.test).not.toContain("runtime:safety");
     expect(manifest.scripts.test).not.toContain("published:daemon:verify");
     expect(manifest.scripts.test).not.toContain("published:adapters:verify");
     expect(manifest.scripts.test).not.toContain("published:verify");
+    expect(manifest.scripts.test).not.toContain("compat:real:evidence");
     expect(manifest.scripts.ci).not.toContain("daemon:verify");
     expect(manifest.scripts.ci).not.toContain("runtime:safety");
     expect(manifest.scripts.ci).not.toContain("published:daemon:verify");
     expect(manifest.scripts.ci).not.toContain("published:adapters:verify");
     expect(manifest.scripts.ci).not.toContain("published:verify");
+    expect(manifest.scripts.ci).not.toContain("compat:real:evidence");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:daemon:verify");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:adapters:verify");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:verify");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("compat:real:evidence");
 
     expect(daemonScript).toContain("agent-runtime.daemonVerification.v1");
     expect(daemonScript).toContain("installed-tarball");
@@ -415,6 +420,21 @@ describe("public contract", () => {
     expect(publishedVerificationVerifierScript).toContain("unsafeContentRejected");
     expect(publishedVerificationVerifierScript).not.toMatch(/\bnpm publish\b/u);
     expect(publishedVerificationVerifierScript).not.toContain("--allow-real-run");
+
+    expect(manifest.scripts["compat:real:evidence"]).toBe("node ./scripts/create-real-compatibility-evidence.mjs");
+    expect(manifest.files).not.toContain("scripts/create-real-compatibility-evidence.mjs");
+    expect(realCompatibilityEvidenceScript).toContain("agent-cli-runtime.realCompatibilityEvidence.v1");
+    expect(realCompatibilityEvidenceScript).toContain("safePreflightOnly");
+    expect(realCompatibilityEvidenceScript).toContain("noAuthenticatedRealRunByDefault");
+    expect(realCompatibilityEvidenceScript).toContain("gitDirty");
+    expect(realCompatibilityEvidenceScript).toContain("gitStatusBeforeWrite");
+    expect(realCompatibilityEvidenceScript).toContain("gitStatusAfterWrite");
+    expect(realCompatibilityEvidenceScript).toContain("HEAD commit only");
+    expect(realCompatibilityEvidenceScript).toContain("--allow-real-run requires");
+    expect(realCompatibilityEvidenceScript).toContain("--expect-text is required");
+    expect(realCompatibilityEvidenceScript).toContain("needsVerificationAudit");
+    expect(realCompatibilityEvidenceScript).not.toMatch(/\bnpm publish\b/u);
+    expect(realCompatibilityEvidenceScript).not.toContain("NODE_AUTH_TOKEN");
   });
 
   it("keeps published verification evidence verifier strict, redacted, and offline testable", async () => {
@@ -446,6 +466,22 @@ describe("public contract", () => {
       noNpmPublish: true,
       noNpmToken: true,
     });
+  });
+
+  it("keeps real compatibility evidence creator explicit and offline self-testable", async () => {
+    const { stdout } = await execFileP(process.execPath, [realCompatibilityEvidenceCreator, "--self-test"]);
+    const result = JSON.parse(stdout) as { schemaVersion: string; ok: boolean };
+
+    expect(result.schemaVersion).toBe("agent-cli-runtime.realCompatibilityEvidence.v1");
+    expect(result.ok).toBe(true);
+
+    const missingBoundary = await execCliFailureViaNode([realCompatibilityEvidenceCreator, "--allow-real-run"]);
+    expect(missingBoundary.code).toBe(1);
+    expect(missingBoundary.stderr).toContain("--allow-real-run requires");
+
+    const missingExpectedText = await execCliFailureViaNode([realCompatibilityEvidenceCreator, "--allow-real-run", "--agent", "codex"]);
+    expect(missingExpectedText.code).toBe(1);
+    expect(missingExpectedText.stderr).toContain("--agent codex requires");
   });
 
   it("keeps published verification creator stdout from leaking external temp paths on usage errors", async () => {

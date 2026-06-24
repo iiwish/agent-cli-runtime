@@ -342,6 +342,7 @@ npm run published:daemon:verify
 npm run published:adapters:verify
 npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
+npm run compat:real:evidence
 npm run dogfood
 npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
@@ -351,6 +352,8 @@ node ./dist/cli/main.js smoke --mode real --agent codex --json
 ```
 
 `conformance --mode real` 和 `smoke --mode real` 不带 `--allow-real-run` 时只做真实本地 detection/profile certification，不启动 authenticated real agent run。只有显式传入 `--allow-real-run` 才会执行真实 run；未传 `--cwd` 时 runtime 使用隔离临时目录，并请求 read-only 行为。请把 `--allow-real-run` 当成本机账号/网络 run 的明确安全边界。
+
+`npm run compat:real:evidence` 会在 `.release-evidence/` 下生成 repo-only 的 redacted compatibility summary。默认只跑 safe real preflight；authenticated smoke evidence 必须显式传入成对参数，例如 `--allow-real-run --agent codex --expect-text "agent-runtime codex smoke ok"`。`real_run_skipped`、`auth_missing`、`needs_verification` 等 skipped/blocked 状态会保留为 evidence state，不会写成 success。
 
 CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、production dependency audit、package boundary check 和 `npm pack --dry-run`。`npm run daemon:verify`、`npm run runtime:safety` 和 `npm run dogfood` 放在单 Node 版本 release-gates job 中执行，避免 matrix 重复跑 installed-package gates。dogfood、CI 和 prepublish 的默认边界一致：允许 fixtures、fake CLIs、真实本地 detection/profile certification；不带 `--allow-real-run` 时不启动 authenticated real agent run。
 

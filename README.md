@@ -344,6 +344,7 @@ npm run published:daemon:verify
 npm run published:adapters:verify
 npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
+npm run compat:real:evidence
 npm run dogfood
 npm run prepublish:check
 node ./dist/cli/main.js conformance --mode fixtures --json
@@ -353,6 +354,8 @@ node ./dist/cli/main.js smoke --mode real --agent codex --json
 ```
 
 `conformance --mode real` and `smoke --mode real` without `--allow-real-run` perform real local detection/profile certification only. They do not launch an authenticated agent run. A real run requires `--allow-real-run`; without `--cwd`, the runtime uses an isolated temporary cwd and requests read-only behavior. Treat `--allow-real-run` as an explicit local-account/network boundary.
+
+`npm run compat:real:evidence` creates a repo-only redacted compatibility summary under `.release-evidence/`. By default it runs only safe real preflight. Authenticated smoke evidence requires explicit pairs such as `--allow-real-run --agent codex --expect-text "agent-runtime codex smoke ok"`; skipped states like `real_run_skipped`, `auth_missing`, and `needs_verification` remain evidence states and are not converted into success.
 
 CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and `npm pack --dry-run`. A separate single-Node release-gates job runs `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` so the full matrix does not launch redundant installed-package gates. The dogfood, CI, and prepublish paths share the same safety boundary: fixtures, fake CLIs, and real local detection/profile certification are allowed by default; authenticated real agent runs are not launched unless `--allow-real-run` is explicit.
 

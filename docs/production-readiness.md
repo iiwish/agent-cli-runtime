@@ -28,6 +28,7 @@ For this repository, "production-ready local runtime" means:
 - `npm run runtime:safety` packs and installs the package into a temporary consumer, then verifies repeated run/goal execution, slow event consumption, cancel/timeout churn, bounded redacted diagnostics, repeated shutdown, lease close, and reopen behavior using fake CLIs only;
 - `npm run published:daemon:verify` installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary daemon-style consumer and verifies detect, run, goal, cancel, timeout, replay, read-only inspection during active writer ownership, second-writer refusal, shutdown/reopen, and stale owner recovery with schema `agent-runtime.publishedDaemonConsumer.v1`;
 - real CLI conformance and smoke default to detection/profile certification only; authenticated real agent runs require explicit `--allow-real-run`;
+- `npm run compat:real:evidence` creates repo-only redacted real CLI compatibility evidence under `.release-evidence/`; it defaults to safe preflight and requires explicit `--allow-real-run --agent <id> --expect-text <text>` pairs before launching authenticated real smoke;
 - real smoke evidence uses `schemaVersion: "agent-runtime.realSmoke.v1"`, requires expected text for success, checks cwd mutation, and omits prompts, raw stdout/stderr, private cwd, tokens, and final run records;
 - release artifact verification uses `agent-cli-runtime.releaseVerification.v1`, release gate evidence uses `agent-cli-runtime.releaseGateEvidence.v1`, and both are covered by the schema versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md);
 - `npm run dogfood` is the default release-candidate gate and does not launch authenticated real agent runs;
@@ -73,6 +74,7 @@ npm run published:daemon:verify
 npm run published:adapters:verify
 npm run published:verify -- --out-dir /tmp/agent-runtime-published-verification
 npm run published:verify:evidence -- --dir /tmp/agent-runtime-published-verification
+npm run compat:real:evidence
 node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
 node ./dist/cli/main.js conformance --mode real --agent all --json
@@ -210,11 +212,13 @@ Excluded artifacts:
 ## Known Risks
 
 - Real CLI behavior can drift after this release candidate. Treat `docs/compatibility.md` as dated evidence, not a permanent guarantee.
+- P6-1 local evidence on 2026-06-23 refreshed Codex, Claude Code, and OpenCode preflight plus opt-in Codex/OpenCode smoke. It is machine-local compatibility evidence, not a CI gate and not a future-version guarantee.
 - P3-10 verifies one remote release-candidate run and downloaded artifact re-verification for pre-documentation SHA `fdba3ebccb2e57a0ad295101028a2a3937a92204`. Because release docs are packaged, final publish evidence must come from a fresh workflow run after this evidence packet is committed. Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`; historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. Internal files under `dist/` may exist in the tarball for declarations and CLI execution, but importing internal subpaths is not a documented contract.
 - `status-only real smoke exit 0`, wrong expected text, or a custom prompt without `--expect-text` remain intentionally non-passing: classification is `unexpected_output`.
 - Real conformance preflight can classify a local CLI as unavailable/auth-missing because of machine-specific executable, auth, network, or proxy state. That skip is useful compatibility evidence but is not a successful real run.
+- Codex session/resume and a stable non-mutating auth probe remain in `needsVerification`.
 - OpenCode explicit read-only/workspace-write flags, extra dirs, and session/resume mappings remain in `needsVerification`.
-- Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment.
+- Claude Code authenticated run smoke remains dependent on local auth or a correctly configured Anthropic-compatible provider environment; current P6-1 local evidence is `auth_missing`.
 - P3-6 adds opt-in real smoke evidence, but does not add authenticated real runs to CI, dogfood, prepublish, or release-candidate gates and does not implement scheduler expansion, daemon/API server, database, WAL, remote workers, web UI, telemetry, npm publish, trusted publishing configuration, provenance publishing, or guaranteed authenticated real-run success certification. Repair and fault-injection hardening remains local JSONL-only within the existing store layout.
 
 ## Durable Supervisor Contract
