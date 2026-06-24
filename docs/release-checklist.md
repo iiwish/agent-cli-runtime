@@ -1,5 +1,21 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P6-4 remote release-candidate branch evidence closure
+
+- [x] Confirmed local branch `codex/p6-3-offline-compat-gate`, target SHA `59b8c00a4ef79356fcba30fb526eab2f158bcdf3`, and clean worktree before triggering remote evidence.
+- [x] Confirmed `origin/main` was `c65d21c104e743551d12da31635d90fe5bdfbec8` and did not contain target SHA `59b8c00a4ef79356fcba30fb526eab2f158bcdf3`; this is branch evidence, not main evidence.
+- [x] Pushed `codex/p6-3-offline-compat-gate` to origin so `workflow_dispatch` could target the branch ref.
+- [x] Triggered fresh `.github/workflows/release-candidate.yml` run `28089574967` with `gh workflow run release-candidate.yml --ref codex/p6-3-offline-compat-gate`.
+- [x] Confirmed `gh run view 28089574967 --json headSha,status,conclusion,url,jobs,createdAt,updatedAt,event` reported `headSha` `59b8c00a4ef79356fcba30fb526eab2f158bcdf3`, `status` `completed`, and `conclusion` `success`.
+- [x] Confirmed the remote job `Build release candidate artifacts` completed successfully, including `Run CI gate`, `Run dogfood gate without authenticated real runs`, `Create npm pack artifact and gate evidence without publishing`, and all five upload steps.
+- [x] Confirmed artifacts include `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`.
+- [x] Downloaded all five artifacts, normalized them into one review directory, and ran `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>`.
+- [x] Downloaded artifact verification passed with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `151`, tarball `agent-cli-runtime-0.1.0-alpha.1.tgz`, and empty diagnostics.
+- [x] Downloaded `gate-evidence.json` records `daemon:verify`, `runtime:safety`, and `compat:real:evidence:verify`.
+- [x] Compatibility verifier gate records `outputSchemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1"`, `evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1"`, and diagnostics only as `{ count: 0, codes: [] }`.
+- [x] Downloaded gate evidence confirms `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` are all `true`.
+- [x] Recorded repo-only redacted summary in `.release-evidence/p6-4-remote-release-candidate.json`, without raw workflow logs, raw CLI output, full prompts, token values, private paths, or local temp download paths.
+
 ## P6-3 offline compatibility gate integration
 
 - [x] `npm run prepublish:check` includes `npm run compat:real:evidence:verify`.

@@ -1,9 +1,9 @@
 # Release Report: 0.1.0-alpha.1 post-alpha evidence normalization
 
 Status: `0.1.0-alpha.1` published; post-alpha evidence normalized
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
-This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, the P3-11 non-package evidence boundary, and the post-alpha evidence path for `agent-cli-runtime@0.1.0-alpha.1`. Immutable npm version `0.1.0-alpha.0` was published and has GitHub pre-release `v0.1.0-alpha.0`, but its package docs contain stale pre-publish status text; `0.1.0-alpha.0` is now deprecated. `agent-cli-runtime@0.1.0-alpha.1` is published to npm and has GitHub pre-release `v0.1.0-alpha.1`. P5-4 closes the remote published-package verification evidence loop for the current verification workflow by storing volatile run and artifact metadata outside the npm package.
+This report records release-candidate, alpha publish-readiness, daemon-ready contract hardening, P3-6 real CLI opt-in smoke evidence, P3-7 API / CLI schema freeze evidence, the P3-11 non-package evidence boundary, and the post-alpha evidence path for `agent-cli-runtime@0.1.0-alpha.1`. Immutable npm version `0.1.0-alpha.0` was published and has GitHub pre-release `v0.1.0-alpha.0`, but its package docs contain stale pre-publish status text; `0.1.0-alpha.0` is now deprecated. `agent-cli-runtime@0.1.0-alpha.1` is published to npm and has GitHub pre-release `v0.1.0-alpha.1`. P5-4 closes the remote published-package verification evidence loop for the current verification workflow by storing volatile run and artifact metadata outside the npm package. P6-4 closes remote release-candidate evidence for the P6-3 branch target SHA `59b8c00a4ef79356fcba30fb526eab2f158bcdf3`; because that SHA was not on `origin/main` at trigger time, it is branch evidence, not main evidence.
 
 Current npm registry state:
 
@@ -21,6 +21,32 @@ P3-7 freezes the public root boundary, daemon-facing CLI JSON schema inventory, 
 P3-11 moves current-head release-candidate run evidence out of packaged docs: volatile run ids, artifact ids, artifact digests, tarball shasums, and pack shasums belong under `.release-evidence/` or durable GitHub Release assets. Packaged docs keep stable rules only: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, verify the workflow head SHA equals that commit, and run `npm publish --dry-run --ignore-scripts --tag alpha` before any separately authorized real publish.
 
 It preserves the product boundary: no new npm publish, no trusted publishing setup, no committed npm token, no daemon/API server, no database/WAL, no remote worker, no UI/telemetry layer, and no authenticated real agent run in default gates. Historical P3-9 run `27943672095` only proves target SHA `65fac505ca3eb830a06d8656068cf4ed5f6dd46a`; Historical P3-9 interim run `27942743285` only proves target SHA `a0299a7d81bb614661922bebc8c75496cf0a3d11` before the strict `fixtures?` package-boundary lock; historical P3-8 run `27940814340` only proves target SHA `eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4`; historical P3-5 run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical P2-12 run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`. The package remains a pre-alpha developer preview, does not claim a stable API, and does not claim OpenDesign daemon parity.
+
+## P6-4 Remote Release-Candidate Branch Evidence Closure
+
+P6-4 records fresh remote release-candidate workflow evidence for branch `codex/p6-3-offline-compat-gate` and target SHA `59b8c00a4ef79356fcba30fb526eab2f158bcdf3`. At trigger time, `origin/main` was `c65d21c104e743551d12da31635d90fe5bdfbec8`, so this evidence must not be described as current main evidence. It proves only the branch workflow `headSha` and downloaded artifacts for that SHA.
+
+Remote workflow evidence:
+
+- Trigger command: `gh workflow run release-candidate.yml --ref codex/p6-3-offline-compat-gate`.
+- Run id: `28089574967`.
+- Run URL: `https://github.com/iiwish/agent-cli-runtime/actions/runs/28089574967`.
+- Event: `workflow_dispatch`.
+- Run status/conclusion: `completed` / `success`.
+- Run created/updated: `2026-06-24T09:41:07Z` / `2026-06-24T09:42:24Z`.
+- Job `Build release candidate artifacts` id `83163923943` completed with conclusion `success`.
+- Steps `Run CI gate`, `Run dogfood gate without authenticated real runs`, `Create npm pack artifact and gate evidence without publishing`, `Upload tarball`, `Upload pack metadata`, `Upload package file list`, `Upload daemon-ready gate evidence`, and `Upload release verification` all concluded `success`.
+
+Downloaded artifact re-verification:
+
+- Artifacts: `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`.
+- Verification command: `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>`.
+- Verification result: `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, diagnostics empty, package file count `151`, package `agent-cli-runtime@0.1.0-alpha.1`, and tarball `agent-cli-runtime-0.1.0-alpha.1.tgz`.
+- `gate-evidence.json` records `daemon:verify`, `runtime:safety`, and `compat:real:evidence:verify`.
+- The compatibility verifier gate records `outputSchemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1"`, `evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1"`, and diagnostics only as `{ count: 0, codes: [] }`.
+- The gate evidence confirms `noAuthenticatedRealRun: true`, `noNpmPublish: true`, and `noNpmToken: true`.
+
+Repo-only evidence is recorded in `.release-evidence/p6-4-remote-release-candidate.json`. That file stores run/artifact/gate summaries only and intentionally excludes raw workflow logs, raw CLI output, full prompts, private absolute paths, local temp download paths, token values, Bearer values, and auth env assignment values. If P6-3 is later merged into `main`, a new fresh release-candidate workflow on `main` is required before claiming main evidence for the merged commit.
 
 ## P3-11 Current-Head Evidence Boundary
 

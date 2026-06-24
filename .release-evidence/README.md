@@ -12,6 +12,10 @@ For a fresh alpha release-candidate review:
 4. Run `npm run release:verify -- --dir <normalized-artifact-dir>`.
 5. Record the run URL, head SHA, artifact list, verification result, local gate results, and go/no-go decision in a local evidence file under this directory.
 
+If the commit under review has not reached `main` / `origin/main`, record the evidence explicitly as branch evidence. Use the branch ref in `gh workflow run release-candidate.yml --ref <branch>`, confirm the workflow `headSha` equals the branch target SHA, and keep `mainEvidence: false` plus the observed `originMainShaAtTrigger` in the evidence file. Do not describe branch evidence as current `main` release evidence.
+
+P6-4 uses `.release-evidence/p6-4-remote-release-candidate.json` for this branch-evidence shape. It records the remote run id, target branch/SHA, artifact ids/digests, downloaded `release:verify` result, and the P6-3 compatibility verifier gate summary. It must not include raw workflow logs, raw CLI output, full prompts, token values, Bearer values, auth env assignment values, private absolute paths, or local temp download paths.
+
 For a fresh published package verification review, trigger `.github/workflows/published-package-verification.yml`, confirm the run `headSha`, download `agent-cli-runtime-published-verification`, run `npm run published:verify:evidence -- --dir <normalized-downloaded-artifact-dir>`, and record only redacted summary metadata here.
 
 For a real CLI compatibility refresh, run `npm run compat:real:evidence` for safe preflight only. Add authenticated smoke evidence only with explicit `--allow-real-run --agent <id> --expect-text <text>` pairs. The evidence file should keep summarized classifications, versions, auth/model sources, `needsVerification` decisions, cwd-mutation result fields, and explicit `gitDirty` / dirty summary fields only; do not store raw CLI stdout/stderr or full prompts.

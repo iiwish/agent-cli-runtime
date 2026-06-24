@@ -1,0 +1,133 @@
+{
+  "stage": "P6-4",
+  "evidenceKind": "branch-release-candidate",
+  "targetRef": "codex/p6-3-offline-compat-gate",
+  "targetSha": "59b8c00a4ef79356fcba30fb526eab2f158bcdf3",
+  "originMainShaAtTrigger": "c65d21c104e743551d12da31635d90fe5bdfbec8",
+  "mainEvidence": false,
+  "p6_3MergedToMainAtTrigger": false,
+  "run": {
+    "id": 28089574967,
+    "url": "https://github.com/iiwish/agent-cli-runtime/actions/runs/28089574967",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-06-24T09:41:07Z",
+    "updatedAt": "2026-06-24T09:42:24Z",
+    "headSha": "59b8c00a4ef79356fcba30fb526eab2f158bcdf3"
+  },
+  "job": {
+    "name": "Build release candidate artifacts",
+    "id": 83163923943,
+    "status": "completed",
+    "conclusion": "success",
+    "startedAt": "2026-06-24T09:41:11Z",
+    "completedAt": "2026-06-24T09:42:23Z"
+  },
+  "artifacts": {
+    "count": 5,
+    "names": [
+      "agent-cli-runtime-tarball",
+      "agent-cli-runtime-pack-metadata",
+      "agent-cli-runtime-package-files",
+      "agent-cli-runtime-gate-evidence",
+      "agent-cli-runtime-release-verification"
+    ],
+    "items": [
+      {
+        "name": "agent-cli-runtime-tarball",
+        "id": 7845805317,
+        "digest": "sha256:a244e5ec6dac67a5d8f3ee1a6ebac78e23359d48e00bea4f7d0f066eeb241ca8",
+        "sizeInBytes": 245966,
+        "expiresAt": "2026-07-08T09:42:18Z"
+      },
+      {
+        "name": "agent-cli-runtime-pack-metadata",
+        "id": 7845805617,
+        "digest": "sha256:8ffe1991ce44a9e2bac21db9e5e06a50b19ca5b8c0899485c724431c8170db32",
+        "sizeInBytes": 2003,
+        "expiresAt": "2026-07-08T09:42:19Z"
+      },
+      {
+        "name": "agent-cli-runtime-package-files",
+        "id": 7845805881,
+        "digest": "sha256:98fad0ffa2528d3f57ee567571f401bd36a75b91231c3d4f3c74cfa4693edfca",
+        "sizeInBytes": 961,
+        "expiresAt": "2026-07-08T09:42:19Z"
+      },
+      {
+        "name": "agent-cli-runtime-gate-evidence",
+        "id": 7845806180,
+        "digest": "sha256:52fc802a5882a040548397cd87ef012b8f448daa5973937b98ec8f8fb050119b",
+        "sizeInBytes": 526,
+        "expiresAt": "2026-07-08T09:42:20Z"
+      },
+      {
+        "name": "agent-cli-runtime-release-verification",
+        "id": 7845806421,
+        "digest": "sha256:8ee3e10e9e2d77fd27fb970c937138aa3c69a4a43eae18376722157b16f1b141",
+        "sizeInBytes": 743,
+        "expiresAt": "2026-07-08T09:42:21Z"
+      }
+    ]
+  },
+  "downloadedVerification": {
+    "command": "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+    "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+    "ok": true,
+    "diagnosticsCount": 0,
+    "packageFiles": 151,
+    "packageName": "agent-cli-runtime",
+    "version": "0.1.0-alpha.1",
+    "tarball": {
+      "filename": "agent-cli-runtime-0.1.0-alpha.1.tgz",
+      "sizeBytes": 245707
+    }
+  },
+  "gateEvidence": {
+    "schemaVersion": "agent-cli-runtime.releaseGateEvidence.v1",
+    "gates": [
+      {
+        "name": "daemon-ready",
+        "script": "daemon:verify",
+        "command": "npm run daemon:verify",
+        "ok": true,
+        "outputSchemaVersion": "agent-runtime.daemonVerification.v1",
+        "packageSource": "installed-tarball"
+      },
+      {
+        "name": "runtime-safety",
+        "script": "runtime:safety",
+        "command": "npm run runtime:safety",
+        "ok": true,
+        "outputSchemaVersion": "agent-runtime.runtimeSafety.v1",
+        "packageSource": "installed-tarball"
+      },
+      {
+        "name": "real-compatibility-evidence",
+        "script": "compat:real:evidence:verify",
+        "command": "npm run compat:real:evidence:verify",
+        "ok": true,
+        "outputSchemaVersion": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+        "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityEvidence.v1",
+        "diagnostics": {
+          "count": 0,
+          "codes": []
+        }
+      }
+    ],
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noNpmToken": true
+  },
+  "boundary": {
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noNpmToken": true,
+    "noRawLogs": true,
+    "noRawCliOutput": true,
+    "noFullPrompt": true,
+    "noPrivatePath": true,
+    "noTokenValue": true
+  }
+}
