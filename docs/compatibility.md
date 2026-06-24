@@ -1,13 +1,13 @@
 # Agent CLI Compatibility Matrix
 
-Status: P6-1 Real CLI Compatibility Refresh
-Last updated: 2026-06-23
+Status: P6-2 Real Compatibility Evidence Verifier
+Last updated: 2026-06-24
 
 This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-6 added a reviewable opt-in real smoke evidence path while keeping default release gates on detection/profile certification only. P3-7 freezes the API / CLI schema inventory and versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md). It does not publish npm, configure trusted publishing, implement a daemon/API server, or add authenticated real agent runs to CI, dogfood, prepublish, or release-candidate gates. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P6-1 real CLI compatibility refresh. P6-1 keeps the P3-6 real-smoke safety boundary, adds repo-only summarized evidence under `.release-evidence/p6-1-real-cli-compatibility.json`, and audits every built-in adapter `needsVerification` item against current local CLI preflight and opt-in smoke results.
+Current status is P6-2 real compatibility evidence verifier. P6-1 keeps the P3-6 real-smoke safety boundary, adds repo-only summarized evidence under `.release-evidence/p6-1-real-cli-compatibility.json`, and audits every built-in adapter `needsVerification` item against current local CLI preflight and opt-in smoke results. P6-2 adds `npm run compat:real:evidence:verify` as an offline drift gate for that file; it does not launch real CLI runs.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and single-Node TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
@@ -41,6 +41,15 @@ npm run compat:real:evidence -- --allow-real-run \
 ```
 
 The generated repo-only file is `.release-evidence/p6-1-real-cli-compatibility.json` with `schemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1"`. It stores redacted summaries only: no raw stdout/stderr, no prompt text, no full observed text tail, no private paths, no token values, no Bearer values, and no auth environment assignment values. It records `gitHeadSha` plus `gitDirty` and before/after dirty summaries so a dirty-tree evidence file is not mistaken for clean-commit evidence. The command runs safe preflight by default; authenticated real runs are added only when `--allow-real-run`, `--agent <id>`, and `--expect-text <text>` are all explicit.
+
+P6-2 verifies the same repo-only evidence with:
+
+```bash
+npm run compat:real:evidence:verify
+npm run compat:real:evidence:verify -- --self-test
+```
+
+The verifier emits `schemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1"` and stable diagnostics. It rejects raw stdout/stderr fields, private paths, token/Bearer/auth env values, missing `gitHeadSha` / `gitDirty` / before-after dirty summaries, safe preflight skipped states claimed as success, authenticated success without expected-text and cwd-mutation evidence, missing Codex/Claude/OpenCode `needsVerification` audit items, and evidence that claims `.release-evidence/` belongs in the package boundary.
 
 Current safe preflight command results:
 

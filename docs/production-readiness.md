@@ -29,6 +29,7 @@ For this repository, "production-ready local runtime" means:
 - `npm run published:daemon:verify` installs `agent-cli-runtime@0.1.0-alpha.1` from the npm registry into a temporary daemon-style consumer and verifies detect, run, goal, cancel, timeout, replay, read-only inspection during active writer ownership, second-writer refusal, shutdown/reopen, and stale owner recovery with schema `agent-runtime.publishedDaemonConsumer.v1`;
 - real CLI conformance and smoke default to detection/profile certification only; authenticated real agent runs require explicit `--allow-real-run`;
 - `npm run compat:real:evidence` creates repo-only redacted real CLI compatibility evidence under `.release-evidence/`; it defaults to safe preflight and requires explicit `--allow-real-run --agent <id> --expect-text <text>` pairs before launching authenticated real smoke;
+- `npm run compat:real:evidence:verify` is the offline P6-2 evidence gate for `.release-evidence/p6-1-real-cli-compatibility.json`; it does not launch authenticated real runs and rejects unsafe content, evidence drift, skip-as-success claims, incomplete authenticated success evidence, missing `needsVerification` audits, and invalid repo-only package-boundary claims;
 - real smoke evidence uses `schemaVersion: "agent-runtime.realSmoke.v1"`, requires expected text for success, checks cwd mutation, and omits prompts, raw stdout/stderr, private cwd, tokens, and final run records;
 - release artifact verification uses `agent-cli-runtime.releaseVerification.v1`, release gate evidence uses `agent-cli-runtime.releaseGateEvidence.v1`, and both are covered by the schema versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md);
 - `npm run dogfood` is the default release-candidate gate and does not launch authenticated real agent runs;
@@ -75,6 +76,7 @@ npm run published:adapters:verify
 npm run published:verify -- --out-dir /tmp/agent-runtime-published-verification
 npm run published:verify:evidence -- --dir /tmp/agent-runtime-published-verification
 npm run compat:real:evidence
+npm run compat:real:evidence:verify
 node ./dist/cli/main.js conformance --mode fixtures --json
 node ./dist/cli/main.js conformance --mode fake --json
 node ./dist/cli/main.js conformance --mode real --agent all --json
@@ -189,6 +191,8 @@ Repository-only daemon embedding gates:
 - `scripts/verify-published-adapters.mjs`
 - `scripts/create-published-verification-evidence.mjs`
 - `scripts/verify-published-verification-evidence.mjs`
+- `scripts/create-real-compatibility-evidence.mjs`
+- `scripts/verify-real-compatibility-evidence.mjs`
 
 Repository-only prepublish artifacts:
 

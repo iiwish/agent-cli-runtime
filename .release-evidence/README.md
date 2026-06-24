@@ -16,4 +16,6 @@ For a fresh published package verification review, trigger `.github/workflows/pu
 
 For a real CLI compatibility refresh, run `npm run compat:real:evidence` for safe preflight only. Add authenticated smoke evidence only with explicit `--allow-real-run --agent <id> --expect-text <text>` pairs. The evidence file should keep summarized classifications, versions, auth/model sources, `needsVerification` decisions, cwd-mutation result fields, and explicit `gitDirty` / dirty summary fields only; do not store raw CLI stdout/stderr or full prompts.
 
+After writing real compatibility evidence, run `npm run compat:real:evidence:verify`. The P6-2 verifier is offline: it reads `.release-evidence/p6-1-real-cli-compatibility.json` by default, supports `--file <path>` for alternate evidence, and does not start authenticated real agent runs. It rejects unsafe content, missing dirty-state evidence, skipped/auth-missing states claimed as success, incomplete authenticated success evidence, missing required `needsVerification` audit items, and invalid repo-only package-boundary claims. Use `npm run compat:real:evidence:verify -- --self-test` to exercise the verifier's local rejection fixtures.
+
 Do not put `.reference/`, temporary download directories, private user paths, CI tokens, npm tokens, or real provider tokens in this directory.

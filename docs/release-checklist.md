@@ -1,5 +1,16 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P6-2 real compatibility evidence verifier
+
+- [x] `npm run compat:real:evidence:verify` exists and emits `schemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1"`.
+- [x] Default verifier reads `.release-evidence/p6-1-real-cli-compatibility.json` and does not launch authenticated real agent runs.
+- [x] `--file <path>` supports offline verification of another evidence file.
+- [x] `--self-test` covers valid fixture acceptance and rejection of unsafe content, missing dirty-state evidence, skipped/auth-missing states claimed as success, incomplete authenticated success evidence, missing required `needsVerification` audit items, and invalid package-boundary claims.
+- [x] Verifier diagnostics use stable redacted codes: `invalid_schema`, `unsafe_content`, `missing_dirty_state`, `skip_state_claimed_as_success`, `authenticated_success_incomplete`, `needs_verification_missing`, and `package_boundary_invalid`.
+- [x] P6-1 evidence passes the P6-2 verifier.
+- [x] `scripts/verify-real-compatibility-evidence.mjs` and `.release-evidence/` remain outside npm package contents.
+- [x] CI, dogfood, prepublish, and release-candidate gates still do not pass `--allow-real-run`.
+
 ## P6-1 real CLI compatibility refresh
 
 - [x] `npm run compat:real:evidence` exists and emits `schemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1"` to `.release-evidence/p6-1-real-cli-compatibility.json`.
