@@ -1,5 +1,16 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P6-3 offline compatibility gate integration
+
+- [x] `npm run prepublish:check` includes `npm run compat:real:evidence:verify`.
+- [x] `prepublish:check`, `release:candidate`, CI, and dogfood still do not pass `--allow-real-run`.
+- [x] `npm run dogfood` does not run `compat:real:evidence:verify`, so installed-package consumers do not depend on repo-only `.release-evidence/`.
+- [x] `npm run release:candidate` records `compat:real:evidence:verify` in `gate-evidence.json` with `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"`.
+- [x] Compatibility gate evidence stores only command, ok, verifier schema, verified evidence schema, and diagnostic count/codes; it does not embed `.release-evidence/p6-1-real-cli-compatibility.json` or raw verifier output.
+- [x] `npm run release:verify` rejects release-candidate evidence if the compatibility gate is missing, failed, has an unexpected schema, or includes diagnostics beyond redacted count/codes.
+- [x] `.release-evidence/`, `scripts/create-real-compatibility-evidence.mjs`, and `scripts/verify-real-compatibility-evidence.mjs` remain repo-only and outside npm package contents.
+- [x] CI does not run `compat:real:evidence:verify`; the verifier is tied to repo-only `.release-evidence/`, while CI/dogfood remain deterministic package and installed-consumer gates.
+
 ## P6-2 real compatibility evidence verifier
 
 - [x] `npm run compat:real:evidence:verify` exists and emits `schemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1"`.
@@ -165,9 +176,9 @@
 - [x] `.github/workflows/ci.yml` keeps the Node.js 20/22/24 matrix for typecheck, lint, tests, build, production dependency audit, package boundary checks, and pack dry-run.
 - [x] CI runs `npm run daemon:verify`, `npm run runtime:safety`, and `npm run dogfood` in one single-Node release-gates job instead of repeating installed-package gates across the matrix.
 - [x] `.github/workflows/release-candidate.yml` remains manual `workflow_dispatch`, runs `npm ci`, `npm run ci`, `npm run dogfood`, and delegates artifact creation to `npm run release:candidate -- --out-dir release-candidate`.
-- [x] `release:candidate` writes `gate-evidence.json` with `agent-cli-runtime.releaseGateEvidence.v1`, `npm run daemon:verify`, `npm run runtime:safety`, and the installed-package output schema versions.
-- [x] `release:verify` requires `gate-evidence.json`, rejects missing or incomplete daemon-ready gate evidence, and still checks `.reference/`, tests/fixtures, private paths, token-looking values, Bearer values, and auth env assignments.
-- [x] `npm run prepublish:check` includes both `npm run daemon:verify` and `npm run runtime:safety`.
+- [x] `release:candidate` writes `gate-evidence.json` with `agent-cli-runtime.releaseGateEvidence.v1`, `npm run daemon:verify`, `npm run runtime:safety`, `npm run compat:real:evidence:verify`, installed-package output schema versions, and offline compatibility verification schema summaries.
+- [x] `release:verify` requires `gate-evidence.json`, rejects missing or incomplete daemon-ready / runtime-safety / compatibility-verification gate evidence, and still checks `.reference/`, tests/fixtures, private paths, token-looking values, Bearer values, and auth env assignments.
+- [x] `npm run prepublish:check` includes `npm run daemon:verify`, `npm run runtime:safety`, and `npm run compat:real:evidence:verify`.
 - [x] Workflows still contain no `npm publish`, no `NODE_AUTH_TOKEN` / `NPM_TOKEN`, no trusted-publishing credential setup, and no `--allow-real-run`.
 - [x] Triggered fresh remote `.github/workflows/release-candidate.yml` run `27932628093` for workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e` and downloaded/re-verified all five artifacts, including `agent-cli-runtime-gate-evidence`. This is historical evidence only after P3-9.
 
@@ -250,7 +261,7 @@
 
 `npm run dogfood` is the default publish-readiness bundle. It rebuilds, runs offline fixtures/fake conformance, runs real local detection/profile conformance without `--allow-real-run`, executes fake-CLI examples, performs a pack dry-run, and installs the packed tarball into a temporary project for package-root import, TypeScript `tsc --noEmit`, fake library run/goal/replay/diagnostics, and installed CLI smoke.
 
-`npm run prepublish:check` is the local release-candidate guard. It combines typecheck, lint, tests, build, daemon verification, runtime safety verification, dogfood, production audit, package boundary checking, and pack dry-run. It must not run authenticated real agents.
+`npm run prepublish:check` is the local release-candidate guard. It combines typecheck, lint, tests, build, daemon verification, runtime safety verification, offline real compatibility evidence verification, dogfood, production audit, package boundary checking, and pack dry-run. It must not run authenticated real agents.
 
 `npm publish --dry-run --ignore-scripts --tag alpha` is a manual local safety check only. It must show `tag alpha`, must not publish, and must not require an npm token. Keep it out of required CI unless the output is proven stable enough for this repository.
 
@@ -275,7 +286,7 @@ All historical runs above are historical after the P3-10 evidence packet. P3-10 
   - `agent-cli-runtime-release-verification`
 - [x] Recreate a review directory from downloaded artifacts and run `npm run release:verify -- --dir /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized`.
 - [x] Confirm `release-verification.json` uses `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, has `ok: true`, package file count `151`, and empty diagnostics.
-- [x] Confirm `gate-evidence.json` uses `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and records `daemon:verify` plus `runtime:safety` with `packageSource: "installed-tarball"`.
+- [x] Confirm `gate-evidence.json` uses `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and records `daemon:verify` plus `runtime:safety` with `packageSource: "installed-tarball"`, plus `compat:real:evidence:verify` with redacted diagnostic count/codes only.
 - [x] Confirm no npm token, npm provenance publish, or registry credential is required.
 - [x] Confirm artifacts use the documented 14-day retention window.
 
@@ -293,6 +304,9 @@ All historical runs above are historical after the P3-10 evidence packet. P3-10 
   - raw corrupt samples
   - fixture secrets / private paths
   - raw real CLI output
+  - `.release-evidence/`
+  - `scripts/create-real-compatibility-evidence.mjs`
+  - `scripts/verify-real-compatibility-evidence.mjs`
   - real provider tokens or token-looking values.
 - [ ] Confirm `dist/`, docs, examples, `scripts/dogfood.mjs`, README files, LICENSE, and release docs are included.
 - [ ] Confirm `docs/release-report.md` is included.

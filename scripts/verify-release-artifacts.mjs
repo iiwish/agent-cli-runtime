@@ -11,18 +11,29 @@ const DEFAULT_ARTIFACT_NAMES = [
   "agent-cli-runtime-release-verification",
 ];
 const GATE_EVIDENCE_SCHEMA_VERSION = "agent-cli-runtime.releaseGateEvidence.v1";
+const REAL_COMPATIBILITY_EVIDENCE_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityEvidence.v1";
+const REAL_COMPATIBILITY_VERIFICATION_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityEvidenceVerification.v1";
 const REQUIRED_GATE_EVIDENCE = [
   {
     name: "daemon-ready",
     script: "daemon:verify",
     command: "npm run daemon:verify",
     outputSchemaVersion: "agent-runtime.daemonVerification.v1",
+    packageSource: "installed-tarball",
   },
   {
     name: "runtime-safety",
     script: "runtime:safety",
     command: "npm run runtime:safety",
     outputSchemaVersion: "agent-runtime.runtimeSafety.v1",
+    packageSource: "installed-tarball",
+  },
+  {
+    name: "real-compatibility-evidence",
+    script: "compat:real:evidence:verify",
+    command: "npm run compat:real:evidence:verify",
+    outputSchemaVersion: REAL_COMPATIBILITY_VERIFICATION_SCHEMA_VERSION,
+    evidenceSchemaVersion: REAL_COMPATIBILITY_EVIDENCE_SCHEMA_VERSION,
   },
 ];
 
@@ -35,6 +46,7 @@ const disallowedPathPatterns = [
   { code: "repair_backups", pattern: /(?:^|\/)repair-backups(?:\/|$)/u },
   { code: "raw_corrupt_samples", pattern: /(?:^|\/)raw-corrupt-samples(?:\/|$)/u },
   { code: "raw_real_cli_output", pattern: /(?:^|\/)raw-real-cli-output(?:\/|$)/u },
+  { code: "repo_only_real_compatibility_script", pattern: /^scripts\/(?:create-real-compatibility-evidence|verify-real-compatibility-evidence)\.mjs$/u },
 ];
 
 const secretPatterns = [
@@ -287,7 +299,7 @@ function validateGateEvidence(gateEvidenceText, baseDir, gateEvidencePath, diagn
       });
     }
     if (gate.ok !== true) {
-      addDiagnostic(diagnostics, "missing_gate_evidence", `Gate ${required.script} did not record ok: true.`, {
+      addDiagnostic(diagnostics, "failed_gate_evidence", `Gate ${required.script} did not record ok: true.`, {
         script: required.script,
       });
     }
@@ -297,10 +309,15 @@ function validateGateEvidence(gateEvidenceText, baseDir, gateEvidencePath, diagn
         actual: typeof gate.outputSchemaVersion === "string" ? gate.outputSchemaVersion : null,
       });
     }
-    if (gate.packageSource !== "installed-tarball") {
-      addDiagnostic(diagnostics, "invalid_gate_evidence", `Gate ${required.script} must verify the installed tarball path.`, {
-        script: required.script,
-      });
+    if ("packageSource" in required) {
+      if (gate.packageSource !== required.packageSource) {
+        addDiagnostic(diagnostics, "invalid_gate_evidence", `Gate ${required.script} must verify the installed tarball path.`, {
+          script: required.script,
+        });
+      }
+    }
+    if ("evidenceSchemaVersion" in required) {
+      validateCompatibilityGate(gate, required, diagnostics);
     }
   }
 
@@ -314,12 +331,61 @@ function validateGateEvidence(gateEvidenceText, baseDir, gateEvidencePath, diagn
       ok: gate?.ok === true,
       outputSchemaVersion: typeof gate?.outputSchemaVersion === "string" ? redact(gate.outputSchemaVersion) : null,
       packageSource: typeof gate?.packageSource === "string" ? redact(gate.packageSource) : null,
+      evidenceSchemaVersion: typeof gate?.evidenceSchemaVersion === "string" ? redact(gate.evidenceSchemaVersion) : null,
+      diagnostics: summarizeGateDiagnostics(gate?.diagnostics, diagnostics),
     })),
     commands: gates.map((gate) => typeof gate?.command === "string" ? redact(gate.command) : null).filter(Boolean),
     noAuthenticatedRealRun: evidence.noAuthenticatedRealRun === true,
     noNpmPublish: evidence.noNpmPublish === true,
     noNpmToken: evidence.noNpmToken === true,
   };
+}
+
+function validateCompatibilityGate(gate, required, diagnostics) {
+  if (gate.evidenceSchemaVersion !== required.evidenceSchemaVersion) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Unexpected verified evidence schema for ${required.script}.`, {
+      expected: required.evidenceSchemaVersion,
+      actual: typeof gate.evidenceSchemaVersion === "string" ? gate.evidenceSchemaVersion : null,
+    });
+  }
+  const summary = gate.diagnostics;
+  const summaryKeys = Object.keys(summary ?? {});
+  if (
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    typeof summary.count !== "number" ||
+    !Array.isArray(summary.codes) ||
+    summaryKeys.some((key) => !["count", "codes"].includes(key))
+  ) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Compatibility verification diagnostics for ${required.script} must be summarized as count and codes only.`, {
+      script: required.script,
+    });
+    return;
+  }
+  for (const code of summary.codes) {
+    if (typeof code !== "string" || !/^[a-z0-9_]+$/u.test(code)) {
+      addDiagnostic(diagnostics, "unsafe_gate_evidence", `Compatibility verification diagnostics for ${required.script} contain a non-redacted code.`, {
+        script: required.script,
+      });
+    }
+  }
+  const diagnosticsText = JSON.stringify(summary);
+  if (/"(?:message|stdout|stderr|rawStdout|rawStderr|rawOutput|prompt|fullPrompt|file|path)"\s*:/iu.test(diagnosticsText)) {
+    addDiagnostic(diagnostics, "unsafe_gate_evidence", `Compatibility verification diagnostics for ${required.script} include details beyond codes/count.`, {
+      script: required.script,
+    });
+  }
+}
+
+function summarizeGateDiagnostics(summary, diagnostics) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) return null;
+  const result = {
+    count: typeof summary.count === "number" ? summary.count : null,
+    codes: Array.isArray(summary.codes) ? summary.codes.filter((code) => typeof code === "string").map(redact) : [],
+  };
+  inspectString(JSON.stringify(result), diagnostics, "release gate diagnostics summary");
+  return result;
 }
 
 function validate(options) {

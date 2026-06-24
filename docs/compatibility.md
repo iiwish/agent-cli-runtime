@@ -1,25 +1,25 @@
 # Agent CLI Compatibility Matrix
 
-Status: P6-2 Real Compatibility Evidence Verifier
+Status: P6-3 Offline Compatibility Gate Integration
 Last updated: 2026-06-24
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-6 added a reviewable opt-in real smoke evidence path while keeping default release gates on detection/profile certification only. P3-7 freezes the API / CLI schema inventory and versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md). It does not publish npm, configure trusted publishing, implement a daemon/API server, or add authenticated real agent runs to CI, dogfood, prepublish, or release-candidate gates. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-6 added a reviewable opt-in real smoke evidence path while keeping default release gates on detection/profile certification only. P3-7 freezes the API / CLI schema inventory and versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md). P6-3 integrates the P6-2 offline evidence verifier into prepublish and release-candidate evidence; it does not refresh real CLI evidence. It does not publish npm, configure trusted publishing, implement a daemon/API server, or add authenticated real agent runs to CI, dogfood, prepublish, or release-candidate gates. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
 
 ## Evidence policy
 
-Current status is P6-2 real compatibility evidence verifier. P6-1 keeps the P3-6 real-smoke safety boundary, adds repo-only summarized evidence under `.release-evidence/p6-1-real-cli-compatibility.json`, and audits every built-in adapter `needsVerification` item against current local CLI preflight and opt-in smoke results. P6-2 adds `npm run compat:real:evidence:verify` as an offline drift gate for that file; it does not launch real CLI runs.
+Current status is P6-3 offline compatibility gate integration. P6-1 keeps the P3-6 real-smoke safety boundary, adds repo-only summarized evidence under `.release-evidence/p6-1-real-cli-compatibility.json`, and audits every built-in adapter `needsVerification` item against current local CLI preflight and opt-in smoke results. P6-2 adds `npm run compat:real:evidence:verify` as an offline drift gate for that file; it does not launch real CLI runs. P6-3 wires that verifier into `prepublish:check` and `release:candidate` evidence without running `npm run compat:real:evidence` or passing `--allow-real-run`.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and single-Node TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
 - `npm test` uses Vitest's verbose reporter for contract coverage; slower installed-package gates and install smokes stay out of the Node.js matrix and run through single-Node release gates or explicit opt-in checks.
-- `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, `daemon:verify`, `runtime:safety`, dogfood, production audit, package boundary checks, and pack dry-run.
-- `npm run release:candidate` creates local release-candidate artifacts including `gate-evidence.json`, and `npm run release:verify -- --dir <path>` validates local or downloaded artifacts with stable redacted JSON.
+- `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, `daemon:verify`, `runtime:safety`, offline real compatibility evidence verification, dogfood, production audit, package boundary checks, and pack dry-run.
+- `npm run release:candidate` creates local release-candidate artifacts including `gate-evidence.json`, and `npm run release:verify -- --dir <path>` validates local or downloaded artifacts with stable redacted JSON. `gate-evidence.json` records the compatibility verification gate as a redacted summary only: command, ok, verifier schema, verified evidence schema, and diagnostic count/codes.
 - `npm publish --dry-run --ignore-scripts --tag alpha` is a documented manual local dry-run check; it is not a remote CI gate.
 - `docs/release-publish-runbook.md` documents the future human alpha publish path, dist-tag verification, rollback/deprecation/unpublish boundary, 2FA, trusted publishing, provenance, and token strategy; no real publish is performed in P2-13.
 - `docs/daemon-ready-contract.md` documents embedding semantics for daemon/product shell callers without adding a hosted daemon surface.
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
 - `npm run published:adapters:verify` installs the already published npm package from the npm registry into a temporary consumer and verifies built-in Codex, Claude, and OpenCode adapter detection, argv shape, stdin prompt transport, parser behavior, redaction, and per-adapter failure isolation with fake CLIs only.
-- CI runs `daemon:verify`, `runtime:safety`, and dogfood once in a single Node.js 22 release-gates job; the Node.js 20/22/24 matrix does not repeat installed-package gates.
+- CI runs `daemon:verify`, `runtime:safety`, and dogfood once in a single Node.js 22 release-gates job; the Node.js 20/22/24 matrix does not repeat installed-package gates. CI does not run `compat:real:evidence:verify` because that verifier depends on repo-only `.release-evidence/`, while dogfood remains an installed-package consumer gate.
 - Remote GitHub Actions release-candidate evidence is run `27932628093` on workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`.
 - Evidence modes are intentionally separate:
   - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
@@ -50,6 +50,8 @@ npm run compat:real:evidence:verify -- --self-test
 ```
 
 The verifier emits `schemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1"` and stable diagnostics. It rejects raw stdout/stderr fields, private paths, token/Bearer/auth env values, missing `gitHeadSha` / `gitDirty` / before-after dirty summaries, safe preflight skipped states claimed as success, authenticated success without expected-text and cwd-mutation evidence, missing Codex/Claude/OpenCode `needsVerification` audit items, and evidence that claims `.release-evidence/` belongs in the package boundary.
+
+P6-3 does not regenerate this evidence. It only requires the existing repo-only evidence to pass the offline verifier before local prepublish and while creating release-candidate artifacts. `dogfood` does not run the verifier, so installed-package consumers never depend on `.release-evidence/`.
 
 Current safe preflight command results:
 

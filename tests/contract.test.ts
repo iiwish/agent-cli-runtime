@@ -358,7 +358,9 @@ describe("public contract", () => {
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:daemon:verify");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:adapters:verify");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:verify");
-    expect(manifest.scripts["prepublish:check"]).not.toContain("compat:real:evidence");
+    expect(manifest.scripts["prepublish:check"]).toContain("npm run compat:real:evidence:verify");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("npm run compat:real:evidence &&");
+    expect(manifest.scripts.dogfood).not.toContain("compat:real:evidence:verify");
 
     expect(daemonScript).toContain("agent-runtime.daemonVerification.v1");
     expect(daemonScript).toContain("installed-tarball");
@@ -2352,6 +2354,8 @@ setInterval(() => {}, 1000);
     expect(files).not.toContainEqual(expect.stringMatching(/^tests\/fixtures\/secrets/u));
     expect(files).not.toContainEqual(expect.stringMatching(/^docs\/fixtures\//u));
     expect(files).not.toContainEqual(expect.stringMatching(/fixtures?/iu));
+    expect(files).not.toContain("scripts/create-real-compatibility-evidence.mjs");
+    expect(files).not.toContain("scripts/verify-real-compatibility-evidence.mjs");
     expect(stdout).not.toContain(`sk${"A".repeat(20)}`);
   });
 
@@ -2392,6 +2396,15 @@ setInterval(() => {}, 1000);
           outputSchemaVersion: "agent-runtime.runtimeSafety.v1",
           packageSource: "installed-tarball",
         },
+        {
+          name: "real-compatibility-evidence",
+          script: "compat:real:evidence:verify",
+          command: "npm run compat:real:evidence:verify",
+          ok: true,
+          outputSchemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+          evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1",
+          diagnostics: { count: 0, codes: [] },
+        },
       ],
       noAuthenticatedRealRun: true,
       noNpmPublish: true,
@@ -2416,7 +2429,15 @@ setInterval(() => {}, 1000);
       artifactNames: string[];
       gateEvidence: {
         schemaVersion: string;
-        gates: Array<{ script: string; command: string; ok: boolean; outputSchemaVersion: string; packageSource: string }>;
+        gates: Array<{
+          script: string;
+          command: string;
+          ok: boolean;
+          outputSchemaVersion: string;
+          packageSource: string | null;
+          evidenceSchemaVersion: string | null;
+          diagnostics: { count: number | null; codes: string[] } | null;
+        }>;
         commands: string[];
       };
       packageName: string;
@@ -2439,7 +2460,7 @@ setInterval(() => {}, 1000);
       artifactNames: expect.arrayContaining(expectedReleaseCandidateArtifacts),
       gateEvidence: {
         schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
-        commands: ["npm run daemon:verify", "npm run runtime:safety"],
+        commands: ["npm run daemon:verify", "npm run runtime:safety", "npm run compat:real:evidence:verify"],
       },
       packageName: "agent-cli-runtime",
       version: "0.1.0-alpha.0",
@@ -2458,6 +2479,14 @@ setInterval(() => {}, 1000);
         ok: true,
         outputSchemaVersion: "agent-runtime.runtimeSafety.v1",
         packageSource: "installed-tarball",
+      }),
+      expect.objectContaining({
+        script: "compat:real:evidence:verify",
+        command: "npm run compat:real:evidence:verify",
+        ok: true,
+        outputSchemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+        evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1",
+        diagnostics: { count: 0, codes: [] },
       }),
     ]);
     expect([...verification.artifactNames].sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
@@ -2728,6 +2757,109 @@ setInterval(() => {}, 1000);
     expect(failure.stdout).not.toContain(dir);
   });
 
+  it("rejects release artifacts missing the offline real compatibility verification gate", async () => {
+    const dir = await tempDir("agent-runtime-release-missing-compat-gate-");
+    const pack = [{
+      name: "agent-cli-runtime",
+      version: "0.1.0-alpha.0",
+      filename: "agent-cli-runtime-0.1.0-alpha.0.tgz",
+      files: [{ path: "dist/index.js" }],
+    }];
+    await writeFile(path.join(dir, "npm-pack.json"), JSON.stringify(pack), "utf8");
+    await writeFile(path.join(dir, "package-files.txt"), "dist/index.js\n", "utf8");
+    await writeFile(path.join(dir, "gate-evidence.json"), JSON.stringify({
+      schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
+      generatedAt: "2026-06-24T00:00:00.000Z",
+      gates: [
+        {
+          name: "daemon-ready",
+          script: "daemon:verify",
+          command: "npm run daemon:verify",
+          ok: true,
+          outputSchemaVersion: "agent-runtime.daemonVerification.v1",
+          packageSource: "installed-tarball",
+        },
+        {
+          name: "runtime-safety",
+          script: "runtime:safety",
+          command: "npm run runtime:safety",
+          ok: true,
+          outputSchemaVersion: "agent-runtime.runtimeSafety.v1",
+          packageSource: "installed-tarball",
+        },
+      ],
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    }), "utf8");
+    await writeFile(path.join(dir, pack[0].filename), "fake tarball", "utf8");
+
+    const failure = await execCliFailureViaNode([releaseVerifier, "--dir", dir]);
+    const verification = JSON.parse(failure.stdout) as { ok: boolean; diagnostics: Array<{ code: string; script?: string }> };
+
+    expect(failure.code).toBe(1);
+    expect(verification.ok).toBe(false);
+    expect(verification.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "missing_gate_evidence", script: "compat:real:evidence:verify" }),
+    ]));
+  });
+
+  it("rejects failed or non-redacted offline real compatibility verification gate summaries", async () => {
+    const dir = await tempDir("agent-runtime-release-failed-compat-gate-");
+    const pack = [{
+      name: "agent-cli-runtime",
+      version: "0.1.0-alpha.0",
+      filename: "agent-cli-runtime-0.1.0-alpha.0.tgz",
+      files: [{ path: "dist/index.js" }],
+    }];
+    await writeFile(path.join(dir, "npm-pack.json"), JSON.stringify(pack), "utf8");
+    await writeFile(path.join(dir, "package-files.txt"), "dist/index.js\n", "utf8");
+    await writeFile(path.join(dir, "gate-evidence.json"), JSON.stringify({
+      schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
+      generatedAt: "2026-06-24T00:00:00.000Z",
+      gates: [
+        {
+          name: "daemon-ready",
+          script: "daemon:verify",
+          command: "npm run daemon:verify",
+          ok: true,
+          outputSchemaVersion: "agent-runtime.daemonVerification.v1",
+          packageSource: "installed-tarball",
+        },
+        {
+          name: "runtime-safety",
+          script: "runtime:safety",
+          command: "npm run runtime:safety",
+          ok: true,
+          outputSchemaVersion: "agent-runtime.runtimeSafety.v1",
+          packageSource: "installed-tarball",
+        },
+        {
+          name: "real-compatibility-evidence",
+          script: "compat:real:evidence:verify",
+          command: "npm run compat:real:evidence:verify",
+          ok: false,
+          outputSchemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+          evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1",
+          diagnostics: { count: 1, codes: ["unsafe_content"], message: "raw details must not be stored" },
+        },
+      ],
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    }), "utf8");
+    await writeFile(path.join(dir, pack[0].filename), "fake tarball", "utf8");
+
+    const failure = await execCliFailureViaNode([releaseVerifier, "--dir", dir]);
+    const verification = JSON.parse(failure.stdout) as { ok: boolean; diagnostics: Array<{ code: string; script?: string }> };
+    const codes = verification.diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(failure.code).toBe(1);
+    expect(verification.ok).toBe(false);
+    expect(codes).toEqual(expect.arrayContaining(["failed_gate_evidence", "invalid_gate_evidence"]));
+    expect(failure.stdout).not.toContain("raw details must not be stored");
+  });
+
   it("rejects and redacts unsafe daemon-ready gate evidence", async () => {
     const dir = await tempDir("agent-runtime-release-bad-gates-");
     const fakePrivatePath = "/" + "Users/example/gate-output.json";
@@ -2783,6 +2915,8 @@ setInterval(() => {}, 1000);
       "tests/contract.test.ts",
       "tests/fixtures/streams/raw.jsonl",
       "docs/raw-real-cli-output/capture.json",
+      "scripts/create-real-compatibility-evidence.mjs",
+      "scripts/verify-real-compatibility-evidence.mjs",
       fakePrivatePath,
       `docs/token-${fakeSecret}.txt`,
       `docs/header-Bearer ${"B".repeat(20)}.txt`,
@@ -2810,6 +2944,7 @@ setInterval(() => {}, 1000);
       "fixture_material",
       "volatile_release_evidence",
       "raw_real_cli_output",
+      "repo_only_real_compatibility_script",
       "unsafe_package_path",
       "private_user_path",
       "openai_style_secret",
@@ -2828,6 +2963,10 @@ setInterval(() => {}, 1000);
     expect(script).toContain("pack");
     expect(script).toContain("--pack-destination");
     expect(script).toContain("verify-release-artifacts.mjs");
+    expect(script).toContain("npm run compat:real:evidence:verify");
+    expect(script).toContain("agent-cli-runtime.realCompatibilityEvidenceVerification.v1");
+    expect(script).toContain("agent-cli-runtime.realCompatibilityEvidence.v1");
+    expect(script).toContain("summarizeDiagnostics");
     expect(script).not.toMatch(/\bnpm publish\b/u);
     expect(script).not.toContain("NODE_AUTH_TOKEN");
     expect(script).not.toContain("--allow-real-run");
@@ -2923,16 +3062,20 @@ setInterval(() => {}, 1000);
 
     expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
+    expect(manifest.scripts["prepublish:check"]).toContain("npm run compat:real:evidence:verify");
+    expect(manifest.scripts["prepublish:check"]).not.toContain("npm run compat:real:evidence &&");
     expect(manifest.scripts["release:post-alpha:verify"]).toBe("node ./scripts/verify-post-alpha-release.mjs");
     expect(manifest.scripts["smoke:published"]).toBe("node ./scripts/smoke-published.mjs");
     expect(manifest.scripts["published:verify"]).toBe("node ./scripts/create-published-verification-evidence.mjs");
     expect(manifest.scripts["published:verify:evidence"]).toBe("node ./scripts/verify-published-verification-evidence.mjs");
     expect(manifest.scripts.dogfood).not.toContain("--allow-real-run");
+    expect(manifest.scripts.dogfood).not.toContain("compat:real:evidence:verify");
     expect(manifest.scripts["prepublish:check"]).not.toContain("--allow-real-run");
     expect(manifest.scripts["release:candidate"]).not.toContain("--allow-real-run");
     expect(creator).toContain("agent-cli-runtime.releaseGateEvidence.v1");
     expect(creator).toContain("npm run daemon:verify");
     expect(creator).toContain("npm run runtime:safety");
+    expect(creator).toContain("npm run compat:real:evidence:verify");
     expect(creator).toContain("gate-evidence.json");
     expect(creator).not.toMatch(/\bnpm publish\b/u);
     expect(creator).not.toContain("NODE_AUTH_TOKEN");
