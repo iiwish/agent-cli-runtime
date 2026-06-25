@@ -1,5 +1,22 @@
 # Release Checklist (pre-alpha / developer preview)
 
+## P6-5 main release-candidate evidence closure
+
+- [x] Confirmed P6-1 through P6-4 were on `codex/p6-3-offline-compat-gate` as commits `72505c2`, `10288bf`, `59b8c00`, and `0e7ccd8`.
+- [x] Merged PR #4 with a merge commit so the P6 commits remain ancestors of `main`.
+- [x] Confirmed `origin/main` is `f2ed4d07103c3a9385d6be66c0befead1784558d` and contains P6-1, P6-2, P6-3, and P6-4.
+- [x] Triggered fresh `.github/workflows/release-candidate.yml` run `28143647046` with `gh workflow run release-candidate.yml --ref main`.
+- [x] Confirmed `gh run view 28143647046 --json headSha,status,conclusion,url,jobs,createdAt,updatedAt,event` reported `headSha` `f2ed4d07103c3a9385d6be66c0befead1784558d`, `status` `completed`, and `conclusion` `success`.
+- [x] Confirmed remote job `Build release candidate artifacts` id `83346025464` completed successfully, including `Run CI gate`, `Run dogfood gate without authenticated real runs`, `Create npm pack artifact and gate evidence without publishing`, and all five upload steps.
+- [x] Confirmed artifacts include `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`.
+- [x] Downloaded all five artifacts, normalized them into one review directory, and ran `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>`.
+- [x] Downloaded artifact verification passed with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `151`, tarball `agent-cli-runtime-0.1.0-alpha.1.tgz`, and empty diagnostics.
+- [x] Downloaded `gate-evidence.json` records `daemon:verify`, `runtime:safety`, and `compat:real:evidence:verify`.
+- [x] Compatibility verifier gate records `outputSchemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1"`, `evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1"`, and diagnostics only as `{ count: 0, codes: [] }`.
+- [x] Downloaded gate evidence confirms `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` are all `true`.
+- [x] Recorded repo-only redacted summary in `.release-evidence/p6-5-main-release-candidate.json`, without raw workflow logs, raw CLI output, full prompts, token values, private paths, or local temp download paths.
+- [x] P6-5 is main-scoped evidence for `origin/main` merge commit `f2ed4d07103c3a9385d6be66c0befead1784558d`; P6-4 remains branch evidence only for its original branch target SHA.
+
 ## P6-4 remote release-candidate branch evidence closure
 
 - [x] Confirmed local branch `codex/p6-3-offline-compat-gate`, target SHA `59b8c00a4ef79356fcba30fb526eab2f158bcdf3`, and clean worktree before triggering remote evidence.
