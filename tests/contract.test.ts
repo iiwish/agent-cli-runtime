@@ -3663,6 +3663,13 @@ setInterval(() => {}, 1000);
     expect(releaseChecklist).toContain("0.1.0-alpha.2");
     expect(runbook).toContain("Alpha.2 human-controlled publish path");
 
+    const productionReadiness = await readFile(path.join(root, "docs", "production-readiness.md"), "utf8");
+    const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
+    expect(productionReadiness).toContain("publish-ready release candidate");
+    expect(productionReadiness).toContain("local publish dry-run evidence");
+    expect(changelog).toContain("publish-ready release candidate / dry-run stop point");
+    expect(changelog).toContain("P7-3 alpha.2 publish dry-run evidence");
+
     for (const doc of docs) {
       const text = await readFile(path.join(root, doc), "utf8");
       expect(text).toContain(".release-evidence/");
