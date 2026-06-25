@@ -1,9 +1,11 @@
 # Alpha Publish Readiness Runbook
 
-Status: `0.1.0-alpha.1` published; future publish gates remain human-controlled
-Last updated: 2026-06-23
+Status: `0.1.0-alpha.1` published; `0.1.0-alpha.2` release candidate prep; future publish gates remain human-controlled
+Last updated: 2026-06-25
 
-This runbook records the publish and registry boundary after `agent-cli-runtime@0.1.0-alpha.1` was published. `0.1.0-alpha.1` corrects the stale pre-publish status text shipped in immutable npm version `0.1.0-alpha.0`; `0.1.0-alpha.0` is now deprecated. It does not create or commit npm credentials and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, and tarball shasums are recorded outside the npm package under `.release-evidence/` or attached as GitHub Release assets; package docs keep only stable process rules, current post-alpha registry state, and the human-gated boundary for any future publish.
+This runbook records the publish and registry boundary after `agent-cli-runtime@0.1.0-alpha.1` was published. `0.1.0-alpha.1` corrects the stale pre-publish status text shipped in immutable npm version `0.1.0-alpha.0`; `0.1.0-alpha.0` is now deprecated.
+
+`0.1.0-alpha.2` is being prepared as a release candidate and is not published until a maintainer separately authorizes a real npm publish after fresh release-candidate evidence passes. This runbook does not create or commit npm credentials and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, tarball shasums, pack shasums, and local temporary paths are recorded outside the npm package under `.release-evidence/` or attached as GitHub Release assets; package docs keep only stable process rules, current post-alpha registry state, and the human-gated boundary for any future publish.
 
 ## Decision
 
@@ -13,11 +15,14 @@ Current state and future human gate:
 - The package root value API remains `createAgentRuntime` only; public TypeScript types are exposed through the root declarations, not as runtime values.
 - The release-candidate workflow remains artifact-only: it creates and verifies the tarball but does not publish and does not require registry credentials.
 - Published package: `agent-cli-runtime@0.1.0-alpha.1`.
+- Candidate package metadata in this repository: `agent-cli-runtime@0.1.0-alpha.2`.
+- `0.1.0-alpha.2` is a release-candidate / prep version, not a published version.
 - GitHub pre-release: `v0.1.0-alpha.1`.
 - Deprecated package: `agent-cli-runtime@0.1.0-alpha.0`.
 - Current npm dist-tags: `alpha -> 0.1.0-alpha.1`, `latest -> 0.1.0-alpha.1`.
 - `latest -> 0.1.0-alpha.1` is recorded as current pre-alpha registry reality while there is no stable release; do not pretend it was removed.
-- Current-head evidence rule: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, and record the volatile run evidence under `.release-evidence/`.
+- Alpha.2 human-controlled publish path: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, run `npm publish --dry-run --ignore-scripts --tag alpha`, then stop until a maintainer separately authorizes the real publish.
+- Current-head evidence rule: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, and record volatile run evidence under `.release-evidence/`.
 - Because this runbook and release report are included in the npm package, do not write current run ids, artifact digests, tarball shasums, or pack shasums into package docs.
 - Before any future real publish, confirm the fresh release-candidate workflow head SHA matches the commit being published.
 - After any future real publish, run the manual published package verification workflow and download `agent-cli-runtime-published-verification`; it must pass `npm run published:verify:evidence -- --dir <downloaded-artifact-dir>`.
@@ -42,7 +47,7 @@ npm run lint
 npm test
 npm run build
 npm run package:check
-tmp_dir="$(mktemp -d /tmp/agent-cli-runtime-release-candidate-XXXXXX)"
+tmp_dir="$(mktemp -d)"
 npm run release:candidate -- --out-dir "$tmp_dir"
 npm run release:verify -- --dir "$tmp_dir"
 npm pack --dry-run
@@ -60,7 +65,7 @@ git rev-parse HEAD
 git rev-parse origin/main
 gh workflow run release-candidate.yml --ref main
 gh run view <current-release-candidate-run-id> --json headSha,status,conclusion,url,jobs
-npm view agent-cli-runtime@<next-version> version --json
+npm view agent-cli-runtime@0.1.0-alpha.2 version --json
 npm dist-tag ls agent-cli-runtime
 ```
 
@@ -112,6 +117,7 @@ Immediately after any real publish:
 
 ```bash
 npm view agent-cli-runtime@0.1.0-alpha.1 version dist-tags --json
+npm view agent-cli-runtime@0.1.0-alpha.2 version dist-tags --json
 npm dist-tag ls agent-cli-runtime
 npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
@@ -119,13 +125,15 @@ npm run published:verify:evidence -- --dir published-verification
 
 Expected result:
 
-- `alpha` points to `0.1.0-alpha.1`.
+- Before alpha.2 publish, `alpha` points to `0.1.0-alpha.1`.
+- After an authorized alpha.2 publish, `alpha` points to `0.1.0-alpha.2`.
 - `latest` is absent, points to a stable version, or is explicitly documented as pointing to the only published pre-alpha version if npm does not allow removing it.
 
 If the wrong tag is attached but the package version itself is acceptable, fix the tag rather than republishing the same version:
 
 ```bash
 npm dist-tag add agent-cli-runtime@0.1.0-alpha.1 alpha
+npm dist-tag add agent-cli-runtime@0.1.0-alpha.2 alpha
 npm dist-tag rm agent-cli-runtime latest
 npm dist-tag ls agent-cli-runtime
 ```
@@ -174,7 +182,7 @@ If real publish fails before package creation:
 
 - Capture the redacted error class only.
 - Do not commit npm debug logs if they contain local paths, auth state, or registry session details.
-- Re-run `npm view agent-cli-runtime@0.1.0-alpha.1 version --json` before retrying to confirm the version was not created.
+- Re-run `npm view agent-cli-runtime@0.1.0-alpha.2 version --json` before retrying to confirm the version was not created.
 
 If real publish succeeds but post-publish checks fail:
 
@@ -185,12 +193,14 @@ If real publish succeeds but post-publish checks fail:
 
 ```bash
 npm unpublish agent-cli-runtime@0.1.0-alpha.1
+npm unpublish agent-cli-runtime@0.1.0-alpha.2
 ```
 
 Unpublish has strict policy limits and cannot make the same `name@version` reusable. If unpublish is not allowed or would break consumers, prefer deprecation:
 
 ```bash
 npm deprecate agent-cli-runtime@0.1.0-alpha.1 "Do not use this alpha; upgrade to a later pre-release."
+npm deprecate agent-cli-runtime@0.1.0-alpha.2 "Do not use this alpha; upgrade to a later pre-release."
 ```
 
 ## Rollback Boundary
@@ -202,4 +212,4 @@ Rollback means one of these actions:
 - Unpublish only when npm policy allows it and a maintainer accepts the registry impact.
 - Publish a new corrected pre-release version.
 
-Rollback does not mean overwriting `agent-cli-runtime@0.1.0-alpha.1`; npm does not permit replacing an already published package version.
+Rollback does not mean overwriting `agent-cli-runtime@0.1.0-alpha.1` or `agent-cli-runtime@0.1.0-alpha.2`; npm does not permit replacing an already published package version.

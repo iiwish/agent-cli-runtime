@@ -1,13 +1,13 @@
 # Agent CLI Compatibility Matrix
 
-Status: P6-5 Main Release-Candidate Evidence For P6 Offline Compatibility Gate
+Status: P6 offline compatibility gate integrated; `0.1.0-alpha.2` candidate / prep
 Last updated: 2026-06-25
 
-This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-6 added a reviewable opt-in real smoke evidence path while keeping default release gates on detection/profile certification only. P3-7 freezes the API / CLI schema inventory and versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md). P6-3 integrates the P6-2 offline evidence verifier into prepublish and release-candidate evidence; it does not refresh real CLI evidence. P6-4 confirms that the P6-3 branch target SHA `59b8c00a4ef79356fcba30fb526eab2f158bcdf3` passed a remote release-candidate workflow and downloaded artifact re-verification with that offline compatibility gate included as branch evidence. P6-5 confirms that `origin/main` merge commit `f2ed4d07103c3a9385d6be66c0befead1784558d` passed a fresh main release-candidate workflow and downloaded artifact re-verification with the same offline compatibility gate included. It does not publish npm, configure trusted publishing, implement a daemon/API server, or add authenticated real agent runs to CI, dogfood, prepublish, or release-candidate gates. Raw CLI output, tokens, full prompts, auth env values, and private paths are not committed.
+This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-6 added a reviewable opt-in real smoke evidence path while keeping default release gates on detection/profile certification only. P3-7 freezes the API / CLI schema inventory and versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md). P6 integrates the offline real compatibility evidence verifier into prepublish and release-candidate evidence; it does not refresh real CLI evidence during normal release gates. P7-1 prepares `0.1.0-alpha.2` as a candidate version only; it does not publish npm, configure trusted publishing, implement a daemon/API server, or add authenticated real agent runs to CI, dogfood, prepublish, or release-candidate gates. Raw CLI output, tokens, full prompts, auth env values, private paths, local temporary paths, artifact ids, and artifact digests are not committed to packaged docs.
 
 ## Evidence policy
 
-Current status is P6-5 main release-candidate evidence for P6 offline compatibility gate integration. P6-1 keeps the P3-6 real-smoke safety boundary, adds repo-only summarized evidence under `.release-evidence/p6-1-real-cli-compatibility.json`, and audits every built-in adapter `needsVerification` item against current local CLI preflight and opt-in smoke results. P6-2 adds `npm run compat:real:evidence:verify` as an offline drift gate for that file; it does not launch real CLI runs. P6-3 wires that verifier into `prepublish:check` and `release:candidate` evidence without running `npm run compat:real:evidence` or passing `--allow-real-run`. P6-4 downloaded `gate-evidence.json` from branch run `28089574967`; P6-5 downloaded `gate-evidence.json` from main run `28143647046`. Both confirm `compat:real:evidence:verify` emitted `agent-cli-runtime.realCompatibilityEvidenceVerification.v1`, verified `agent-cli-runtime.realCompatibilityEvidence.v1`, and kept diagnostics summarized as count/codes only.
+Current status is P6 offline compatibility gate integration carried into the alpha.2 candidate path. P6-1 keeps the P3-6 real-smoke safety boundary, adds repo-only summarized evidence under `.release-evidence/p6-1-real-cli-compatibility.json`, and audits every built-in adapter `needsVerification` item against current local CLI preflight and opt-in smoke results. P6-2 adds `npm run compat:real:evidence:verify` as an offline drift gate for that file; it does not launch real CLI runs. P6-3 wires that verifier into `prepublish:check` and `release:candidate` evidence without running `npm run compat:real:evidence` or passing `--allow-real-run`. P6 remote run and artifact details are recorded under `.release-evidence/`, outside npm package contents. The release gate confirms `compat:real:evidence:verify` emits `agent-cli-runtime.realCompatibilityEvidenceVerification.v1`, verifies `agent-cli-runtime.realCompatibilityEvidence.v1`, and keeps diagnostics summarized as count/codes only.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and single-Node TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
@@ -20,7 +20,7 @@ Current status is P6-5 main release-candidate evidence for P6 offline compatibil
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
 - `npm run published:adapters:verify` installs the already published npm package from the npm registry into a temporary consumer and verifies built-in Codex, Claude, and OpenCode adapter detection, argv shape, stdin prompt transport, parser behavior, redaction, and per-adapter failure isolation with fake CLIs only.
 - CI runs `daemon:verify`, `runtime:safety`, and dogfood once in a single Node.js 22 release-gates job; the Node.js 20/22/24 matrix does not repeat installed-package gates. CI does not run `compat:real:evidence:verify` because that verifier depends on repo-only `.release-evidence/`, while dogfood remains an installed-package consumer gate.
-- Remote GitHub Actions release-candidate main evidence is run `28143647046` on `origin/main` merge commit `f2ed4d07103c3a9385d6be66c0befead1784558d`; it proves the main artifacts and compatibility gate evidence for that workflow `headSha` only. P6-4 branch evidence remains run `28089574967` on branch target SHA `59b8c00a4ef79356fcba30fb526eab2f158bcdf3`; it proves branch artifacts and compatibility gate evidence only. Historical run `27932628093` only proves workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`; historical run `27869580048` only proves commit `2f8832119b4ebdb8393077052560589a398ebf56`.
+- Remote GitHub Actions release-candidate evidence is commit-specific and recorded outside the package under `.release-evidence/`; historical runs only prove their own `headSha` and must not be reused for alpha.2 publish evidence.
 - Evidence modes are intentionally separate:
   - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
   - `fake`: temporary local fake CLIs through the real adapter argv/stdin/parser path; no network or real account is used.
@@ -110,8 +110,8 @@ P2-12 remote audit evidence on 2026-06-20:
 - Run status/conclusion: `completed` / `success`.
 - Run created/updated: `2026-06-20T11:19:33Z` / `2026-06-20T11:20:40Z`.
 - Uploaded artifacts: `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-release-verification`.
-- Downloaded artifact re-verification: `npm run release:verify -- --dir /tmp/agent-runtime-p2-12-remote-5P5MSc/normalized`.
-- Verification result: `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `145`, tarball `agent-cli-runtime-0.1.0-alpha.0.tgz`, tarball size `187378` bytes, tarball sha256 `3701bd6355651bbc200d5c017a9b01c3dd7136140b64dee0781e6eb601a7a657`, empty diagnostics.
+- Downloaded artifact re-verification: `npm run release:verify -- --dir <normalized-artifact-dir>`.
+- Verification result: `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count recorded in package-out evidence, and empty diagnostics.
 
 The GitHub download layout used one directory per artifact name; the downloaded files were copied into a temporary normalized review directory before local verification.
 
@@ -132,7 +132,7 @@ P3-5 does not change adapter invocation compatibility. It closes workflow-head r
 
 - `.github/workflows/release-candidate.yml` run `27932628093` completed successfully on workflow head SHA `8d7bc2a19c626caa1ad5223acbcd35df34aff18e`.
 - The run uploaded `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`.
-- Downloaded artifacts were normalized into `/tmp/agent-runtime-p3-5-remote-7rkBqm/normalized` and passed `npm run release:verify -- --dir /tmp/agent-runtime-p3-5-remote-7rkBqm/normalized`.
+- Downloaded artifacts were normalized into a local review directory and passed `npm run release:verify -- --dir <normalized-artifact-dir>`.
 - Verification result: `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, package file count `147`, empty diagnostics, and gate evidence for `daemon:verify` plus `runtime:safety` with `packageSource: "installed-tarball"`.
 - Local real conformance after the remote run still did not launch authenticated real agent runs: Codex and OpenCode reported `real_run_skipped`; Claude Code reported `auth_missing`.
 
@@ -381,7 +381,7 @@ All conformance and real-smoke output is redacted recursively. Do not commit rea
 Equivalent lower-level run command:
 
 ```bash
-tmp="$(mktemp -d /tmp/agent-runtime-run-smoke.XXXXXX)"
+tmp="$(mktemp -d)"
 node ./dist/cli/main.js run \
   --agent codex \
   --cwd "$tmp" \
@@ -407,7 +407,7 @@ node ./dist/cli/main.js smoke \
 Equivalent OpenCode smoke:
 
 ```bash
-tmp="$(mktemp -d /tmp/agent-runtime-run-smoke.XXXXXX)"
+tmp="$(mktemp -d)"
 node ./dist/cli/main.js run \
   --agent opencode \
   --cwd "$tmp" \
@@ -421,7 +421,7 @@ node ./dist/cli/main.js run \
 Run smoke in an isolated temp directory:
 
 ```bash
-tmp="$(mktemp -d /tmp/agent-runtime-smoke.XXXXXX)"
+tmp="$(mktemp -d)"
 node ./dist/cli/main.js run \
   --agent codex \
   --cwd "$tmp" \
@@ -433,7 +433,7 @@ node ./dist/cli/main.js run \
 Goal smoke:
 
 ```bash
-tmp="$(mktemp -d /tmp/agent-runtime-goal.XXXXXX)"
+tmp="$(mktemp -d)"
 node ./dist/cli/main.js goal \
   --agent codex \
   --cwd "$tmp" \
@@ -827,18 +827,18 @@ Release-preflight workflow:
 
 ```bash
 repo_root="${GITHUB_WORKSPACE:-$(pwd -P)}"
-tmp_dir="$(mktemp -d /tmp/agent-runtime-release-XXXXXX)"
+tmp_dir="$(mktemp -d)"
 pushd "$tmp_dir"
 pack_info="$(cd "$repo_root" && npm pack --json --ignore-scripts --pack-destination "$tmp_dir")"
 package_file="$(printf '%s' "$pack_info" | node -e "const data = JSON.parse(require('node:fs').readFileSync(0, 'utf8')); process.stdout.write(data[0].filename);")"
 npm init -y >/dev/null
-npm install "$tmp_dir/$package_file" --no-save --ignore-scripts --no-audit --no-fund >/tmp/agent-runtime-release-smoke-install.log
+npm install "$tmp_dir/$package_file" --no-save --ignore-scripts --no-audit --no-fund >"$tmp_dir/install.log"
 node -e "(async()=>{ const m = await import('agent-cli-runtime'); if (typeof m.createAgentRuntime !== 'function') process.exit(1); console.log(typeof m.createAgentRuntime); })()"
-node ./node_modules/.bin/agent-runtime agents --json > /tmp/agent-runtime-release-smoke-agents.json
-node ./node_modules/.bin/agent-runtime doctor --json > /tmp/agent-runtime-release-smoke-doctor.json
-node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json > /tmp/agent-runtime-release-smoke-fixtures.json
+node ./node_modules/.bin/agent-runtime agents --json >"$tmp_dir/agents.json"
+node ./node_modules/.bin/agent-runtime doctor --json >"$tmp_dir/doctor.json"
+node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json >"$tmp_dir/fixtures-smoke.json"
 popd
-node -e "const fs = require('node:fs'); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-agents.json','utf8')); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-doctor.json','utf8')); JSON.parse(fs.readFileSync('/tmp/agent-runtime-release-smoke-fixtures.json','utf8'));"
+node -e "const fs = require('node:fs'); for (const file of process.argv.slice(1)) JSON.parse(fs.readFileSync(file, 'utf8'));" "$tmp_dir/agents.json" "$tmp_dir/doctor.json" "$tmp_dir/fixtures-smoke.json"
 ```
 
 Release-candidate notes:
