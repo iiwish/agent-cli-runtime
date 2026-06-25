@@ -24,9 +24,9 @@ This repository is in **pre-alpha / developer preview**.
 
 Release boundary:
 - `agent-cli-runtime@0.1.0-alpha.1` is published on npm and has GitHub pre-release `v0.1.0-alpha.1`.
-- `agent-cli-runtime@0.1.0-alpha.2` is the current publish-ready release candidate in this repository with fresh main release-candidate evidence and local publish dry-run evidence; it is not published until a maintainer separately authorizes a real npm publish.
+- `agent-cli-runtime@0.1.0-alpha.2` is published on npm and has GitHub pre-release `v0.1.0-alpha.2`.
 - `agent-cli-runtime@0.1.0-alpha.0` is deprecated because its immutable package docs shipped stale pre-publish state.
-- Current npm dist-tags are `alpha -> 0.1.0-alpha.1` and `latest -> 0.1.0-alpha.1`; because there is no stable version yet, this is recorded as current pre-alpha registry state, not as a failed release.
+- Current npm dist-tags are `alpha -> 0.1.0-alpha.2` and `latest -> 0.1.0-alpha.1`; because there is no stable version yet, this is recorded as current pre-alpha registry state, not as a failed release.
 - Release-candidate and post-alpha evidence keeps current-head release and downloaded artifact details outside the npm package under `.release-evidence/` or GitHub Release assets.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no API server, no WAL, no database, and no remote runtime mode are included in this pre-alpha track.
@@ -362,7 +362,7 @@ CI uses a Node.js 20/22/24 matrix for typecheck, lint, tests, build, production 
 
 For local release-candidate confidence, run `npm run prepublish:check`. It combines typecheck, lint, tests, build, daemon embedding verification, runtime safety verification, offline real compatibility evidence verification, dogfood, production audit, package boundary checks, and a pack dry-run. The GitHub Actions `Release Candidate` workflow is manually triggered with `workflow_dispatch`, runs `npm ci`, `npm run ci`, `npm run dogfood`, and `npm run release:candidate -- --out-dir release-candidate`; the generated artifact set includes `agent-cli-runtime-tarball`, `agent-cli-runtime-pack-metadata`, `agent-cli-runtime-package-files`, `agent-cli-runtime-gate-evidence`, and `agent-cli-runtime-release-verification`.
 
-Version `0.1.0-alpha.1` is published to npm and has GitHub pre-release `v0.1.0-alpha.1`. Version `0.1.0-alpha.2` is the current publish-ready release candidate with fresh main release-candidate evidence and local `npm publish --dry-run --ignore-scripts --tag alpha` evidence; real publish and GitHub Release creation still require separate maintainer authorization. Version `0.1.0-alpha.0` is deprecated because its immutable tarball contains stale pre-publish status text. Current npm dist-tags are `alpha -> 0.1.0-alpha.1` and `latest -> 0.1.0-alpha.1`, which is acceptable while only pre-alpha versions exist. Because release docs are included in the npm package, volatile current-run evidence must stay outside packaged docs under `.release-evidence/` or GitHub Release assets.
+Version `0.1.0-alpha.1` is published to npm and has GitHub pre-release `v0.1.0-alpha.1`. Version `0.1.0-alpha.2` is published to npm with the `alpha` dist-tag and has GitHub pre-release `v0.1.0-alpha.2`. Version `0.1.0-alpha.0` is deprecated because its immutable tarball contains stale pre-publish status text. Current npm dist-tags are `alpha -> 0.1.0-alpha.2` and `latest -> 0.1.0-alpha.1`, which is acceptable while only pre-alpha versions exist. Because release docs are included in the npm package, volatile current-run evidence must stay outside packaged docs under `.release-evidence/` or GitHub Release assets.
 
 Post-alpha verification:
 
