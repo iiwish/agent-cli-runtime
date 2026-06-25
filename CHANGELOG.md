@@ -1,16 +1,20 @@
 # Changelog
 
-## 0.1.0-alpha.2 — publish-ready release candidate / dry-run stop point (not published)
+## 0.1.0-alpha.2 — published pre-alpha release
 
+- P7-4 alpha.2 real publish and post-publish evidence:
+  - publishes `0.1.0-alpha.2` to npm with the `alpha` dist-tag;
+  - creates GitHub pre-release `v0.1.0-alpha.2`;
+  - verifies registry version, dist-tags, installed-package CLI smoke, and GitHub Release metadata;
+  - records post-publish evidence outside the npm package under `.release-evidence/`;
+  - keeps current-run ids, artifact ids, digests, tarball shasums, pack shasums, local temporary paths, raw logs, raw CLI output, prompts, and token-looking values out of packaged docs.
 - P7-3 alpha.2 publish dry-run evidence:
   - records fresh main release-candidate evidence for the exact alpha.2 publish target;
   - records downloaded artifact verification with `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>`;
   - records local `npm publish --dry-run --ignore-scripts --tag alpha` evidence while keeping real npm publish and GitHub Release creation human-gated;
-  - keeps `0.1.0-alpha.2` unpublished until a maintainer separately authorizes a real npm publish;
   - keeps current-run ids, artifact ids, digests, tarball shasums, pack shasums, local temporary paths, raw logs, raw CLI output, prompts, and token-looking values out of packaged docs.
 - P7-1 alpha.2 package metadata preparation:
   - bumps package metadata to `0.1.0-alpha.2` while keeping the real npm registry state at the already published `0.1.0-alpha.1`;
-  - keeps `0.1.0-alpha.2` as a publish-ready release candidate only until a maintainer separately authorizes a real npm publish;
   - documents the human-controlled alpha.2 path: fresh release-candidate workflow, downloaded artifact verification with `npm run release:verify`, local `npm publish --dry-run --ignore-scripts --tag alpha`, then a separate explicit publish decision;
   - keeps current-run ids, artifact ids, digests, tarball shasums, pack shasums, local temporary paths, raw logs, raw CLI output, prompts, and token-looking values out of packaged docs.
 - P6 release-candidate gate consolidation:

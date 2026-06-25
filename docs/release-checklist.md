@@ -1,27 +1,30 @@
 # Release Checklist (pre-alpha / developer preview)
 
-Status: `0.1.0-alpha.1` published; `0.1.0-alpha.2` publish-ready release candidate / dry-run stop point
+Status: `0.1.0-alpha.2` published on npm and GitHub pre-release
 Last updated: 2026-06-25
 
-## P7-3 Alpha.2 Publish Dry-Run
+## P7-4 Alpha.2 Publish
 
 - [x] Confirm P7-2 has reached `origin/main` before creating the P7-3 branch.
 - [x] Prepare package metadata for `0.1.0-alpha.2` in `package.json` and `package-lock.json`.
-- [x] Keep `0.1.0-alpha.2` as a publish-ready release candidate only; do not describe it as published.
 - [x] Trigger fresh main release-candidate evidence for the exact commit selected for publish.
 - [x] Download all five artifacts and run `npm run release:verify -- --dir <normalized-artifact-dir>`.
 - [x] Run `npm publish --dry-run --ignore-scripts --tag alpha`.
 - [x] Record dry-run-only publish evidence in `.release-evidence/p7-3-alpha-2-publish.json`.
-- [x] Keep the current published npm version as `agent-cli-runtime@0.1.0-alpha.1`.
-- [x] Keep the current GitHub pre-release as `v0.1.0-alpha.1`.
-- [x] Keep current npm dist-tags documented as `alpha -> 0.1.0-alpha.1` and `latest -> 0.1.0-alpha.1`.
+- [x] Run real `npm publish --ignore-scripts --tag alpha` after explicit maintainer authorization and npm browser/2FA authorization.
+- [x] Verify `agent-cli-runtime@0.1.0-alpha.2` on npm.
+- [x] Verify current npm dist-tags as `alpha -> 0.1.0-alpha.2` and `latest -> 0.1.0-alpha.1`.
+- [x] Keep `v0.1.0-alpha.1` documented as the previous GitHub pre-release while `latest` still points to `0.1.0-alpha.1`.
+- [x] Install `agent-cli-runtime@0.1.0-alpha.2` in a temporary consumer and run `agent-runtime agents --json` plus `agent-runtime doctor --json`.
+- [x] Create GitHub pre-release `v0.1.0-alpha.2`.
+- [x] Verify `gh release view v0.1.0-alpha.2 --json tagName,targetCommitish,isPrerelease,url`.
 - [x] Keep `agent-cli-runtime@0.1.0-alpha.0` documented as deprecated due to stale immutable package docs.
 - [x] Keep volatile run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, raw logs, raw CLI output, full prompts, and token-looking values outside packaged docs.
 - [x] Keep `.release-evidence/` and `.reference/` outside npm package contents.
 
 ## Local Verification
 
-Run these before treating alpha.2 as a local release candidate:
+Run these before treating a future alpha version as a local release candidate:
 
 ```bash
 npm test

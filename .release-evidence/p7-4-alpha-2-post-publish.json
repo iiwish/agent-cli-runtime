@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "agent-cli-runtime.postPublishEvidence.v1",
+  "stage": "P7-4",
+  "evidenceKind": "alpha-2-post-publish",
+  "targetRef": "main",
+  "targetSha": "aad554cd63fd2eb05a28851296f2aa81216acd97",
+  "originMainShaAtPublish": "aad554cd63fd2eb05a28851296f2aa81216acd97",
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.2",
+  "authorization": {
+    "explicitAuthorizationPhrasePresent": true,
+    "npmWebLoginCompleted": true,
+    "npmBrowserPublishAuthorizationCompleted": true
+  },
+  "releaseCandidateRun": {
+    "id": 28156937589,
+    "url": "https://github.com/iiwish/agent-cli-runtime/actions/runs/28156937589",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-06-25T08:23:19Z",
+    "updatedAt": "2026-06-25T08:24:44Z",
+    "headBranch": "main",
+    "headSha": "aad554cd63fd2eb05a28851296f2aa81216acd97",
+    "headShaMatchesOriginMain": true
+  },
+  "releaseCandidateJob": {
+    "name": "Build release candidate artifacts",
+    "id": 83387721798,
+    "status": "completed",
+    "conclusion": "success",
+    "startedAt": "2026-06-25T08:23:24Z",
+    "completedAt": "2026-06-25T08:24:43Z"
+  },
+  "artifacts": {
+    "count": 5,
+    "names": [
+      "agent-cli-runtime-tarball",
+      "agent-cli-runtime-pack-metadata",
+      "agent-cli-runtime-package-files",
+      "agent-cli-runtime-gate-evidence",
+      "agent-cli-runtime-release-verification"
+    ],
+    "items": [
+      {
+        "name": "agent-cli-runtime-tarball",
+        "id": 7872664197,
+        "digest": "sha256:f836ef4e9efcc24a5f1d17b57e95a034592ff206095eadc3a092f7c2a10f6123"
+      },
+      {
+        "name": "agent-cli-runtime-pack-metadata",
+        "id": 7872664678,
+        "digest": "sha256:ec5885995086701c8c74789ca326093e851bf19751a4709a069a1ef5d596bc0a"
+      },
+      {
+        "name": "agent-cli-runtime-package-files",
+        "id": 7872665234,
+        "digest": "sha256:8947603300e0225a81ba621a108494acde8e7ff6f67eb69b8ef5bf81a67811c8"
+      },
+      {
+        "name": "agent-cli-runtime-gate-evidence",
+        "id": 7872665740,
+        "digest": "sha256:e95df3afcf3fcd65575ddbaa0fa066609ad98522d8603363f023a69c90aaec2b"
+      },
+      {
+        "name": "agent-cli-runtime-release-verification",
+        "id": 7872666213,
+        "digest": "sha256:4ae79a9f26c1b975ac63e2683b19de410d162f43c3e5194a8d20fa65b054913d"
+      }
+    ]
+  },
+  "downloadedVerification": {
+    "command": "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+    "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+    "ok": true,
+    "diagnosticsCount": 0,
+    "packageFiles": 151,
+    "packageName": "agent-cli-runtime",
+    "version": "0.1.0-alpha.2",
+    "tarball": {
+      "filename": "agent-cli-runtime-0.1.0-alpha.2.tgz"
+    }
+  },
+  "registryPrePublish": {
+    "versionCheckCommand": "npm view agent-cli-runtime@0.1.0-alpha.2 version --json",
+    "versionExists": false,
+    "errorCode": "E404"
+  },
+  "publish": {
+    "command": "npm publish --ignore-scripts --tag alpha",
+    "attempted": true,
+    "succeeded": true,
+    "tag": "alpha",
+    "npmPublishExecuted": true
+  },
+  "registryPostPublish": {
+    "versionCheckCommand": "npm view agent-cli-runtime@0.1.0-alpha.2 version --json",
+    "version": "0.1.0-alpha.2",
+    "distTagsCommand": "npm view agent-cli-runtime dist-tags --json",
+    "distTags": {
+      "alpha": "0.1.0-alpha.2",
+      "latest": "0.1.0-alpha.1"
+    }
+  },
+  "installedPackageSmoke": {
+    "packageSpec": "agent-cli-runtime@0.1.0-alpha.2",
+    "commands": [
+      "agent-runtime agents --json",
+      "agent-runtime doctor --json"
+    ],
+    "ok": true,
+    "agentsCount": 3,
+    "doctorOk": true,
+    "doctorAgentsCount": 3
+  },
+  "githubRelease": {
+    "tag": "v0.1.0-alpha.2",
+    "created": true,
+    "url": "https://github.com/iiwish/agent-cli-runtime/releases/tag/v0.1.0-alpha.2",
+    "targetCommitish": "aad554cd63fd2eb05a28851296f2aa81216acd97",
+    "isPrerelease": true
+  },
+  "publishMode": "authorized-real-publish",
+  "docsUpdatedToPublishedState": true,
+  "boundary": {
+    "license": "Apache-2.0",
+    "releaseEvidenceOutsidePackage": true,
+    "referenceOutsidePackage": true,
+    "noNpmTokenCommitted": true,
+    "noGithubTokenCommitted": true,
+    "noTrustedPublishing": true,
+    "noHostedControlPlane": true,
+    "noDaemonProductShell": true,
+    "noDatabaseOrWal": true,
+    "noUi": true,
+    "noTelemetry": true,
+    "noRawLogs": true,
+    "noRawStdoutStderr": true,
+    "noRawCliOutput": true,
+    "noFullPrompt": true,
+    "noPrivatePath": true,
+    "noLocalTempPath": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvAssignment": true,
+    "noTarballSize": true,
+    "noTarballShasum": true,
+    "noTarballIntegrity": true,
+    "noPackShasum": true
+  }
+}
