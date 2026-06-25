@@ -36,19 +36,19 @@ git diff --check
 
 Acceptance:
 
-- [ ] `npm test` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run lint` passes.
-- [ ] `npm run package:check` passes and rejects `.release-evidence/` plus `.reference/` if they appear in pack metadata.
-- [ ] `npm run compat:real:evidence:verify` passes without launching authenticated real agent runs.
-- [ ] `npm run release:candidate -- --out-dir <tmp-dir>` produces the five-artifact release-candidate set.
-- [ ] `npm run release:verify -- --dir <tmp-dir>` passes with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, and empty diagnostics.
-- [ ] `gate-evidence.json` contains `daemon:verify`, `runtime:safety`, and `compat:real:evidence:verify`.
-- [ ] `npm pack --dry-run` shows only expected package files.
-- [ ] `npm publish --dry-run --ignore-scripts --tag alpha` passes as a dry-run and reports `tag alpha`.
-- [ ] `node ./dist/cli/main.js agents --json` returns parseable JSON.
-- [ ] `node ./dist/cli/main.js doctor --json` returns parseable JSON.
-- [ ] `git diff --check` passes.
+- [x] `npm test` passes.
+- [x] `npm run typecheck` passes.
+- [x] `npm run lint` passes.
+- [x] `npm run package:check` passes and rejects `.release-evidence/` plus `.reference/` if they appear in pack metadata.
+- [x] `npm run compat:real:evidence:verify` passes without launching authenticated real agent runs.
+- [x] `npm run release:candidate -- --out-dir <tmp-dir>` produces the five-artifact release-candidate set.
+- [x] `npm run release:verify -- --dir <tmp-dir>` passes with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, and empty diagnostics.
+- [x] `gate-evidence.json` contains `daemon:verify`, `runtime:safety`, and `compat:real:evidence:verify`.
+- [x] `npm pack --dry-run` shows only expected package files.
+- [x] `npm publish --dry-run --ignore-scripts --tag alpha` passes as a dry-run and reports `tag alpha`.
+- [x] `node ./dist/cli/main.js agents --json` returns parseable JSON.
+- [x] `node ./dist/cli/main.js doctor --json` returns parseable JSON.
+- [x] `git diff --check` passes.
 
 ## Human Publish Gate
 
