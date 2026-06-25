@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "agent-cli-runtime.realPublishAttemptEvidence.v1",
+  "stage": "P7-4",
+  "evidenceKind": "alpha-2-real-publish-attempt-blocked",
+  "authorization": {
+    "explicitAuthorizationPhrasePresent": true,
+    "authorizedAction": "real npm publish and GitHub Release"
+  },
+  "targetRef": "main",
+  "targetSha": "68a7404701558d9b20f3987f0adb6749e0029c9e",
+  "originMainShaAtAttempt": "68a7404701558d9b20f3987f0adb6749e0029c9e",
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.2",
+  "prePublishChecks": {
+    "branch": "main",
+    "cleanWorktree": true,
+    "headShaMatchesOriginMain": true,
+    "npmWhoami": {
+      "command": "npm whoami",
+      "ok": false,
+      "errorCode": "E401",
+      "summary": "npm registry authentication is not available in the current environment"
+    },
+    "versionPrecheck": {
+      "command": "npm view agent-cli-runtime@0.1.0-alpha.2 version --json",
+      "versionExists": false,
+      "errorCode": "E404"
+    },
+    "distTagsBeforeAttempt": {
+      "command": "npm view agent-cli-runtime dist-tags --json",
+      "distTags": {
+        "alpha": "0.1.0-alpha.1",
+        "latest": "0.1.0-alpha.1"
+      }
+    },
+    "githubReleaseBeforeAttempt": {
+      "command": "gh release view v0.1.0-alpha.2 --json tagName,targetCommitish,isPrerelease,url",
+      "exists": false
+    }
+  },
+  "publishAttempt": {
+    "command": "npm publish --ignore-scripts --tag alpha",
+    "attempted": true,
+    "succeeded": false,
+    "errorCode": "E404",
+    "failureClass": "npm_registry_auth_or_package_permission",
+    "summary": "npm rejected the publish request for agent-cli-runtime@0.1.0-alpha.2 because the current npm registry session lacks access to publish this package or package metadata.",
+    "tag": "alpha"
+  },
+  "postAttemptRegistryState": {
+    "versionCheckCommand": "npm view agent-cli-runtime@0.1.0-alpha.2 version --json",
+    "versionExists": false,
+    "errorCode": "E404",
+    "distTagsCommand": "npm view agent-cli-runtime dist-tags --json",
+    "distTags": {
+      "alpha": "0.1.0-alpha.1",
+      "latest": "0.1.0-alpha.1"
+    }
+  },
+  "githubRelease": {
+    "tag": "v0.1.0-alpha.2",
+    "created": false,
+    "reason": "npm publish did not succeed; GitHub Release creation was intentionally skipped to avoid claiming a release without a published npm package"
+  },
+  "installedPackageSmoke": {
+    "status": "not-run",
+    "reason": "agent-cli-runtime@0.1.0-alpha.2 is still absent from the npm registry after the blocked publish attempt"
+  },
+  "docsUpdatedToPublishedState": false,
+  "publishMode": "authorized-real-publish-attempt-blocked",
+  "npmPublishAttempted": true,
+  "npmPublishSucceeded": false,
+  "npmPublishExecuted": false,
+  "blocker": {
+    "kind": "npm_auth_or_package_permission",
+    "requiredNextAction": "Authenticate npm locally with an account that can publish agent-cli-runtime, then re-run the P7-4 real publish path starting with the alpha.2 E404 precheck"
+  },
+  "boundary": {
+    "license": "Apache-2.0",
+    "releaseEvidenceOutsidePackage": true,
+    "referenceOutsidePackage": true,
+    "noGithubReleaseWithoutNpmPublish": true,
+    "noNpmTokenCommitted": true,
+    "noGithubTokenCommitted": true,
+    "noRawLogs": true,
+    "noRawStdoutStderr": true,
+    "noRawCliOutput": true,
+    "noFullPrompt": true,
+    "noPrivatePath": true,
+    "noLocalTempPath": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvAssignment": true,
+    "noTarballSize": true,
+    "noTarballShasum": true,
+    "noTarballIntegrity": true,
+    "noPackShasum": true
+  }
+}
