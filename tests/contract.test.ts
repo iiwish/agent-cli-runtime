@@ -3688,6 +3688,43 @@ setInterval(() => {}, 1000);
     }
   });
 
+  it("locks packaged docs to the P7-4 alpha.2 dry-run publish boundary", async () => {
+    const packagedDocs = [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/api-schema-contract.md",
+      "docs/compatibility.md",
+      "docs/production-readiness.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/release-publish-runbook.md",
+      "docs/ssot.md",
+    ];
+    const compatibility = await readFile(path.join(root, "docs", "compatibility.md"), "utf8");
+
+    expect(compatibility).toContain("P7-3");
+    expect(compatibility).toContain("P7-4");
+    expect(compatibility).toContain("publish-ready release candidate / dry-run stop point");
+    expect(compatibility).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
+    expect(compatibility).toContain("alpha -> 0.1.0-alpha.1");
+    expect(compatibility).toContain("latest -> 0.1.0-alpha.1");
+    expect(compatibility).toContain("do not prove an npm registry mutation or a GitHub Release for `v0.1.0-alpha.2`");
+
+    for (const doc of packagedDocs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text, `${doc} must not keep the old alpha.2 candidate/prep status`).not.toMatch(
+        /0\.1\.0-alpha\.2[^\n]*(?:candidate\s*\/\s*prep|candidate\s+\/\s+prep)/iu,
+      );
+      expect(text, `${doc} must not use only the P7-1 alpha.2 prep state as current status`).not.toMatch(
+        /P7-1 prepares `0\.1\.0-alpha\.2` as a candidate version only/iu,
+      );
+      expect(text, `${doc} must not claim alpha.2 is published`).not.toMatch(
+        /0\.1\.0-alpha\.2[^\n]*(?:is published|published to npm|has GitHub pre-release|已发布|发布到 npm|已经发布)/iu,
+      );
+    }
+  });
+
   it("records P7-3 alpha.2 publish dry-run evidence without real publish side effects", async () => {
     const evidenceText = await readFile(path.join(root, ".release-evidence", "p7-3-alpha-2-publish.json"), "utf8");
     const evidence = JSON.parse(evidenceText) as {
