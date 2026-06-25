@@ -1,0 +1,118 @@
+{
+  "schema": "agent-cli-runtime.localReleaseCandidateEvidence.v1",
+  "generatedAt": "2026-06-25T04:24:54Z",
+  "stage": "P7-1",
+  "evidenceKind": "alpha-2-local-release-candidate",
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.2",
+  "branch": "codex/p7-1-alpha-2-release-prep",
+  "baseRef": "origin/main",
+  "baseSha": "14eeb2e1b18ada5e51e0ab1c0fb0b157f917f53f",
+  "p6_6MergedToOriginMain": true,
+  "publishedState": {
+    "publishedVersion": "0.1.0-alpha.1",
+    "candidateVersion": "0.1.0-alpha.2",
+    "candidatePublished": false,
+    "npmPublishExecuted": false,
+    "githubReleaseCreated": false
+  },
+  "releaseCandidate": {
+    "outDir": "<local-temp-dir>",
+    "artifactCount": 5,
+    "artifactNames": [
+      "agent-cli-runtime-tarball",
+      "agent-cli-runtime-pack-metadata",
+      "agent-cli-runtime-package-files",
+      "agent-cli-runtime-gate-evidence",
+      "agent-cli-runtime-release-verification"
+    ],
+    "packageFiles": 151,
+    "verificationSchema": "agent-cli-runtime.releaseVerification.v1",
+    "verificationOk": true,
+    "gateEvidence": [
+      {
+        "script": "daemon:verify",
+        "ok": true,
+        "runContext": "installed-tarball"
+      },
+      {
+        "script": "runtime:safety",
+        "ok": true,
+        "runContext": "installed-tarball"
+      },
+      {
+        "script": "compat:real:evidence:verify",
+        "ok": true,
+        "evidenceSchema": "agent-cli-runtime.realCompatibilityEvidence.v1",
+        "diagnosticCount": 0
+      }
+    ]
+  },
+  "commands": [
+    {
+      "command": "npm test",
+      "ok": true
+    },
+    {
+      "command": "npm run typecheck",
+      "ok": true
+    },
+    {
+      "command": "npm run lint",
+      "ok": true
+    },
+    {
+      "command": "npm run package:check",
+      "ok": true
+    },
+    {
+      "command": "npm run compat:real:evidence:verify",
+      "ok": true
+    },
+    {
+      "command": "npm run release:candidate -- --out-dir <local-temp-dir>",
+      "ok": true
+    },
+    {
+      "command": "npm run release:verify -- --dir <local-temp-dir>",
+      "ok": true
+    },
+    {
+      "command": "npm pack --dry-run",
+      "ok": true
+    },
+    {
+      "command": "npm publish --dry-run --ignore-scripts --tag alpha",
+      "ok": true,
+      "realPublish": false
+    },
+    {
+      "command": "node ./dist/cli/main.js agents --json",
+      "ok": true
+    },
+    {
+      "command": "node ./dist/cli/main.js doctor --json",
+      "ok": true
+    }
+  ],
+  "packageBoundary": {
+    "referenceIncluded": false,
+    "releaseEvidenceIncluded": false,
+    "localTempPathIncluded": false,
+    "rawLogsIncluded": false,
+    "rawPromptIncluded": false,
+    "rawStdoutStderrIncluded": false,
+    "artifactIdsIncluded": false,
+    "artifactDigestsIncluded": false,
+    "tarballShasumIncluded": false,
+    "packShasumIncluded": false,
+    "npmTokenIncluded": false,
+    "nodeAuthTokenIncluded": false,
+    "authenticatedRealAgentRunExecuted": false
+  },
+  "notes": [
+    "This package-out evidence records a redacted local alpha.2 release-candidate verification summary.",
+    "The npm package documentation remains stable and does not embed this local candidate's volatile paths, logs, artifact identifiers, digests, or shasums.",
+    "The dry-run publish used the alpha dist-tag and did not execute a real npm publish."
+  ]
+}

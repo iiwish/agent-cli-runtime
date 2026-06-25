@@ -792,7 +792,7 @@ describe("public contract", () => {
 
     expect(manifest).toMatchObject({
       name: "agent-cli-runtime",
-      version: "0.1.0-alpha.1",
+      version: "0.1.0-alpha.2",
       license: "Apache-2.0",
       type: "module",
       bin: { "agent-runtime": "dist/cli/main.js" },
@@ -817,6 +817,46 @@ describe("public contract", () => {
     expect(manifest.files).toContain("docs/release-publish-runbook.md");
     expect(manifest.files).toContain("docs/api-schema-contract.md");
     expect(manifest.keywords).toEqual(expect.arrayContaining(["agent", "cli", "codex", "claude", "opencode", "runtime"]));
+  });
+
+  it("keeps alpha.2 candidate version metadata aligned without claiming publication", async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
+      name: string;
+      version: string;
+      publishConfig: { tag: string };
+    };
+    const lock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8")) as {
+      name: string;
+      version: string;
+      packages: Record<string, { version?: string }>;
+    };
+    const docs = [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/release-publish-runbook.md",
+      "docs/release-report.md",
+      "docs/release-checklist.md",
+      "docs/production-readiness.md",
+      "docs/compatibility.md",
+      "docs/ssot.md",
+    ];
+
+    expect(manifest).toMatchObject({
+      name: "agent-cli-runtime",
+      version: "0.1.0-alpha.2",
+      publishConfig: { tag: "alpha" },
+    });
+    expect(lock.version).toBe(manifest.version);
+    expect(lock.packages[""].version).toBe(manifest.version);
+
+    for (const doc of docs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text).toContain("0.1.0-alpha.2");
+      expect(text, `${doc} must not claim alpha.2 is published`).not.toMatch(
+        /0\.1\.0-alpha\.2[^\n]*(?:is published|published to npm|has GitHub pre-release|已发布|发布到 npm|已经发布)/iu,
+      );
+    }
   });
 
   it("prints CLI help with all frozen commands and key flags", async () => {
@@ -3459,86 +3499,46 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("documents P3-10 pre-documentation workflow evidence without self-referential current-HEAD reuse", async () => {
+  it("keeps alpha.2 release-candidate docs stable and package-safe", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
-      "docs/api-schema-contract.md",
       "docs/compatibility.md",
       "docs/production-readiness.md",
       "docs/release-checklist.md",
       "docs/release-report.md",
+      "docs/release-publish-runbook.md",
       "docs/ssot.md",
     ];
-    const preDocumentationEvidenceRun = "27945938663";
-    const preDocumentationEvidenceSha = "fdba3ebccb2e57a0ad295101028a2a3937a92204";
-    const historicalP39Run = "27943672095";
-    const historicalP39Sha = "65fac505ca3eb830a06d8656068cf4ed5f6dd46a";
-    const historicalP39InterimRun = "27942743285";
-    const historicalP39InterimSha = "a0299a7d81bb614661922bebc8c75496cf0a3d11";
-    const historicalP38Run = "27940814340";
-    const historicalP38Sha = "eb8de0f9b1edfa3f94c35a50b31005c5d3c105d4";
-    const historicalP35Run = "27932628093";
-    const historicalP35Sha = "8d7bc2a19c626caa1ad5223acbcd35df34aff18e";
-    const oldRun = "27869580048";
-    const report = await readFile(path.join(root, "docs", "release-report.md"), "utf8");
-    const checklist = await readFile(path.join(root, "docs", "release-checklist.md"), "utf8");
-    const ssot = await readFile(path.join(root, "docs", "ssot.md"), "utf8");
-    expect(report).toContain("pre-documentation");
-    expect(report).toContain("committing this packet changes the package shasum");
-    expect(report).toContain("must not be used as final post-documentation publish evidence");
-    expect(report).toContain("fresh release-candidate workflow after committing this packet");
-    expect(report).not.toMatch(new RegExp(`${preDocumentationEvidenceRun}[^\\n]*(?:proves|证明)[^\\n]*(?:current HEAD|当前 HEAD)`, "iu"));
+    const releaseReport = await readFile(path.join(root, "docs", "release-report.md"), "utf8");
+    const releaseChecklist = await readFile(path.join(root, "docs", "release-checklist.md"), "utf8");
+    const runbook = await readFile(path.join(root, "docs", "release-publish-runbook.md"), "utf8");
+
+    expect(releaseReport).toContain("0.1.0-alpha.2");
+    expect(releaseReport).toContain("candidate / prep");
+    expect(releaseReport).toContain("agent-cli-runtime.releaseVerification.v1");
+    expect(releaseReport).toContain("agent-cli-runtime.releaseGateEvidence.v1");
+    expect(releaseReport).toContain("compat:real:evidence:verify");
+    expect(releaseReport).toContain(".release-evidence/");
+    expect(releaseChecklist).toContain("P7-1 Alpha.2 Candidate Prep");
+    expect(releaseChecklist).toContain("0.1.0-alpha.2");
+    expect(runbook).toContain("Alpha.2 human-controlled publish path");
 
     for (const doc of docs) {
       const text = await readFile(path.join(root, doc), "utf8");
-      expect(text).not.toContain("remote_evidence`: pending");
-      expect(text).not.toMatch(/P3-10[^\n]*(?:pending|待触发|待复验|待闭环)/u);
-      expect(text).not.toMatch(new RegExp(`${preDocumentationEvidenceRun}[^\\n]*(?:\\bserves as\\b|\\bproves\\b|证明)[^\\n]*(?:final|post-documentation|最终|提交后)[^\\n]*(?:evidence|证据)`, "iu"));
-      expect(text).not.toMatch(new RegExp(`${preDocumentationEvidenceRun}[^\\n]*(?:proves|证明)[^\\n]*(?:current HEAD|当前 HEAD)`, "iu"));
-      expect(text).not.toMatch(/P3-9[^\n]*(?:current-HEAD|current HEAD|当前 HEAD|当前证据|current evidence)/iu);
-      expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target|current HEAD) SHA[:：]?\\s*${historicalP39Sha}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标|当前 HEAD) SHA[:：]?\\s*${historicalP39Sha}`, "u"));
-      expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target|current HEAD) run[:：]?\\s*${historicalP39Run}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标|当前 HEAD) run[:：]?\\s*${historicalP39Run}`, "u"));
-      expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target) SHA[:：]?\\s*${historicalP39InterimSha}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) SHA[:：]?\\s*${historicalP39InterimSha}`, "u"));
-      expect(text).not.toMatch(new RegExp(`(?:current|latest|evidence target) run[:：]?\\s*${historicalP39InterimRun}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) run[:：]?\\s*${historicalP39InterimRun}`, "u"));
-      expect(text).not.toMatch(new RegExp(`(?:current|latest|target|evidence target) SHA[:：]?\\s*${historicalP38Sha}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) SHA[:：]?\\s*${historicalP38Sha}`, "u"));
-      expect(text).not.toMatch(new RegExp(`(?:current|latest|target|evidence target) SHA[:：]?\\s*${historicalP35Sha}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) SHA[:：]?\\s*${historicalP35Sha}`, "u"));
-      expect(text).not.toMatch(new RegExp(`(?:current|latest|target|evidence target) run[:：]?\\s*${historicalP38Run}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) run[:：]?\\s*${historicalP38Run}`, "u"));
-      expect(text).not.toMatch(new RegExp(`(?:current|latest|target|evidence target) run[:：]?\\s*${historicalP35Run}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`(?:当前|最新|证据目标) run[:：]?\\s*${historicalP35Run}`, "u"));
-      expect(text).not.toMatch(new RegExp(`target run[:：]?\\s*${oldRun}`, "iu"));
-      expect(text).not.toMatch(new RegExp(`证据目标 run[:：]?\\s*${oldRun}`, "u"));
+      expect(text).toContain(".release-evidence/");
+      expect(text).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
+      expect(text, doc + " must not include real local temp paths").not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\//u);
+      expect(text, doc + " must not include artifact digests").not.toMatch(/sha256:[0-9a-f]{16,}/iu);
+      expect(text, doc + " must not include raw tarball or pack hashes").not.toMatch(/(?:tarball sha256|tarball shasum|npm pack shasum|pack shasum)\s*[:：]?\s*[0-9a-f]{16,}/iu);
+      expect(text, doc + " must not claim alpha.2 is published").not.toMatch(/0\.1\.0-alpha\.2[^\n]*(?:published to npm|has GitHub pre-release|is published|已发布|发布到 npm|已经发布)/iu);
+      expect(text).not.toMatch(/P6-6[^\n]*(?:run \d{8,}|artifact digest|artifact id|tarball shasum|npm pack shasum|pack shasum|包 shasum|local temp|临时路径)/iu);
     }
 
-    for (const text of [report, checklist, ssot]) {
-      expect(text).toContain(preDocumentationEvidenceRun);
-      expect(text).toContain(preDocumentationEvidenceSha);
-      expect(text).toMatch(/pre-documentation SHA|pre-documentation HEAD SHA|target SHA|Target SHA|evidence target SHA|提交证据文档前的 SHA|证据目标 SHA/u);
-      expect(text).toMatch(/fresh release-candidate workflow|fresh workflow run|重新触发 fresh release-candidate run|fresh release-candidate run/u);
-      expect(text).toMatch(/package shasum|pack shasum|npm pack shasum/u);
-      for (const artifact of expectedReleaseCandidateArtifacts) {
-        expect(text).toContain(artifact);
-      }
-      expect(text).toContain("agent-cli-runtime-gate-evidence");
-      expect(text).toContain("installed-tarball");
-      expect(text).toContain("npm run release:verify -- --dir /tmp/agent-runtime-p3-10-current-head-remote-66VIhN/normalized");
-      expect(text).toContain("agent-cli-runtime.releaseVerification.v1");
-      expect(text).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
-      expect(text).toMatch(/`ok`:\s*`true`|ok: true/u);
-      expect(text).toContain("diagnostics");
+    for (const artifact of expectedReleaseCandidateArtifacts) {
+      expect(releaseReport).toContain(artifact);
+      expect(releaseChecklist).toContain(artifact);
     }
-    expect(report).toContain("Historical P3-9 run `27943672095`");
-    expect(report).toContain("Historical P3-9 interim run `27942743285`");
-    expect(report).toMatch(/historical P3-8 run `27940814340`/iu);
-    expect(report).toMatch(/historical P3-5 run `27932628093`/iu);
-    expect(report).toMatch(/historical P2-12 run `27869580048`/iu);
   });
 
   it("documents publish dry-run with the alpha dist-tag instead of latest", async () => {

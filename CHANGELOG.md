@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0-alpha.2 — release candidate prep (not published)
+
+- P7-1 alpha.2 candidate preparation:
+  - bumps package metadata to `0.1.0-alpha.2` while keeping the real npm registry state at the already published `0.1.0-alpha.1`;
+  - keeps `0.1.0-alpha.2` as a release candidate / prep version only until a maintainer separately authorizes a real npm publish;
+  - documents the human-controlled alpha.2 path: fresh release-candidate workflow, downloaded artifact verification with `npm run release:verify`, local `npm publish --dry-run --ignore-scripts --tag alpha`, then a separate explicit publish decision;
+  - keeps current-run ids, artifact ids, digests, tarball shasums, pack shasums, local temporary paths, raw logs, raw CLI output, prompts, and token-looking values out of packaged docs.
+- P6 release-candidate gate consolidation:
+  - preserves the offline real compatibility evidence verifier as a release gate through `compat:real:evidence:verify`;
+  - keeps downloaded release-candidate artifacts at the five-artifact set: tarball, pack metadata, package file list, gate evidence, and release verification;
+  - records `daemon:verify`, `runtime:safety`, and `compat:real:evidence:verify` in gate evidence without launching authenticated real Codex/Claude/OpenCode runs;
+  - keeps `.release-evidence/` and `.reference/` outside the npm package boundary.
+
 ## 0.1.0-alpha.0 — pre-alpha developer preview (release-candidate hardening)
 
 - P3-10 pre-documentation alpha release-candidate evidence and human-gated publish packet:
