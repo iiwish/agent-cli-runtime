@@ -381,7 +381,7 @@ All conformance and real-smoke output is redacted recursively. Do not commit rea
 Equivalent lower-level run command:
 
 ```bash
-tmp="$(mktemp -d <local-temp-dir>)"
+tmp="$(mktemp -d)"
 node ./dist/cli/main.js run \
   --agent codex \
   --cwd "$tmp" \
@@ -407,7 +407,7 @@ node ./dist/cli/main.js smoke \
 Equivalent OpenCode smoke:
 
 ```bash
-tmp="$(mktemp -d <local-temp-dir>)"
+tmp="$(mktemp -d)"
 node ./dist/cli/main.js run \
   --agent opencode \
   --cwd "$tmp" \
@@ -421,7 +421,7 @@ node ./dist/cli/main.js run \
 Run smoke in an isolated temp directory:
 
 ```bash
-tmp="$(mktemp -d <local-temp-dir>)"
+tmp="$(mktemp -d)"
 node ./dist/cli/main.js run \
   --agent codex \
   --cwd "$tmp" \
@@ -433,7 +433,7 @@ node ./dist/cli/main.js run \
 Goal smoke:
 
 ```bash
-tmp="$(mktemp -d <local-temp-dir>)"
+tmp="$(mktemp -d)"
 node ./dist/cli/main.js goal \
   --agent codex \
   --cwd "$tmp" \
@@ -827,18 +827,18 @@ Release-preflight workflow:
 
 ```bash
 repo_root="${GITHUB_WORKSPACE:-$(pwd -P)}"
-tmp_dir="$(mktemp -d <local-temp-dir>)"
+tmp_dir="$(mktemp -d)"
 pushd "$tmp_dir"
 pack_info="$(cd "$repo_root" && npm pack --json --ignore-scripts --pack-destination "$tmp_dir")"
 package_file="$(printf '%s' "$pack_info" | node -e "const data = JSON.parse(require('node:fs').readFileSync(0, 'utf8')); process.stdout.write(data[0].filename);")"
 npm init -y >/dev/null
-npm install "$tmp_dir/$package_file" --no-save --ignore-scripts --no-audit --no-fund ><local-temp-dir>
+npm install "$tmp_dir/$package_file" --no-save --ignore-scripts --no-audit --no-fund >"$tmp_dir/install.log"
 node -e "(async()=>{ const m = await import('agent-cli-runtime'); if (typeof m.createAgentRuntime !== 'function') process.exit(1); console.log(typeof m.createAgentRuntime); })()"
-node ./node_modules/.bin/agent-runtime agents --json > <local-temp-dir>
-node ./node_modules/.bin/agent-runtime doctor --json > <local-temp-dir>
-node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json > <local-temp-dir>
+node ./node_modules/.bin/agent-runtime agents --json >"$tmp_dir/agents.json"
+node ./node_modules/.bin/agent-runtime doctor --json >"$tmp_dir/doctor.json"
+node ./node_modules/.bin/agent-runtime smoke --mode fixtures --json >"$tmp_dir/fixtures-smoke.json"
 popd
-node -e "const fs = require('node:fs'); JSON.parse(fs.readFileSync('<local-temp-dir>','utf8')); JSON.parse(fs.readFileSync('<local-temp-dir>','utf8')); JSON.parse(fs.readFileSync('<local-temp-dir>','utf8'));"
+node -e "const fs = require('node:fs'); for (const file of process.argv.slice(1)) JSON.parse(fs.readFileSync(file, 'utf8'));" "$tmp_dir/agents.json" "$tmp_dir/doctor.json" "$tmp_dir/fixtures-smoke.json"
 ```
 
 Release-candidate notes:

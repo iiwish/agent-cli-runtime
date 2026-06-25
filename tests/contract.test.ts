@@ -3531,6 +3531,7 @@ setInterval(() => {}, 1000);
       expect(text, doc + " must not include real local temp paths").not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\//u);
       expect(text, doc + " must not include artifact digests").not.toMatch(/sha256:[0-9a-f]{16,}/iu);
       expect(text, doc + " must not include raw tarball or pack hashes").not.toMatch(/(?:tarball sha256|tarball shasum|npm pack shasum|pack shasum)\s*[:：]?\s*[0-9a-f]{16,}/iu);
+      expect(text, doc + " must keep executable shell snippets executable").not.toMatch(/mktemp -d\s+<local-temp-dir>|>\s*<local-temp-dir>|readFileSync\(['"]<local-temp-dir>['"]/u);
       expect(text, doc + " must not claim alpha.2 is published").not.toMatch(/0\.1\.0-alpha\.2[^\n]*(?:published to npm|has GitHub pre-release|is published|已发布|发布到 npm|已经发布)/iu);
       expect(text).not.toMatch(/P6-6[^\n]*(?:run \d{8,}|artifact digest|artifact id|tarball shasum|npm pack shasum|pack shasum|包 shasum|local temp|临时路径)/iu);
     }

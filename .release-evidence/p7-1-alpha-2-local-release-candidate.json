@@ -1,6 +1,6 @@
 {
   "schema": "agent-cli-runtime.localReleaseCandidateEvidence.v1",
-  "generatedAt": "2026-06-25T04:24:54Z",
+  "generatedAt": "2026-06-25T05:39:01Z",
   "stage": "P7-1",
   "evidenceKind": "alpha-2-local-release-candidate",
   "packageName": "agent-cli-runtime",

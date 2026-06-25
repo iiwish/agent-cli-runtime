@@ -47,7 +47,7 @@ npm run lint
 npm test
 npm run build
 npm run package:check
-tmp_dir="$(mktemp -d <local-temp-dir>)"
+tmp_dir="$(mktemp -d)"
 npm run release:candidate -- --out-dir "$tmp_dir"
 npm run release:verify -- --dir "$tmp_dir"
 npm pack --dry-run
