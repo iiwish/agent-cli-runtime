@@ -3344,6 +3344,7 @@ setInterval(() => {}, 1000);
     expect(evidenceReadme).toContain("p6-5-main-release-candidate.json");
     expect(evidenceReadme).toContain("p6-6-main-head-release-candidate.json");
     expect(evidenceReadme).toContain("p7-2-alpha-2-main-release-candidate.json");
+    expect(evidenceReadme).toContain("p7-3-alpha-2-publish.json");
     expect(evidenceIgnore).toContain("*.local.json");
     expect(evidenceIgnore).toContain("*.local.md");
     expect(p5Evidence.stage).toBe("P5-4");
@@ -3653,12 +3654,12 @@ setInterval(() => {}, 1000);
     const runbook = await readFile(path.join(root, "docs", "release-publish-runbook.md"), "utf8");
 
     expect(releaseReport).toContain("0.1.0-alpha.2");
-    expect(releaseReport).toContain("candidate / prep");
+    expect(releaseReport).toContain("publish-ready release candidate");
     expect(releaseReport).toContain("agent-cli-runtime.releaseVerification.v1");
     expect(releaseReport).toContain("agent-cli-runtime.releaseGateEvidence.v1");
     expect(releaseReport).toContain("compat:real:evidence:verify");
     expect(releaseReport).toContain(".release-evidence/");
-    expect(releaseChecklist).toContain("P7-1 Alpha.2 Candidate Prep");
+    expect(releaseChecklist).toContain("P7-3 Alpha.2 Publish Dry-Run");
     expect(releaseChecklist).toContain("0.1.0-alpha.2");
     expect(runbook).toContain("Alpha.2 human-controlled publish path");
 
@@ -3678,6 +3679,155 @@ setInterval(() => {}, 1000);
       expect(releaseReport).toContain(artifact);
       expect(releaseChecklist).toContain(artifact);
     }
+  });
+
+  it("records P7-3 alpha.2 publish dry-run evidence without real publish side effects", async () => {
+    const evidenceText = await readFile(path.join(root, ".release-evidence", "p7-3-alpha-2-publish.json"), "utf8");
+    const evidence = JSON.parse(evidenceText) as {
+      schemaVersion: string;
+      stage: string;
+      evidenceKind: string;
+      targetRef: string;
+      targetSha: string;
+      mainEvidence: boolean;
+      packageName: string;
+      packageVersion: string;
+      releaseCandidateRun: { id: number; url: string; event: string; headBranch: string; headSha: string; status: string; conclusion: string };
+      releaseCandidateJob: { id: number; name: string; status: string; conclusion: string };
+      artifacts: { count: number; names: string[]; items: Array<{ name: string; id: number; digest: string }> };
+      downloadedVerification: {
+        command: string;
+        schemaVersion: string;
+        ok: boolean;
+        diagnosticsCount: number;
+        packageFiles: number;
+        packageName: string;
+        version: string;
+        tarball?: { filename?: string; sizeBytes?: number; shasum?: string };
+        shasum?: string;
+        integrity?: string;
+      };
+      gateEvidence: {
+        schemaVersion: string;
+        gates: Array<{
+          script: string;
+          ok: boolean;
+          outputSchemaVersion: string;
+          packageSource?: string;
+          evidenceSchemaVersion?: string;
+          diagnostics?: { count: number; codes: string[] };
+        }>;
+        noAuthenticatedRealRun: boolean;
+        noNpmPublish: boolean;
+        noNpmToken: boolean;
+      };
+      registryBeforePublish: {
+        versionExists: boolean;
+        errorCode: string;
+        distTags: Record<string, string>;
+        publishedGithubRelease: { tagName: string; isPrerelease: boolean; url: string };
+      };
+      prePublishVerification: { commands: Array<{ command: string; ok: boolean; publishTag?: string; dryRun?: boolean }> };
+      publishMode: string;
+      realPublishAuthorized: boolean;
+      npmPublishExecuted: boolean;
+      postPublishVerification: { status: string; reason: string };
+      githubRelease: { tag: string; created: boolean; url: string | null; reason: string };
+      boundary: Record<string, boolean>;
+    };
+
+    expect(evidence.schemaVersion).toBe("agent-cli-runtime.publishEvidence.v1");
+    expect(evidence.stage).toBe("P7-3");
+    expect(evidence.evidenceKind).toBe("alpha-2-publish-dry-run");
+    expect(evidence.targetRef).toBe("main");
+    expect(evidence.targetSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(evidence.mainEvidence).toBe(true);
+    expect(evidence.packageName).toBe("agent-cli-runtime");
+    expect(evidence.packageVersion).toBe("0.1.0-alpha.2");
+    expect(evidence.releaseCandidateRun.event).toBe("workflow_dispatch");
+    expect(evidence.releaseCandidateRun.headBranch).toBe("main");
+    expect(evidence.releaseCandidateRun.headSha).toBe(evidence.targetSha);
+    expect(evidence.releaseCandidateRun.status).toBe("completed");
+    expect(evidence.releaseCandidateRun.conclusion).toBe("success");
+    expect(evidence.releaseCandidateJob.name).toBe("Build release candidate artifacts");
+    expect(evidence.releaseCandidateJob.status).toBe("completed");
+    expect(evidence.releaseCandidateJob.conclusion).toBe("success");
+    expect(evidence.artifacts.count).toBe(5);
+    expect(evidence.artifacts.names.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.artifacts.items.map((artifact) => artifact.name).sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    for (const artifact of evidence.artifacts.items) {
+      expect(artifact.id).toBeGreaterThan(0);
+      expect(artifact.digest).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    }
+    expect(evidence.downloadedVerification).toMatchObject({
+      command: "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+      schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+      ok: true,
+      diagnosticsCount: 0,
+      packageFiles: 151,
+      packageName: "agent-cli-runtime",
+      version: "0.1.0-alpha.2",
+    });
+    expect(evidence.downloadedVerification.tarball?.filename).toBe("agent-cli-runtime-0.1.0-alpha.2.tgz");
+    expect(evidence.downloadedVerification.tarball?.sizeBytes).toBeUndefined();
+    expect(evidence.downloadedVerification.tarball?.shasum).toBeUndefined();
+    expect(evidence.downloadedVerification.shasum).toBeUndefined();
+    expect(evidence.downloadedVerification.integrity).toBeUndefined();
+    expect(evidence.gateEvidence.schemaVersion).toBe("agent-cli-runtime.releaseGateEvidence.v1");
+    expect(evidence.gateEvidence.gates.map((gate) => gate.script).sort()).toEqual([
+      "compat:real:evidence:verify",
+      "daemon:verify",
+      "runtime:safety",
+    ]);
+    expect(evidence.gateEvidence.gates.every((gate) => gate.ok)).toBe(true);
+    expect(evidence.gateEvidence.gates.find((gate) => gate.script === "compat:real:evidence:verify")).toMatchObject({
+      outputSchemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+      evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1",
+      diagnostics: { count: 0, codes: [] },
+    });
+    expect(evidence.gateEvidence.noAuthenticatedRealRun).toBe(true);
+    expect(evidence.gateEvidence.noNpmPublish).toBe(true);
+    expect(evidence.gateEvidence.noNpmToken).toBe(true);
+    expect(evidence.registryBeforePublish.versionExists).toBe(false);
+    expect(evidence.registryBeforePublish.errorCode).toBe("E404");
+    expect(evidence.registryBeforePublish.distTags).toMatchObject({ alpha: "0.1.0-alpha.1", latest: "0.1.0-alpha.1" });
+    expect(evidence.registryBeforePublish.publishedGithubRelease).toMatchObject({
+      tagName: "v0.1.0-alpha.1",
+      isPrerelease: true,
+    });
+    expect(evidence.prePublishVerification.commands.find((entry) => entry.command === "npm publish --dry-run --ignore-scripts --tag alpha")).toMatchObject({
+      ok: true,
+      publishTag: "alpha",
+      dryRun: true,
+    });
+    expect(evidence.publishMode).toBe("dry-run-only");
+    expect(evidence.realPublishAuthorized).toBe(false);
+    expect(evidence.npmPublishExecuted).toBe(false);
+    expect(evidence.postPublishVerification.status).toBe("not-run");
+    expect(evidence.githubRelease).toMatchObject({
+      tag: "v0.1.0-alpha.2",
+      created: false,
+      url: null,
+    });
+    expect(evidence.boundary.noAuthenticatedRealRun).toBe(true);
+    expect(evidence.boundary.noNpmPublish).toBe(true);
+    expect(evidence.boundary.noGithubRelease).toBe(true);
+    expect(evidence.boundary.noNpmToken).toBe(true);
+    expect(evidence.boundary.noTrustedPublishing).toBe(true);
+    expect(evidence.boundary.noRawLogs).toBe(true);
+    expect(evidence.boundary.noRawStdoutStderr).toBe(true);
+    expect(evidence.boundary.noRawCliOutput).toBe(true);
+    expect(evidence.boundary.noFullPrompt).toBe(true);
+    expect(evidence.boundary.noPrivatePath).toBe(true);
+    expect(evidence.boundary.noLocalTempPath).toBe(true);
+    expect(evidence.boundary.noTokenValue).toBe(true);
+    expect(evidence.boundary.noBearerValue).toBe(true);
+    expect(evidence.boundary.noAuthEnvAssignment).toBe(true);
+    expect(evidence.boundary.noTarballSize).toBe(true);
+    expect(evidence.boundary.noTarballShasum).toBe(true);
+    expect(evidence.boundary.noPackShasum).toBe(true);
+    expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(evidenceText).not.toMatch(/\b(?:sizeBytes|sizeInBytes|shasum|integrity)\b/u);
   });
 
   it("documents publish dry-run with the alpha dist-tag instead of latest", async () => {
