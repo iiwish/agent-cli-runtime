@@ -1,13 +1,17 @@
 # Release Checklist (pre-alpha / developer preview)
 
-Status: `0.1.0-alpha.1` published; `0.1.0-alpha.2` candidate / prep
+Status: `0.1.0-alpha.1` published; `0.1.0-alpha.2` publish-ready release candidate / dry-run stop point
 Last updated: 2026-06-25
 
-## P7-1 Alpha.2 Candidate Prep
+## P7-3 Alpha.2 Publish Dry-Run
 
-- [x] Confirm P6-6 has reached `origin/main` before creating the P7-1 branch.
+- [x] Confirm P7-2 has reached `origin/main` before creating the P7-3 branch.
 - [x] Prepare package metadata for `0.1.0-alpha.2` in `package.json` and `package-lock.json`.
-- [x] Keep `0.1.0-alpha.2` as a candidate / prep version only; do not describe it as published.
+- [x] Keep `0.1.0-alpha.2` as a publish-ready release candidate only; do not describe it as published.
+- [x] Trigger fresh main release-candidate evidence for the exact commit selected for publish.
+- [x] Download all five artifacts and run `npm run release:verify -- --dir <normalized-artifact-dir>`.
+- [x] Run `npm publish --dry-run --ignore-scripts --tag alpha`.
+- [x] Record dry-run-only publish evidence in `.release-evidence/p7-3-alpha-2-publish.json`.
 - [x] Keep the current published npm version as `agent-cli-runtime@0.1.0-alpha.1`.
 - [x] Keep the current GitHub pre-release as `v0.1.0-alpha.1`.
 - [x] Keep current npm dist-tags documented as `alpha -> 0.1.0-alpha.1` and `latest -> 0.1.0-alpha.1`.
@@ -52,7 +56,7 @@ Acceptance:
 
 ## Human Publish Gate
 
-Do not run a real publish during P7-1. Before any later publish:
+Do not run a real publish without explicit maintainer authorization. Before any later publish:
 
 - [ ] Trigger a fresh manual release-candidate workflow for the exact commit being considered.
 - [ ] Download all five artifacts into a local review directory.

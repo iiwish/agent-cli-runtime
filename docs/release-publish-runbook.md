@@ -1,11 +1,11 @@
 # Alpha Publish Readiness Runbook
 
-Status: `0.1.0-alpha.1` published; `0.1.0-alpha.2` release candidate prep; future publish gates remain human-controlled
+Status: `0.1.0-alpha.1` published; `0.1.0-alpha.2` publish-ready release candidate / dry-run stop point; real publish remains human-controlled
 Last updated: 2026-06-25
 
 This runbook records the publish and registry boundary after `agent-cli-runtime@0.1.0-alpha.1` was published. `0.1.0-alpha.1` corrects the stale pre-publish status text shipped in immutable npm version `0.1.0-alpha.0`; `0.1.0-alpha.0` is now deprecated.
 
-`0.1.0-alpha.2` is being prepared as a release candidate and is not published until a maintainer separately authorizes a real npm publish after fresh release-candidate evidence passes. This runbook does not create or commit npm credentials and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, tarball shasums, pack shasums, and local temporary paths are recorded outside the npm package under `.release-evidence/` or attached as GitHub Release assets; package docs keep only stable process rules, current post-alpha registry state, and the human-gated boundary for any future publish.
+`0.1.0-alpha.2` is a publish-ready release candidate with fresh main release-candidate evidence and local publish dry-run evidence. It is not published until a maintainer separately authorizes a real npm publish. This runbook does not create or commit npm credentials and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, tarball shasums, pack shasums, and local temporary paths are recorded outside the npm package under `.release-evidence/` or attached as GitHub Release assets; package docs keep only stable process rules, current post-alpha registry state, and the human-gated boundary for any future publish.
 
 ## Decision
 
@@ -16,12 +16,12 @@ Current state and future human gate:
 - The release-candidate workflow remains artifact-only: it creates and verifies the tarball but does not publish and does not require registry credentials.
 - Published package: `agent-cli-runtime@0.1.0-alpha.1`.
 - Candidate package metadata in this repository: `agent-cli-runtime@0.1.0-alpha.2`.
-- `0.1.0-alpha.2` is a release-candidate / prep version, not a published version.
+- `0.1.0-alpha.2` is a publish-ready release candidate with dry-run publish evidence, not a published version.
 - GitHub pre-release: `v0.1.0-alpha.1`.
 - Deprecated package: `agent-cli-runtime@0.1.0-alpha.0`.
 - Current npm dist-tags: `alpha -> 0.1.0-alpha.1`, `latest -> 0.1.0-alpha.1`.
 - `latest -> 0.1.0-alpha.1` is recorded as current pre-alpha registry reality while there is no stable release; do not pretend it was removed.
-- Alpha.2 human-controlled publish path: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, run `npm publish --dry-run --ignore-scripts --tag alpha`, then stop until a maintainer separately authorizes the real publish.
+- Alpha.2 human-controlled publish path: use the fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, run `npm publish --dry-run --ignore-scripts --tag alpha`, then stop until a maintainer separately authorizes the real publish.
 - Current-head evidence rule: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, and record volatile run evidence under `.release-evidence/`.
 - Because this runbook and release report are included in the npm package, do not write current run ids, artifact digests, tarball shasums, or pack shasums into package docs.
 - Before any future real publish, confirm the fresh release-candidate workflow head SHA matches the commit being published.
