@@ -3173,6 +3173,10 @@ setInterval(() => {}, 1000);
       path.join(root, ".release-evidence", "p6-6-main-head-release-candidate.json"),
       "utf8",
     );
+    const p7MainEvidenceText = await readFile(
+      path.join(root, ".release-evidence", "p7-2-alpha-2-main-release-candidate.json"),
+      "utf8",
+    );
     const p5Evidence = JSON.parse(p5EvidenceText) as {
       stage: string;
       targetSha: string;
@@ -3276,9 +3280,54 @@ setInterval(() => {}, 1000);
       };
       boundary: Record<string, boolean>;
     };
+    const p7MainEvidence = JSON.parse(p7MainEvidenceText) as {
+      stage: string;
+      evidenceKind: string;
+      targetRef: string;
+      targetSha: string;
+      mainEvidence: boolean;
+      packageName: string;
+      packageVersion: string;
+      p6_6Commit: string;
+      p7_1FirstCommit: string;
+      p6_6MergedToMainAtTrigger: boolean;
+      p7_1MergedToMainAtTrigger: boolean;
+      p7_1Merge: { method: string; pr: number; mergeCommit: string; url: string; mergedAt: string };
+      run: { id: number; url: string; event: string; headBranch: string; headSha: string; status: string; conclusion: string };
+      job: { id: number; name: string; status: string; conclusion: string };
+      artifacts: { count: number; names: string[]; items: Array<{ id: number; digest: string }> };
+      downloadedVerification: {
+        command: string;
+        schemaVersion: string;
+        ok: boolean;
+        diagnosticsCount: number;
+        packageFiles: number;
+        packageName: string;
+        version: string;
+        tarball?: { filename?: string; sizeBytes?: number; shasum?: string };
+        shasum?: string;
+        integrity?: string;
+      };
+      gateEvidence: {
+        schemaVersion: string;
+        gates: Array<{
+          script: string;
+          ok: boolean;
+          outputSchemaVersion: string;
+          evidenceSchemaVersion?: string;
+          diagnostics?: { count: number; codes: string[] };
+        }>;
+        noAuthenticatedRealRun: boolean;
+        noNpmPublish: boolean;
+        noNpmToken: boolean;
+      };
+      boundary: Record<string, boolean>;
+    };
     const packagedDocs = [
+      "CHANGELOG.md",
       "README.md",
       "README.zh-CN.md",
+      "docs/compatibility.md",
       "docs/release-checklist.md",
       "docs/release-report.md",
       "docs/release-publish-runbook.md",
@@ -3294,6 +3343,7 @@ setInterval(() => {}, 1000);
     expect(evidenceReadme).toContain("published package verification");
     expect(evidenceReadme).toContain("p6-5-main-release-candidate.json");
     expect(evidenceReadme).toContain("p6-6-main-head-release-candidate.json");
+    expect(evidenceReadme).toContain("p7-2-alpha-2-main-release-candidate.json");
     expect(evidenceIgnore).toContain("*.local.json");
     expect(evidenceIgnore).toContain("*.local.md");
     expect(p5Evidence.stage).toBe("P5-4");
@@ -3466,6 +3516,87 @@ setInterval(() => {}, 1000);
     expect(p6MainHeadEvidence.boundary.noPackShasum).toBe(true);
     expect(p6MainHeadEvidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
     expect(p6MainHeadEvidenceText).not.toMatch(/\b(?:sizeBytes|sizeInBytes|shasum|integrity)\b/u);
+    expect(p7MainEvidence.stage).toBe("P7-2");
+    expect(p7MainEvidence.evidenceKind).toBe("alpha-2-main-release-candidate");
+    expect(p7MainEvidence.targetRef).toBe("main");
+    expect(p7MainEvidence.targetSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(p7MainEvidence.mainEvidence).toBe(true);
+    expect(p7MainEvidence.packageName).toBe("agent-cli-runtime");
+    expect(p7MainEvidence.packageVersion).toBe("0.1.0-alpha.2");
+    expect(p7MainEvidence.p6_6Commit).toMatch(/^[0-9a-f]{40}$/u);
+    expect(p7MainEvidence.p7_1FirstCommit).toMatch(/^[0-9a-f]{40}$/u);
+    expect(p7MainEvidence.p6_6MergedToMainAtTrigger).toBe(true);
+    expect(p7MainEvidence.p7_1MergedToMainAtTrigger).toBe(true);
+    expect(p7MainEvidence.p7_1Merge).toMatchObject({
+      method: "pull-request-merge-commit",
+      pr: 7,
+      mergeCommit: p7MainEvidence.targetSha,
+      url: "https://github.com/iiwish/agent-cli-runtime/pull/7",
+    });
+    expect(p7MainEvidence.run.event).toBe("workflow_dispatch");
+    expect(p7MainEvidence.run.headBranch).toBe("main");
+    expect(p7MainEvidence.run.headSha).toBe(p7MainEvidence.targetSha);
+    expect(p7MainEvidence.run.status).toBe("completed");
+    expect(p7MainEvidence.run.conclusion).toBe("success");
+    expect(p7MainEvidence.job.name).toBe("Build release candidate artifacts");
+    expect(p7MainEvidence.job.status).toBe("completed");
+    expect(p7MainEvidence.job.conclusion).toBe("success");
+    expect(p7MainEvidence.artifacts.count).toBe(5);
+    expect(p7MainEvidence.artifacts.names.sort()).toEqual([
+      "agent-cli-runtime-gate-evidence",
+      "agent-cli-runtime-pack-metadata",
+      "agent-cli-runtime-package-files",
+      "agent-cli-runtime-release-verification",
+      "agent-cli-runtime-tarball",
+    ]);
+    expect(p7MainEvidence.downloadedVerification).toMatchObject({
+      command: "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+      schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+      ok: true,
+      diagnosticsCount: 0,
+      packageFiles: 151,
+      packageName: "agent-cli-runtime",
+      version: "0.1.0-alpha.2",
+    });
+    expect(p7MainEvidence.downloadedVerification.tarball?.filename).toBe("agent-cli-runtime-0.1.0-alpha.2.tgz");
+    expect(p7MainEvidence.downloadedVerification.tarball?.sizeBytes).toBeUndefined();
+    expect(p7MainEvidence.downloadedVerification.tarball?.shasum).toBeUndefined();
+    expect(p7MainEvidence.downloadedVerification.shasum).toBeUndefined();
+    expect(p7MainEvidence.downloadedVerification.integrity).toBeUndefined();
+    expect(p7MainEvidence.gateEvidence.schemaVersion).toBe("agent-cli-runtime.releaseGateEvidence.v1");
+    expect(p7MainEvidence.gateEvidence.gates.map((gate) => gate.script).sort()).toEqual([
+      "compat:real:evidence:verify",
+      "daemon:verify",
+      "runtime:safety",
+    ]);
+    expect(p7MainEvidence.gateEvidence.gates.every((gate) => gate.ok)).toBe(true);
+    expect(p7MainEvidence.gateEvidence.gates.find((gate) => gate.script === "compat:real:evidence:verify")).toMatchObject({
+      outputSchemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+      evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1",
+      diagnostics: { count: 0, codes: [] },
+    });
+    expect(p7MainEvidence.gateEvidence.noAuthenticatedRealRun).toBe(true);
+    expect(p7MainEvidence.gateEvidence.noNpmPublish).toBe(true);
+    expect(p7MainEvidence.gateEvidence.noNpmToken).toBe(true);
+    expect(p7MainEvidence.boundary.noAuthenticatedRealRun).toBe(true);
+    expect(p7MainEvidence.boundary.noNpmPublish).toBe(true);
+    expect(p7MainEvidence.boundary.noGithubRelease).toBe(true);
+    expect(p7MainEvidence.boundary.noNpmToken).toBe(true);
+    expect(p7MainEvidence.boundary.noTrustedPublishing).toBe(true);
+    expect(p7MainEvidence.boundary.noRawLogs).toBe(true);
+    expect(p7MainEvidence.boundary.noRawStdoutStderr).toBe(true);
+    expect(p7MainEvidence.boundary.noRawCliOutput).toBe(true);
+    expect(p7MainEvidence.boundary.noFullPrompt).toBe(true);
+    expect(p7MainEvidence.boundary.noPrivatePath).toBe(true);
+    expect(p7MainEvidence.boundary.noLocalTempPath).toBe(true);
+    expect(p7MainEvidence.boundary.noTokenValue).toBe(true);
+    expect(p7MainEvidence.boundary.noBearerValue).toBe(true);
+    expect(p7MainEvidence.boundary.noAuthEnvAssignment).toBe(true);
+    expect(p7MainEvidence.boundary.noTarballSize).toBe(true);
+    expect(p7MainEvidence.boundary.noTarballShasum).toBe(true);
+    expect(p7MainEvidence.boundary.noPackShasum).toBe(true);
+    expect(p7MainEvidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(p7MainEvidenceText).not.toMatch(/\b(?:sizeBytes|sizeInBytes|shasum|integrity)\b/u);
 
     for (const doc of packagedDocs) {
       const text = await readFile(path.join(root, doc), "utf8");
@@ -3487,6 +3618,12 @@ setInterval(() => {}, 1000);
         expect(text).not.toContain(String(artifact.id));
         expect(text).not.toContain(artifact.digest);
       }
+      expect(text).not.toContain(String(p7MainEvidence.run.id));
+      expect(text).not.toContain(String(p7MainEvidence.job.id));
+      for (const artifact of p7MainEvidence.artifacts.items) {
+        expect(text).not.toContain(String(artifact.id));
+        expect(text).not.toContain(artifact.digest);
+      }
       expect(text).not.toMatch(/P3-11[^\n]*(?:current HEAD|当前 HEAD)[^\n]*(?:run `?\d{8,}`?|artifact digest|artifact id|tarball shasum|npm pack shasum|包 shasum)/iu);
       expect(text).not.toMatch(/P3-11[^\n]*(?:proves|证明)[^\n]*(?:current HEAD|当前 HEAD)/iu);
       expect(text).not.toMatch(/P5-4[^\n]*(?:proves|证明)(?![^\n]*(?:only|只|不得|must not|not be reused))[^\n]*(?:future commit|未来 commit|future publish|未来 publish)/iu);
@@ -3495,6 +3632,7 @@ setInterval(() => {}, 1000);
       expect(text).not.toMatch(/P6-4[^.;\n]*(?:main-scoped|main release-candidate evidence|main evidence closure|主干证据闭环)/iu);
       expect(text).not.toMatch(/P6-5[^\n]*(?:current HEAD|当前 HEAD)[^\n]*(?:stable|稳定事实|canonical fact)/iu);
       expect(text).not.toMatch(/P6-6[^\n]*(?:run `?\d{8,}`?|artifact digest|artifact id|tarball shasum|npm pack shasum|pack shasum|包 shasum|local temp|临时路径)/iu);
+      expect(text).not.toMatch(/P7-2[^\n]*(?:run `?\d{8,}`?|artifact digest|artifact id|tarball shasum|npm pack shasum|pack shasum|包 shasum|local temp|临时路径)/iu);
       expect(text).not.toMatch(/npm publish --dry-run[^\n]*(?:really published|published to npm|真实发布成功|已经发布到 npm|已发布到 npm)/iu);
     }
   });
