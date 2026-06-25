@@ -4,6 +4,9 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+const REAL_COMPATIBILITY_EVIDENCE_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityEvidence.v1";
+const REAL_COMPATIBILITY_VERIFICATION_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityEvidenceVerification.v1";
+
 function parseArgs(argv) {
   const options = { outDir: undefined, keepTemp: false };
   for (let i = 0; i < argv.length; i += 1) {
@@ -93,17 +96,36 @@ function main() {
         command: "npm run runtime:safety",
         args: ["run", "--silent", "runtime:safety"],
       },
+      {
+        name: "real-compatibility-evidence",
+        script: "compat:real:evidence:verify",
+        command: "npm run compat:real:evidence:verify",
+        args: ["run", "--silent", "compat:real:evidence:verify"],
+        expectedOutputSchemaVersion: REAL_COMPATIBILITY_VERIFICATION_SCHEMA_VERSION,
+        expectedEvidenceSchemaVersion: REAL_COMPATIBILITY_EVIDENCE_SCHEMA_VERSION,
+      },
     ];
     const gates = gateCommands.map((gate) => {
       const summary = runJson("npm", gate.args);
-      return {
+      const gateSummary = {
         name: gate.name,
         script: gate.script,
         command: gate.command,
         ok: summary.ok === true,
         outputSchemaVersion: typeof summary.schemaVersion === "string" ? summary.schemaVersion : null,
-        packageSource: typeof summary.packageSource === "string" ? summary.packageSource : null,
       };
+      if (typeof summary.packageSource === "string") gateSummary.packageSource = summary.packageSource;
+      if (gate.script === "compat:real:evidence:verify") {
+        gateSummary.evidenceSchemaVersion = typeof summary.evidenceSchemaVersion === "string" ? summary.evidenceSchemaVersion : null;
+        gateSummary.diagnostics = summarizeDiagnostics(summary.diagnostics);
+        if (gateSummary.outputSchemaVersion !== gate.expectedOutputSchemaVersion) {
+          throw new Error(`unexpected compatibility verification schema: ${gateSummary.outputSchemaVersion ?? "null"}`);
+        }
+        if (gateSummary.evidenceSchemaVersion !== gate.expectedEvidenceSchemaVersion) {
+          throw new Error(`unexpected real compatibility evidence schema: ${gateSummary.evidenceSchemaVersion ?? "null"}`);
+        }
+      }
+      return gateSummary;
     });
     writeFileSync(gateEvidencePath, `${JSON.stringify({
       schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
@@ -152,3 +174,13 @@ function main() {
 }
 
 main();
+
+function summarizeDiagnostics(diagnostics) {
+  const codes = Array.isArray(diagnostics)
+    ? [...new Set(diagnostics.map((diagnostic) => diagnostic?.code).filter((code) => typeof code === "string"))].sort()
+    : [];
+  return {
+    count: Array.isArray(diagnostics) ? diagnostics.length : 0,
+    codes,
+  };
+}

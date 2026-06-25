@@ -48,10 +48,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "ci": "npm run typecheck && npm run lint && npm test && npm run build && npm audit --omit=dev && npm run package:check && npm pack --dry-run",
+    "compat:real:evidence": "node ./scripts/create-real-compatibility-evidence.mjs",
+    "compat:real:evidence:verify": "node ./scripts/verify-real-compatibility-evidence.mjs",
     "daemon:verify": "node ./scripts/verify-daemon-ready.mjs",
     "dogfood": "node ./scripts/dogfood.mjs",
     "package:check": "node ./scripts/check-package-boundary.mjs",
-    "prepublish:check": "npm run typecheck && npm run lint && npm test && npm run build && npm run daemon:verify && npm run runtime:safety && npm run dogfood && npm audit --omit=dev && npm run package:check && npm pack --dry-run",
+    "prepublish:check": "npm run typecheck && npm run lint && npm test && npm run build && npm run daemon:verify && npm run runtime:safety && npm run compat:real:evidence:verify && npm run dogfood && npm audit --omit=dev && npm run package:check && npm pack --dry-run",
     "prepack": "npm run build",
     "published:adapters:verify": "node ./scripts/verify-published-adapters.mjs",
     "published:daemon:verify": "node ./scripts/verify-published-daemon-consumer.mjs",

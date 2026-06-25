@@ -338,6 +338,7 @@ export HTTP_PROXY=http://127.0.0.1:7897
 npm run ci
 npm run daemon:verify
 npm run runtime:safety
+npm run compat:real:evidence:verify
 npm run published:daemon:verify
 npm run published:adapters:verify
 npm run published:verify -- --out-dir published-verification
@@ -352,9 +353,11 @@ node ./dist/cli/main.js smoke --mode real --agent codex --json
 
 `conformance --mode real` 和 `smoke --mode real` 不带 `--allow-real-run` 时只做真实本地 detection/profile certification，不启动 authenticated real agent run。只有显式传入 `--allow-real-run` 才会执行真实 run；未传 `--cwd` 时 runtime 使用隔离临时目录，并请求 read-only 行为。请把 `--allow-real-run` 当成本机账号/网络 run 的明确安全边界。
 
-CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、production dependency audit、package boundary check 和 `npm pack --dry-run`。`npm run daemon:verify`、`npm run runtime:safety` 和 `npm run dogfood` 放在单 Node 版本 release-gates job 中执行，避免 matrix 重复跑 installed-package gates。dogfood、CI 和 prepublish 的默认边界一致：允许 fixtures、fake CLIs、真实本地 detection/profile certification；不带 `--allow-real-run` 时不启动 authenticated real agent run。
+`npm run compat:real:evidence` 会在 `.release-evidence/` 下生成 repo-only 的 redacted compatibility summary，它是显式 evidence refresh 动作，不是默认发布门禁。默认只跑 safe real preflight；authenticated smoke evidence 必须显式传入成对参数，例如 `--allow-real-run --agent codex --expect-text "agent-runtime codex smoke ok"`。`real_run_skipped`、`auth_missing`、`needs_verification` 等 skipped/blocked 状态会保留为 evidence state，不会写成 success。`npm run compat:real:evidence:verify` 是 P6-3 的离线 drift gate，只复验 evidence 文件，不启动真实 CLI run；它会拒绝泄露内容、缺失 dirty-state evidence、把 skipped/auth-missing 伪装成 success、authenticated success 证据不完整、缺少 `needsVerification` audit 项，以及 package boundary 声明无效。`prepublish:check` 和 `release:candidate` 会针对既有 repo-only evidence 运行该 verifier，但不会刷新真实 CLI evidence。
 
-本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、daemon embedding verification、runtime safety verification、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood` 和 `npm run release:candidate -- --out-dir release-candidate`；生成并上传 `agent-cli-runtime-tarball`、`agent-cli-runtime-pack-metadata`、`agent-cli-runtime-package-files`、`agent-cli-runtime-gate-evidence` 和 `agent-cli-runtime-release-verification`。`0.1.0-alpha.1` 已发布到 npm，并有 GitHub pre-release `v0.1.0-alpha.1`；`0.1.0-alpha.0` 已 deprecate，原因是该不可变 tarball 内含过期的发布前状态说明。当前 npm dist-tags 为 `alpha -> 0.1.0-alpha.1` 和 `latest -> 0.1.0-alpha.1`；在目前只有 pre-alpha 版本时，这是可接受的 registry 现实状态。由于 release docs 会进入 npm package，current-run 的易漂移证据必须留在包外的 `.release-evidence/` 或 GitHub Release assets 中。
+CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、production dependency audit、package boundary check 和 `npm pack --dry-run`。`npm run daemon:verify`、`npm run runtime:safety` 和 `npm run dogfood` 放在单 Node 版本 release-gates job 中执行，避免 matrix 重复跑 installed-package gates。CI 刻意不运行 repo-only compatibility evidence verifier；`prepublish:check` 和 `release:candidate` 是能读取 `.release-evidence/` 的 release/evidence 路径。dogfood、CI 和 prepublish 的默认边界一致：允许 fixtures、fake CLIs、真实本地 detection/profile certification；不带 `--allow-real-run` 时不启动 authenticated real agent run。
+
+本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、daemon embedding verification、runtime safety verification、offline real compatibility evidence verification、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood` 和 `npm run release:candidate -- --out-dir release-candidate`；生成并上传 `agent-cli-runtime-tarball`、`agent-cli-runtime-pack-metadata`、`agent-cli-runtime-package-files`、`agent-cli-runtime-gate-evidence` 和 `agent-cli-runtime-release-verification`。`0.1.0-alpha.1` 已发布到 npm，并有 GitHub pre-release `v0.1.0-alpha.1`；`0.1.0-alpha.0` 已 deprecate，原因是该不可变 tarball 内含过期的发布前状态说明。当前 npm dist-tags 为 `alpha -> 0.1.0-alpha.1` 和 `latest -> 0.1.0-alpha.1`；在目前只有 pre-alpha 版本时，这是可接受的 registry 现实状态。由于 release docs 会进入 npm package，current-run 的易漂移证据必须留在包外的 `.release-evidence/` 或 GitHub Release assets 中。
 
 post-alpha 验证：
 
@@ -382,7 +385,7 @@ npm run release:candidate -- --out-dir release-candidate
 npm run release:verify -- --dir release-candidate
 ```
 
-`release:candidate` 会在输出目录写入 `npm-pack.json`、`package-files.txt`、`gate-evidence.json`、tarball 和 `release-verification.json`。`release:verify` 也可用于下载 GitHub Actions artifacts 后复核同一组文件，并确认候选包记录了 `daemon:verify` 和 `runtime:safety` 证据。
+`release:candidate` 会在输出目录写入 `npm-pack.json`、`package-files.txt`、`gate-evidence.json`、tarball 和 `release-verification.json`。`release:verify` 也可用于下载 GitHub Actions artifacts 后复核同一组文件，并确认候选包记录了 `daemon:verify`、`runtime:safety` 和 offline real compatibility evidence verifier 证据。
 
 Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。Published package verification 是单独的手动 post-publish workflow，不是 publish workflow。
 
