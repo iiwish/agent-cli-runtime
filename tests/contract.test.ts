@@ -3128,6 +3128,7 @@ setInterval(() => {}, 1000);
     const evidenceIgnore = await readFile(path.join(root, ".release-evidence", ".gitignore"), "utf8");
     const p5EvidenceText = await readFile(path.join(root, ".release-evidence", "p5-4-published-verification.json"), "utf8");
     const p6EvidenceText = await readFile(path.join(root, ".release-evidence", "p6-4-remote-release-candidate.json"), "utf8");
+    const p6MainEvidenceText = await readFile(path.join(root, ".release-evidence", "p6-5-main-release-candidate.json"), "utf8");
     const p5Evidence = JSON.parse(p5EvidenceText) as {
       stage: string;
       targetSha: string;
@@ -3166,6 +3167,34 @@ setInterval(() => {}, 1000);
         noNpmToken: boolean;
       };
     };
+    const p6MainEvidence = JSON.parse(p6MainEvidenceText) as {
+      stage: string;
+      evidenceKind: string;
+      targetRef: string;
+      targetSha: string;
+      mainEvidence: boolean;
+      p6_4BranchEvidenceCommit: string;
+      p6_3GateCommit: string;
+      p6_4MergedToMainAtTrigger: boolean;
+      merge: { method: string; pr: number; mergeCommit: string; url: string };
+      run: { id: number; headBranch: string; headSha: string; status: string; conclusion: string };
+      artifacts: { count: number; names: string[]; items: Array<{ id: number; digest: string }> };
+      downloadedVerification: { command: string; schemaVersion: string; ok: boolean; diagnosticsCount: number; packageFiles: number };
+      gateEvidence: {
+        schemaVersion: string;
+        gates: Array<{
+          script: string;
+          ok: boolean;
+          outputSchemaVersion: string;
+          evidenceSchemaVersion?: string;
+          diagnostics?: { count: number; codes: string[] };
+        }>;
+        noAuthenticatedRealRun: boolean;
+        noNpmPublish: boolean;
+        noNpmToken: boolean;
+      };
+      boundary: Record<string, boolean>;
+    };
     const packagedDocs = [
       "README.md",
       "README.zh-CN.md",
@@ -3182,6 +3211,7 @@ setInterval(() => {}, 1000);
     expect(evidenceReadme).toContain("outside the npm package boundary");
     expect(evidenceReadme).toContain("GitHub Actions run ids");
     expect(evidenceReadme).toContain("published package verification");
+    expect(evidenceReadme).toContain("p6-5-main-release-candidate.json");
     expect(evidenceIgnore).toContain("*.local.json");
     expect(evidenceIgnore).toContain("*.local.md");
     expect(p5Evidence.stage).toBe("P5-4");
@@ -3244,6 +3274,56 @@ setInterval(() => {}, 1000);
     expect(p6Evidence.gateEvidence.noNpmPublish).toBe(true);
     expect(p6Evidence.gateEvidence.noNpmToken).toBe(true);
     expect(p6EvidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(p6MainEvidence.stage).toBe("P6-5");
+    expect(p6MainEvidence.evidenceKind).toBe("main-release-candidate");
+    expect(p6MainEvidence.targetRef).toBe("main");
+    expect(p6MainEvidence.targetSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(p6MainEvidence.mainEvidence).toBe(true);
+    expect(p6MainEvidence.p6_4BranchEvidenceCommit).toMatch(/^[0-9a-f]{40}$/u);
+    expect(p6MainEvidence.p6_3GateCommit).toBe(p6Evidence.targetSha);
+    expect(p6MainEvidence.p6_4MergedToMainAtTrigger).toBe(true);
+    expect(p6MainEvidence.merge.method).toBe("pull-request-merge-commit");
+    expect(p6MainEvidence.merge.pr).toBe(4);
+    expect(p6MainEvidence.merge.mergeCommit).toBe(p6MainEvidence.targetSha);
+    expect(p6MainEvidence.run.headBranch).toBe("main");
+    expect(p6MainEvidence.run.headSha).toBe(p6MainEvidence.targetSha);
+    expect(p6MainEvidence.run.status).toBe("completed");
+    expect(p6MainEvidence.run.conclusion).toBe("success");
+    expect(p6MainEvidence.artifacts.count).toBe(5);
+    expect(p6MainEvidence.artifacts.names.sort()).toEqual([
+      "agent-cli-runtime-gate-evidence",
+      "agent-cli-runtime-pack-metadata",
+      "agent-cli-runtime-package-files",
+      "agent-cli-runtime-release-verification",
+      "agent-cli-runtime-tarball",
+    ]);
+    expect(p6MainEvidence.downloadedVerification).toMatchObject({
+      command: "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+      schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+      ok: true,
+      diagnosticsCount: 0,
+      packageFiles: 151,
+    });
+    expect(p6MainEvidence.gateEvidence.schemaVersion).toBe("agent-cli-runtime.releaseGateEvidence.v1");
+    expect(p6MainEvidence.gateEvidence.gates.map((gate) => gate.script).sort()).toEqual([
+      "compat:real:evidence:verify",
+      "daemon:verify",
+      "runtime:safety",
+    ]);
+    expect(p6MainEvidence.gateEvidence.gates.every((gate) => gate.ok)).toBe(true);
+    expect(p6MainEvidence.gateEvidence.gates.find((gate) => gate.script === "compat:real:evidence:verify")).toMatchObject({
+      outputSchemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+      evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1",
+      diagnostics: { count: 0, codes: [] },
+    });
+    expect(p6MainEvidence.gateEvidence.noAuthenticatedRealRun).toBe(true);
+    expect(p6MainEvidence.gateEvidence.noNpmPublish).toBe(true);
+    expect(p6MainEvidence.gateEvidence.noNpmToken).toBe(true);
+    expect(p6MainEvidence.boundary.noRawLogs).toBe(true);
+    expect(p6MainEvidence.boundary.noRawCliOutput).toBe(true);
+    expect(p6MainEvidence.boundary.noFullPrompt).toBe(true);
+    expect(p6MainEvidence.boundary.noPrivatePath).toBe(true);
+    expect(p6MainEvidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
 
     for (const doc of packagedDocs) {
       const text = await readFile(path.join(root, doc), "utf8");
@@ -3255,10 +3335,17 @@ setInterval(() => {}, 1000);
         expect(text).not.toContain(String(artifact.id));
         expect(text).not.toContain(artifact.digest);
       }
+      for (const artifact of p6MainEvidence.artifacts.items) {
+        expect(text).not.toContain(String(artifact.id));
+        expect(text).not.toContain(artifact.digest);
+      }
       expect(text).not.toMatch(/P3-11[^\n]*(?:current HEAD|当前 HEAD)[^\n]*(?:run `?\d{8,}`?|artifact digest|artifact id|tarball shasum|npm pack shasum|包 shasum)/iu);
       expect(text).not.toMatch(/P3-11[^\n]*(?:proves|证明)[^\n]*(?:current HEAD|当前 HEAD)/iu);
       expect(text).not.toMatch(/P5-4[^\n]*(?:proves|证明)(?![^\n]*(?:only|只|不得|must not|not be reused))[^\n]*(?:future commit|未来 commit|future publish|未来 publish)/iu);
       expect(text).not.toMatch(/P6-4[^\n]*(?:proves main|证明 main|main evidence passed|main 证据已通过)/iu);
+      expect(text).not.toMatch(/P6-5[^.;\n]*(?:is|as|属于|是)[^.;\n]*(?:branch evidence|branch-only|不是 main evidence|not main evidence)/iu);
+      expect(text).not.toMatch(/P6-4[^.;\n]*(?:main-scoped|main release-candidate evidence|main evidence closure|主干证据闭环)/iu);
+      expect(text).not.toMatch(/P6-5[^\n]*(?:current HEAD|当前 HEAD)[^\n]*(?:stable|稳定事实|canonical fact)/iu);
       expect(text).not.toMatch(/npm publish --dry-run[^\n]*(?:really published|published to npm|真实发布成功|已经发布到 npm|已发布到 npm)/iu);
     }
   });

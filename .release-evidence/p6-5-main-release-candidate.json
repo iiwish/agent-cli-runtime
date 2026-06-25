@@ -1,0 +1,142 @@
+{
+  "stage": "P6-5",
+  "evidenceKind": "main-release-candidate",
+  "targetRef": "main",
+  "targetSha": "f2ed4d07103c3a9385d6be66c0befead1784558d",
+  "mainEvidence": true,
+  "p6_4BranchEvidenceCommit": "0e7ccd888dc7fed5f59fb9010d0a9f68fd24defa",
+  "p6_3GateCommit": "59b8c00a4ef79356fcba30fb526eab2f158bcdf3",
+  "p6_4MergedToMainAtTrigger": true,
+  "merge": {
+    "method": "pull-request-merge-commit",
+    "pr": 4,
+    "url": "https://github.com/iiwish/agent-cli-runtime/pull/4",
+    "mergeCommit": "f2ed4d07103c3a9385d6be66c0befead1784558d",
+    "mergedAt": "2026-06-25T02:51:59Z"
+  },
+  "run": {
+    "id": 28143647046,
+    "url": "https://github.com/iiwish/agent-cli-runtime/actions/runs/28143647046",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-06-25T02:52:28Z",
+    "updatedAt": "2026-06-25T02:53:53Z",
+    "headBranch": "main",
+    "headSha": "f2ed4d07103c3a9385d6be66c0befead1784558d"
+  },
+  "job": {
+    "name": "Build release candidate artifacts",
+    "id": 83346025464,
+    "status": "completed",
+    "conclusion": "success",
+    "startedAt": "2026-06-25T02:52:32Z",
+    "completedAt": "2026-06-25T02:53:52Z"
+  },
+  "artifacts": {
+    "count": 5,
+    "names": [
+      "agent-cli-runtime-tarball",
+      "agent-cli-runtime-pack-metadata",
+      "agent-cli-runtime-package-files",
+      "agent-cli-runtime-gate-evidence",
+      "agent-cli-runtime-release-verification"
+    ],
+    "items": [
+      {
+        "name": "agent-cli-runtime-tarball",
+        "id": 7867664877,
+        "digest": "sha256:8397630db1949f83568798c1b8fc311c16ee166712612e71d8389baab7715ff4",
+        "sizeInBytes": 247941,
+        "expiresAt": "2026-07-09T02:53:42Z"
+      },
+      {
+        "name": "agent-cli-runtime-pack-metadata",
+        "id": 7867665133,
+        "digest": "sha256:625b09805fe9a808a43175e764a0fe08c1c17b1fb7708247ba8e343913dd202f",
+        "sizeInBytes": 1999,
+        "expiresAt": "2026-07-09T02:53:44Z"
+      },
+      {
+        "name": "agent-cli-runtime-package-files",
+        "id": 7867665408,
+        "digest": "sha256:8141cba0d357c706b1aacc8d13c979f89e48fd2cf66147bb7e9f854a26a52b11",
+        "sizeInBytes": 961,
+        "expiresAt": "2026-07-09T02:53:45Z"
+      },
+      {
+        "name": "agent-cli-runtime-gate-evidence",
+        "id": 7867665688,
+        "digest": "sha256:378c677868a37817073e45cd851ca84342950db065c4b6f54c11cb1d1993103d",
+        "sizeInBytes": 525,
+        "expiresAt": "2026-07-09T02:53:46Z"
+      },
+      {
+        "name": "agent-cli-runtime-release-verification",
+        "id": 7867665925,
+        "digest": "sha256:cdb6249f5f798476881df468fdd8609f1aee683b476d9e21dd02140356d82ee0",
+        "sizeInBytes": 743,
+        "expiresAt": "2026-07-09T02:53:48Z"
+      }
+    ]
+  },
+  "downloadedVerification": {
+    "command": "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+    "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+    "ok": true,
+    "diagnosticsCount": 0,
+    "packageFiles": 151,
+    "packageName": "agent-cli-runtime",
+    "version": "0.1.0-alpha.1",
+    "tarball": {
+      "filename": "agent-cli-runtime-0.1.0-alpha.1.tgz",
+      "sizeBytes": 247713
+    }
+  },
+  "gateEvidence": {
+    "schemaVersion": "agent-cli-runtime.releaseGateEvidence.v1",
+    "gates": [
+      {
+        "name": "daemon-ready",
+        "script": "daemon:verify",
+        "command": "npm run daemon:verify",
+        "ok": true,
+        "outputSchemaVersion": "agent-runtime.daemonVerification.v1",
+        "packageSource": "installed-tarball"
+      },
+      {
+        "name": "runtime-safety",
+        "script": "runtime:safety",
+        "command": "npm run runtime:safety",
+        "ok": true,
+        "outputSchemaVersion": "agent-runtime.runtimeSafety.v1",
+        "packageSource": "installed-tarball"
+      },
+      {
+        "name": "real-compatibility-evidence",
+        "script": "compat:real:evidence:verify",
+        "command": "npm run compat:real:evidence:verify",
+        "ok": true,
+        "outputSchemaVersion": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+        "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityEvidence.v1",
+        "diagnostics": {
+          "count": 0,
+          "codes": []
+        }
+      }
+    ],
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noNpmToken": true
+  },
+  "boundary": {
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noNpmToken": true,
+    "noRawLogs": true,
+    "noRawCliOutput": true,
+    "noFullPrompt": true,
+    "noPrivatePath": true,
+    "noTokenValue": true
+  }
+}
