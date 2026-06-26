@@ -421,6 +421,9 @@ describe("public contract", () => {
     expect(publishedVerificationScript).toContain("noAuthenticatedRealRun: true");
     expect(publishedVerificationScript).toContain("noNpmPublish: true");
     expect(publishedVerificationScript).toContain("noNpmToken: true");
+    expect(publishedVerificationScript).toContain("digestMatchesDownloadedSha256");
+    expect(publishedVerificationScript).not.toContain("sizeBytes: payload.githubRelease.tarballAsset.sizeBytes");
+    expect(publishedVerificationScript).not.toContain("digest: payload.githubRelease.tarballAsset.digest");
     expect(publishedVerificationScript).toContain("outDir: displayPath(outDir)");
     expect(publishedVerificationScript).toContain("return path.basename(file)");
     expect(publishedVerificationScript).not.toMatch(/\bnpm publish\b/u);
