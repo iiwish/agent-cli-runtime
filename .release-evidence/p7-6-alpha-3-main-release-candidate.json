@@ -2,9 +2,9 @@
   "schemaVersion": "agent-cli-runtime.mainReleaseCandidateEvidence.v1",
   "stage": "P7-6",
   "evidenceKind": "alpha-3-main-release-candidate",
-  "createdAt": "2026-06-26T13:56:18Z",
+  "createdAt": "2026-06-26T14:15:00Z",
   "targetRef": "main",
-  "targetSha": "4b29fea3f69602c6c116dde9d2b6c31e426d8d19",
+  "targetSha": "24195d5b706a8b6c2f7e87aee875a6be9137d987",
   "mainEvidence": true,
   "packageName": "agent-cli-runtime",
   "packageVersion": "0.1.0-alpha.3",
@@ -15,24 +15,30 @@
     "url": "https://github.com/iiwish/agent-cli-runtime/pull/13",
     "mergedAt": "2026-06-26T13:49:49Z"
   },
+  "p7_6EvidenceRefresh": {
+    "method": "pull-request-merge-commit",
+    "pr": 14,
+    "mergeCommit": "24195d5b706a8b6c2f7e87aee875a6be9137d987",
+    "url": "https://github.com/iiwish/agent-cli-runtime/pull/14"
+  },
   "run": {
-    "id": 28242541395,
-    "url": "https://github.com/iiwish/agent-cli-runtime/actions/runs/28242541395",
+    "id": 28243651573,
+    "url": "https://github.com/iiwish/agent-cli-runtime/actions/runs/28243651573",
     "event": "workflow_dispatch",
     "status": "completed",
     "conclusion": "success",
-    "createdAt": "2026-06-26T13:53:46Z",
-    "updatedAt": "2026-06-26T13:54:59Z",
+    "createdAt": "2026-06-26T14:13:35Z",
+    "updatedAt": "2026-06-26T14:15:00Z",
     "headBranch": "main",
-    "headSha": "4b29fea3f69602c6c116dde9d2b6c31e426d8d19"
+    "headSha": "24195d5b706a8b6c2f7e87aee875a6be9137d987"
   },
   "job": {
     "name": "Build release candidate artifacts",
-    "id": 83672882215,
+    "id": 83676757379,
     "status": "completed",
     "conclusion": "success",
-    "startedAt": "2026-06-26T13:53:49Z",
-    "completedAt": "2026-06-26T13:54:59Z"
+    "startedAt": "2026-06-26T14:13:40Z",
+    "completedAt": "2026-06-26T14:14:59Z"
   },
   "artifacts": {
     "count": 5,
@@ -46,28 +52,28 @@
     "items": [
       {
         "name": "agent-cli-runtime-tarball",
-        "id": 7907246496,
-        "digest": "sha256:13c5c57afc9321f71d6d27b590756fff103a95581737714226c5ae34bf214e55"
+        "id": 7907721046,
+        "digest": "sha256:abe69fccab94eee179bbb7841dbd5a2383c49e121007682de7c02bfc2d2e14d5"
       },
       {
         "name": "agent-cli-runtime-pack-metadata",
-        "id": 7907246728,
-        "digest": "sha256:c706c226f0a33ec7d17759a7617f5273910878374c4810312d0394be9f30ff63"
+        "id": 7907721678,
+        "digest": "sha256:c317a2d45ab7c5c6b7a6992c4ab8cc40c3c4d4976d601aaeb20ccf150df5985e"
       },
       {
         "name": "agent-cli-runtime-package-files",
-        "id": 7907246953,
-        "digest": "sha256:4557c791d1143f61f59ec554ce0b208516b651dd6c5c6036b86f050c4ba5ac06"
+        "id": 7907722232,
+        "digest": "sha256:fdf7acbb9f1d8f7fd9832b3ae48e0ce34cb495e6651a279402a2a2b33e85f18f"
       },
       {
         "name": "agent-cli-runtime-gate-evidence",
-        "id": 7907247201,
-        "digest": "sha256:38f07b4c8f148a7cb56f121a7d67c12faf0e2480a93c34157e39a3218b8eeb61"
+        "id": 7907722826,
+        "digest": "sha256:6545b7d9f278912cc43a6286128655744affc173ac04d17bf8b00b41fd9704f8"
       },
       {
         "name": "agent-cli-runtime-release-verification",
-        "id": 7907247464,
-        "digest": "sha256:442af3bed605bf5724cb0ead241f97b70e91c3d3cdb7ec46d5a5ffdf08036b7d"
+        "id": 7907723344,
+        "digest": "sha256:d2dfa6677e1c6e29f68c4e2e359686a0203f69fadd0c7139bb998d6a9da488f4"
       }
     ]
   },
@@ -83,6 +89,8 @@
         "includesTypecheck": true,
         "includesLint": true,
         "includesTests": true,
+        "testsPassed": 215,
+        "testsSkipped": 1,
         "includesDaemonVerify": true,
         "includesRuntimeSafety": true,
         "includesOfflineRealCompatibilityEvidenceVerify": true,
@@ -175,16 +183,16 @@
     "noNpmToken": true
   },
   "releaseActions": {
-    "realNpmPublishAuthorized": false,
-    "npmPublishExecuted": false,
+    "realNpmPublishAuthorized": true,
+    "npmPublishExecuted": true,
     "npmDeprecateExecuted": false,
-    "githubReleaseCreatedOrEdited": false
+    "githubReleaseCreatedOrEdited": true,
+    "postPublishEvidence": ".release-evidence/p7-6-alpha-3-post-publish.json"
   },
   "boundary": {
     "noAuthenticatedRealRun": true,
-    "noNpmPublish": true,
-    "noGithubRelease": true,
-    "noNpmToken": true,
+    "noNpmTokenCommitted": true,
+    "noGithubTokenCommitted": true,
     "noTrustedPublishing": true,
     "noRawLogs": true,
     "noRawStdoutStderr": true,
@@ -202,7 +210,7 @@
   },
   "verdict": {
     "mainReleaseCandidateEvidenceReady": true,
-    "readyForRealPublish": false,
-    "nextRequiredGate": "explicit_maintainer_authorization_before_real_npm_publish_or_github_release"
+    "readyForRealPublish": true,
+    "postPublishEvidenceReady": true
   }
 }

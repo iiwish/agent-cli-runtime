@@ -1,0 +1,237 @@
+{
+  "schemaVersion": "agent-cli-runtime.postPublishEvidence.v1",
+  "stage": "P7-6",
+  "evidenceKind": "alpha-3-post-publish",
+  "createdAt": "2026-06-26T14:26:34Z",
+  "targetRef": "main",
+  "targetSha": "24195d5b706a8b6c2f7e87aee875a6be9137d987",
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.3",
+  "authorization": {
+    "explicitMaintainerAuthorizationPresent": true,
+    "npmWebLoginCompleted": true,
+    "npmBrowserPublishAuthorizationCompleted": true,
+    "githubReleaseAuthorizationPresent": true
+  },
+  "releaseCandidateRun": {
+    "id": 28243651573,
+    "url": "https://github.com/iiwish/agent-cli-runtime/actions/runs/28243651573",
+    "headBranch": "main",
+    "headSha": "24195d5b706a8b6c2f7e87aee875a6be9137d987",
+    "status": "completed",
+    "conclusion": "success",
+    "headShaMatchesOriginMain": true
+  },
+  "artifacts": {
+    "count": 5,
+    "names": [
+      "agent-cli-runtime-tarball",
+      "agent-cli-runtime-pack-metadata",
+      "agent-cli-runtime-package-files",
+      "agent-cli-runtime-gate-evidence",
+      "agent-cli-runtime-release-verification"
+    ],
+    "items": [
+      {
+        "name": "agent-cli-runtime-tarball",
+        "id": 7907721046,
+        "digest": "sha256:abe69fccab94eee179bbb7841dbd5a2383c49e121007682de7c02bfc2d2e14d5"
+      },
+      {
+        "name": "agent-cli-runtime-pack-metadata",
+        "id": 7907721678,
+        "digest": "sha256:c317a2d45ab7c5c6b7a6992c4ab8cc40c3c4d4976d601aaeb20ccf150df5985e"
+      },
+      {
+        "name": "agent-cli-runtime-package-files",
+        "id": 7907722232,
+        "digest": "sha256:fdf7acbb9f1d8f7fd9832b3ae48e0ce34cb495e6651a279402a2a2b33e85f18f"
+      },
+      {
+        "name": "agent-cli-runtime-gate-evidence",
+        "id": 7907722826,
+        "digest": "sha256:6545b7d9f278912cc43a6286128655744affc173ac04d17bf8b00b41fd9704f8"
+      },
+      {
+        "name": "agent-cli-runtime-release-verification",
+        "id": 7907723344,
+        "digest": "sha256:d2dfa6677e1c6e29f68c4e2e359686a0203f69fadd0c7139bb998d6a9da488f4"
+      }
+    ]
+  },
+  "downloadedVerification": {
+    "command": "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+    "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+    "ok": true,
+    "diagnosticsCount": 0,
+    "packageFiles": 151,
+    "packageName": "agent-cli-runtime",
+    "version": "0.1.0-alpha.3",
+    "tarball": {
+      "filename": "agent-cli-runtime-0.1.0-alpha.3.tgz"
+    }
+  },
+  "registryPrePublish": {
+    "versionExists": false,
+    "errorCode": "E404",
+    "distTags": {
+      "alpha": "0.1.0-alpha.2",
+      "latest": "0.1.0-alpha.1"
+    }
+  },
+  "publish": {
+    "command": "npm publish --tag alpha",
+    "attempted": true,
+    "succeeded": true,
+    "tag": "alpha",
+    "npmPublishExecuted": true,
+    "authRefresh": {
+      "required": true,
+      "initialAttemptRejectedBeforeRegistryMutation": true,
+      "diagnosticClass": "npm_session_expired_or_unauthorized",
+      "webLoginCompleted": true
+    }
+  },
+  "registryPostPublish": {
+    "version": "0.1.0-alpha.3",
+    "distTags": {
+      "alpha": "0.1.0-alpha.3",
+      "latest": "0.1.0-alpha.1"
+    },
+    "fileCount": 151
+  },
+  "githubRelease": {
+    "tag": "v0.1.0-alpha.3",
+    "createdOrUpdated": true,
+    "url": "https://github.com/iiwish/agent-cli-runtime/releases/tag/v0.1.0-alpha.3",
+    "targetCommitish": "24195d5b706a8b6c2f7e87aee875a6be9137d987",
+    "isPrerelease": true,
+    "isDraft": false,
+    "asset": {
+      "name": "agent-cli-runtime-0.1.0-alpha.3.tgz",
+      "digestMatchesDownloadedAsset": true
+    }
+  },
+  "publishedVerification": {
+    "schemaVersion": "agent-cli-runtime.publishedVerification.v1",
+    "ok": true,
+    "packageSource": "npm-registry",
+    "gitSha": "24195d5b706a8b6c2f7e87aee875a6be9137d987",
+    "gates": [
+      {
+        "script": "smoke:published",
+        "command": "npm run smoke:published",
+        "schemaVersion": "agent-cli-runtime.publishedSmoke.v1",
+        "ok": true,
+        "summary": {
+          "esmImportCreateAgentRuntime": true,
+          "cliAgentsJsonParse": true,
+          "cliAgentsCount": 3
+        }
+      },
+      {
+        "script": "published:daemon:verify",
+        "command": "npm run published:daemon:verify",
+        "schemaVersion": "agent-runtime.publishedDaemonConsumer.v1",
+        "ok": true,
+        "summary": {
+          "runSuccess": true,
+          "goalSuccess": true,
+          "cancelRun": true,
+          "timeoutRun": true,
+          "replayRunEvents": true,
+          "replayGoalEvents": true,
+          "readOnlyInspectionWhileWriterActive": true,
+          "secondWriterRefusal": true,
+          "shutdownAndReopen": true,
+          "staleOwnerRecovery": true
+        }
+      },
+      {
+        "script": "published:adapters:verify",
+        "command": "npm run published:adapters:verify",
+        "schemaVersion": "agent-runtime.publishedAdapters.v1",
+        "ok": true,
+        "summary": {
+          "installedFromNpmRegistry": true,
+          "cliAgentsDetectsFakeAdapters": true,
+          "conformanceFakeHasThreeSummaries": true,
+          "summariesForAllAdapters": true,
+          "invocationShapeMatched": true,
+          "promptNotInArgv": true,
+          "parserExpectedText": true,
+          "failureIsolation": true
+        }
+      },
+      {
+        "script": "release:post-alpha:verify",
+        "command": "npm run release:post-alpha:verify",
+        "schemaVersion": "agent-cli-runtime.postAlphaEvidence.v1",
+        "ok": true,
+        "summary": {
+          "registryVersion": "0.1.0-alpha.3",
+          "githubReleaseTag": "v0.1.0-alpha.3",
+          "expectedDifferentGzipPackaging": true,
+          "unpackedPackageMatch": true,
+          "unpackedPackageFileCount": 151
+        }
+      }
+    ],
+    "registryPackageDocsInspection": {
+      "schemaVersion": "agent-cli-runtime.packagedDocsVerification.v1",
+      "ok": true,
+      "packageSource": "npm-registry",
+      "version": "0.1.0-alpha.3",
+      "inspectedDocs": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "docs/ssot.md",
+        "docs/compatibility.md",
+        "docs/production-readiness.md",
+        "docs/release-report.md",
+        "docs/release-checklist.md",
+        "docs/release-publish-runbook.md"
+      ]
+    },
+    "evidenceVerifier": {
+      "command": "npm run published:verify:evidence -- --dir <published-verification-dir>",
+      "ok": true,
+      "diagnosticsCount": 0
+    },
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noNpmToken": true
+  },
+  "publishMode": "authorized-real-publish",
+  "alpha2Deprecation": {
+    "executed": false,
+    "reason": "not_required_by_current_policy"
+  },
+  "boundary": {
+    "noAuthenticatedRealRun": true,
+    "noNpmTokenCommitted": true,
+    "noGithubTokenCommitted": true,
+    "noRawLogs": true,
+    "noRawStdoutStderr": true,
+    "noRawCliOutput": true,
+    "noFullPrompt": true,
+    "noPrivatePath": true,
+    "noLocalTempPath": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvAssignment": true,
+    "noTarballSize": true,
+    "noTarballShasum": true,
+    "noTarballIntegrity": true,
+    "noPackageIntegrity": true,
+    "noPackShasum": true
+  },
+  "verdict": {
+    "registryPublished": true,
+    "alphaDistTagUpdated": true,
+    "githubReleaseReady": true,
+    "publishedVerificationReady": true,
+    "postPublishClosureReady": true
+  }
+}

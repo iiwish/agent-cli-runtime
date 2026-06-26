@@ -167,7 +167,12 @@ function summarizeGatePayload(payload) {
           tagName: payload.githubRelease.tagName,
           isPrerelease: payload.githubRelease.isPrerelease,
           isDraft: payload.githubRelease.isDraft,
-          tarballAsset: payload.githubRelease.tarballAsset,
+          tarballAsset: payload.githubRelease.tarballAsset
+            ? {
+                name: payload.githubRelease.tarballAsset.name,
+                digestMatchesDownloadedSha256: payload.githubRelease.tarballAsset.digestMatchesDownloadedSha256,
+              }
+            : undefined,
         }
       : undefined,
     comparison: payload.comparison
