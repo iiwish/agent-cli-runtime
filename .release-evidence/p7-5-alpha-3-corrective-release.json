@@ -2,7 +2,6 @@
   "schemaVersion": "agent-cli-runtime.correctiveReleaseEvidence.v1",
   "stage": "P7-5",
   "evidenceKind": "alpha-3-corrective-release-candidate",
-  "targetSha": "4f05fa9c5053f7b7b2ae458774abcffd484823e5",
   "createdAt": "2026-06-26T12:20:39Z",
   "package": {
     "name": "agent-cli-runtime",
@@ -13,9 +12,11 @@
     "branch": "codex/p7-5-alpha-3-corrective-release",
     "sourceBaseSha": "0c452408cb53c2ba62935d7cb58977c2c8377b6d",
     "originMainShaAtEvidenceCreation": "0c452408cb53c2ba62935d7cb58977c2c8377b6d",
-    "reviewedCandidateSha": "4f05fa9c5053f7b7b2ae458774abcffd484823e5",
-    "reviewedCandidateShaStatus": "branch_head_at_acceptance_review_before_evidence_sha_binding_fix",
-    "selfReferentialFinalShaNote": "The commit containing this evidence cannot embed its own final SHA because changing this file changes the commit SHA; final branch HEAD is reported by git at handoff, and post-merge fresh main release-candidate evidence must bind the main headSha."
+    "reviewedPreFixCandidateSha": "4f05fa9c5053f7b7b2ae458774abcffd484823e5",
+    "implementationCommitSha": "a34e34b4995b701f808e485435026765ef102959",
+    "mainEvidence": false,
+    "branchHeadShaStatus": "reported_by_git_at_final_handoff",
+    "selfReferentialFinalShaNote": "This evidence file does not embed the final commit SHA that contains itself because changing this file changes the commit SHA. The final branch HEAD is reported by git at handoff, and post-merge fresh main release-candidate evidence must bind the main headSha."
   },
   "alpha2Diagnosis": {
     "package": "agent-cli-runtime@0.1.0-alpha.2",
