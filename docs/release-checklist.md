@@ -1,26 +1,20 @@
 # Release Checklist (pre-alpha / developer preview)
 
-Status: `0.1.0-alpha.2` published on npm and GitHub pre-release
-Last updated: 2026-06-25
+Status: `0.1.0-alpha.3` corrective pre-alpha release
+Last updated: 2026-06-26
 
-## P7-4 Alpha.2 Publish
+## P7-5 Alpha.3 Corrective Release
 
-- [x] Confirm P7-2 has reached `origin/main` before creating the P7-3 branch.
-- [x] Prepare package metadata for `0.1.0-alpha.2` in `package.json` and `package-lock.json`.
-- [x] Trigger fresh main release-candidate evidence for the exact commit selected for publish.
-- [x] Download all five artifacts and run `npm run release:verify -- --dir <normalized-artifact-dir>`.
-- [x] Run `npm publish --dry-run --ignore-scripts --tag alpha`.
-- [x] Record dry-run-only publish evidence in `.release-evidence/p7-3-alpha-2-publish.json`.
-- [x] Run real `npm publish --ignore-scripts --tag alpha` after explicit maintainer authorization and npm browser/2FA authorization.
-- [x] Verify `agent-cli-runtime@0.1.0-alpha.2` on npm.
-- [x] Verify current npm dist-tags as `alpha -> 0.1.0-alpha.2` and `latest -> 0.1.0-alpha.1`.
-- [x] Keep `v0.1.0-alpha.1` documented as the previous GitHub pre-release while `latest` still points to `0.1.0-alpha.1`.
-- [x] Install `agent-cli-runtime@0.1.0-alpha.2` in a temporary consumer and run `agent-runtime agents --json` plus `agent-runtime doctor --json`.
-- [x] Create GitHub pre-release `v0.1.0-alpha.2`.
-- [x] Verify `gh release view v0.1.0-alpha.2 --json tagName,targetCommitish,isPrerelease,url`.
-- [x] Keep `agent-cli-runtime@0.1.0-alpha.0` documented as deprecated due to stale immutable package docs.
-- [x] Keep volatile run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, raw logs, raw CLI output, full prompts, and token-looking values outside packaged docs.
+- [x] Prepare package metadata for `0.1.0-alpha.3` in `package.json` and `package-lock.json`.
+- [x] Record that `0.1.0-alpha.2` is published but its immutable npm tarball contains stale pre-publish package docs.
+- [x] Recommend `0.1.0-alpha.3` as the corrective pre-alpha release for package consumers.
+- [x] Keep `0.1.0-alpha.1` and GitHub pre-release `v0.1.0-alpha.1` documented as earlier alpha history.
+- [x] Keep `0.1.0-alpha.0` documented as deprecated because its immutable package docs shipped stale pre-publish state.
+- [x] Keep npm registry metadata and GitHub Releases as the source of truth for available versions and dist-tags.
+- [x] Add a local packaged-docs gate that runs an actual pack, unpacks the tarball, and scans the docs that enter the package.
+- [x] Add a published verification gate that downloads and unpacks `agent-cli-runtime@<version>` from the npm registry before accepting package-docs state.
 - [x] Keep `.release-evidence/` and `.reference/` outside npm package contents.
+- [x] Keep volatile run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, raw logs, raw CLI output, full prompts, and token-looking values outside packaged docs.
 
 ## Local Verification
 
@@ -31,6 +25,7 @@ npm test
 npm run typecheck
 npm run lint
 npm run package:check
+npm run package:docs:check
 npm run compat:real:evidence:verify
 npm run release:candidate -- --out-dir <tmp-dir>
 npm run release:verify -- --dir <tmp-dir>
@@ -47,6 +42,7 @@ Acceptance:
 - [x] `npm run typecheck` passes.
 - [x] `npm run lint` passes.
 - [x] `npm run package:check` passes and rejects `.release-evidence/` plus `.reference/` if they appear in pack metadata.
+- [x] `npm run package:docs:check` unpacks the local tarball and rejects stale publish-state claims for this version, dry-run stop wording, publish-ready candidate wording, and old current dist-tag claims.
 - [x] `npm run compat:real:evidence:verify` passes without launching authenticated real agent runs.
 - [x] `npm run release:candidate -- --out-dir <tmp-dir>` produces the five-artifact release-candidate set.
 - [x] `npm run release:verify -- --dir <tmp-dir>` passes with `schemaVersion: "agent-cli-runtime.releaseVerification.v1"`, `ok: true`, and empty diagnostics.
@@ -59,16 +55,17 @@ Acceptance:
 
 ## Human Publish Gate
 
-Do not run a real publish without explicit maintainer authorization. Before any later publish:
+Do not run a real publish, deprecate an existing version, or create/modify a GitHub Release without explicit maintainer authorization. Before any later publish:
 
 - [ ] Trigger a fresh manual release-candidate workflow for the exact commit being considered.
 - [ ] Download all five artifacts into a local review directory.
 - [ ] Run `npm run release:verify -- --dir <normalized-artifact-dir>` on the downloaded artifacts.
 - [ ] Confirm the workflow head SHA equals the commit selected for publish.
 - [ ] Run `npm publish --dry-run --ignore-scripts --tag alpha`.
+- [ ] Run `npm run package:docs:check` and confirm it inspected the local packed tarball.
 - [ ] Obtain separate explicit maintainer authorization for the real publish.
 - [ ] Run real `npm publish --tag alpha` only after that authorization.
-- [ ] After publish, verify npm registry state and run the published package verification workflow.
+- [ ] After publish, verify npm registry state, run the published package verification workflow, and confirm registry tarball docs pass `agent-cli-runtime.packagedDocsVerification.v1`.
 
 ## Release-Candidate Artifact Contract
 
@@ -114,7 +111,19 @@ The package must not contain:
 - The package root value export remains `createAgentRuntime`.
 - The schema inventory and versioning policy live in [docs/api-schema-contract.md](./api-schema-contract.md).
 - The daemon/product shell embedding contract lives in [docs/daemon-ready-contract.md](./daemon-ready-contract.md).
-- `agent-cli-runtime.releaseVerification.v1` and `agent-cli-runtime.releaseGateEvidence.v1` are the release artifact schemas.
-- `real_run_skipped`, `auth_missing`, `unsupported_flag`, and `needs_verification` are evidence states, not success.
-- Frozen smoke/conformance classifications: `success`, `real_run_skipped`, `auth_missing`, `unavailable_executable`, `unsupported_flag`, `needs_verification`, `unexpected_output`, `cwd_mutated`, `timeout`, and `failed`.
-- This repository remains a local-first runtime/kernel and does not include a hosted daemon, control plane, API server, database/WAL, web UI, telemetry, or remote worker.
+- `agent-cli-runtime.releaseVerification.v1`, `agent-cli-runtime.releaseGateEvidence.v1`, and `agent-cli-runtime.packagedDocsVerification.v1` are release artifact schemas.
+
+## Schema Vocabulary
+
+Smoke and conformance classifications remain:
+
+- `success`
+- `real_run_skipped`
+- `auth_missing`
+- `unavailable_executable`
+- `unsupported_flag`
+- `needs_verification`
+- `unexpected_output`
+- `cwd_mutated`
+- `timeout`
+- `failed`

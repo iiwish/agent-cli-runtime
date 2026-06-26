@@ -49,6 +49,7 @@ const publishedDaemonConsumerVerifier = path.join(root, "scripts", "verify-publi
 const publishedAdaptersVerifier = path.join(root, "scripts", "verify-published-adapters.mjs");
 const publishedVerificationCreator = path.join(root, "scripts", "create-published-verification-evidence.mjs");
 const publishedVerificationVerifier = path.join(root, "scripts", "verify-published-verification-evidence.mjs");
+const packagedDocsChecker = path.join(root, "scripts", "check-packaged-docs.mjs");
 const realCompatibilityEvidenceCreator = path.join(root, "scripts", "create-real-compatibility-evidence.mjs");
 const realCompatibilityEvidenceVerifier = path.join(root, "scripts", "verify-real-compatibility-evidence.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
@@ -355,6 +356,9 @@ describe("public contract", () => {
     expect(manifest.scripts.ci).not.toContain("compat:real:evidence");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run daemon:verify");
     expect(manifest.scripts["prepublish:check"]).toContain("npm run runtime:safety");
+    expect(manifest.scripts["prepublish:check"]).toContain("npm run package:check");
+    expect(manifest.scripts["package:check"]).toContain("check-packaged-docs.mjs");
+    expect(manifest.scripts["package:docs:check"]).toBe("node ./scripts/check-packaged-docs.mjs");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:daemon:verify");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:adapters:verify");
     expect(manifest.scripts["prepublish:check"]).not.toContain("published:verify");
@@ -412,6 +416,8 @@ describe("public contract", () => {
     expect(publishedVerificationScript).toContain("npm run published:adapters:verify");
     expect(publishedVerificationScript).toContain("npm run release:post-alpha:verify");
     expect(publishedVerificationScript).toContain("npm view");
+    expect(publishedVerificationScript).toContain("check-packaged-docs.mjs");
+    expect(publishedVerificationScript).toContain("registryPackageDocsInspection");
     expect(publishedVerificationScript).toContain("noAuthenticatedRealRun: true");
     expect(publishedVerificationScript).toContain("noNpmPublish: true");
     expect(publishedVerificationScript).toContain("noNpmToken: true");
@@ -420,6 +426,8 @@ describe("public contract", () => {
     expect(publishedVerificationScript).not.toMatch(/\bnpm publish\b/u);
     expect(publishedVerificationScript).not.toContain("--allow-real-run");
     expect(publishedVerificationVerifierScript).toContain("agent-cli-runtime.publishedVerification.v1");
+    expect(publishedVerificationVerifierScript).toContain("agent-cli-runtime.packagedDocsVerification.v1");
+    expect(publishedVerificationVerifierScript).toContain("registryPackageDocsInspection");
     expect(publishedVerificationVerifierScript).toContain("failedGateRejected");
     expect(publishedVerificationVerifierScript).toContain("unsafeContentRejected");
     expect(publishedVerificationVerifierScript).not.toMatch(/\bnpm publish\b/u);
@@ -464,6 +472,7 @@ describe("public contract", () => {
         failedGateRejected: boolean;
         unsafeContentRejected: boolean;
         safetyFlagsChecked: boolean;
+        packagedDocsChecked: boolean;
       };
       noAuthenticatedRealRun: boolean;
       noNpmPublish: boolean;
@@ -478,6 +487,7 @@ describe("public contract", () => {
         failedGateRejected: true,
         unsafeContentRejected: true,
         safetyFlagsChecked: true,
+        packagedDocsChecked: true,
       },
       noAuthenticatedRealRun: true,
       noNpmPublish: true,
@@ -792,7 +802,7 @@ describe("public contract", () => {
 
     expect(manifest).toMatchObject({
       name: "agent-cli-runtime",
-      version: "0.1.0-alpha.2",
+      version: "0.1.0-alpha.3",
       license: "Apache-2.0",
       type: "module",
       bin: { "agent-runtime": "dist/cli/main.js" },
@@ -819,7 +829,7 @@ describe("public contract", () => {
     expect(manifest.keywords).toEqual(expect.arrayContaining(["agent", "cli", "codex", "claude", "opencode", "runtime"]));
   });
 
-  it("keeps alpha.2 package metadata aligned with the published alpha state", async () => {
+  it("keeps alpha.3 package metadata aligned with the corrective release state", async () => {
     const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
       name: string;
       version: string;
@@ -844,7 +854,7 @@ describe("public contract", () => {
 
     expect(manifest).toMatchObject({
       name: "agent-cli-runtime",
-      version: "0.1.0-alpha.2",
+      version: "0.1.0-alpha.3",
       publishConfig: { tag: "alpha" },
     });
     expect(lock.version).toBe(manifest.version);
@@ -852,12 +862,53 @@ describe("public contract", () => {
 
     for (const doc of docs) {
       const text = await readFile(path.join(root, doc), "utf8");
-      expect(text).toContain("0.1.0-alpha.2");
-      expect(text, `${doc} must record alpha.2 as published`).toMatch(
-        /0\.1\.0-alpha\.2[^\n]*(?:published|GitHub pre-release|已发布|发布到 npm)/iu,
+      expect(text).toContain("0.1.0-alpha.3");
+      expect(text, `${doc} must record the alpha.2 stale-docs incident`).toMatch(
+        /0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu,
+      );
+      expect(text, `${doc} must not describe alpha.3 as unpublished`).not.toMatch(
+        /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:not published|unpublished|has not occurred|not yet published|未发布|尚未发布|尚未发生)/iu,
       );
     }
   });
+
+  it("checks stale release-state wording in the locally packed tarball docs", async () => {
+    const { stdout } = await execFileP(process.execPath, [packagedDocsChecker], { cwd: root });
+    const result = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageSource: string;
+      version: string;
+      docs: Array<{ path: string; ok: boolean }>;
+      noAlpha3UnpublishedClaim: boolean;
+      noDryRunStopPoint: boolean;
+      noPublishReadyCandidate: boolean;
+      noOldDistTagClaim: boolean;
+    };
+
+    expect(result).toMatchObject({
+      schemaVersion: "agent-cli-runtime.packagedDocsVerification.v1",
+      ok: true,
+      packageSource: "local-pack",
+      version: "0.1.0-alpha.3",
+      noAlpha3UnpublishedClaim: true,
+      noDryRunStopPoint: true,
+      noPublishReadyCandidate: true,
+      noOldDistTagClaim: true,
+    });
+    expect(result.docs.map((doc) => doc.path).sort()).toEqual([
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/compatibility.md",
+      "docs/production-readiness.md",
+      "docs/release-checklist.md",
+      "docs/release-publish-runbook.md",
+      "docs/release-report.md",
+      "docs/ssot.md",
+    ].sort());
+    expect(result.docs.every((doc) => doc.ok)).toBe(true);
+  }, 60_000);
 
   it("prints CLI help with all frozen commands and key flags", async () => {
     const { stdout } = await execFileP(process.execPath, [cli, "help"]);
@@ -3641,7 +3692,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("keeps alpha.2 published docs stable and package-safe", async () => {
+  it("keeps alpha.3 corrective docs stable and package-safe", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
@@ -3656,22 +3707,22 @@ setInterval(() => {}, 1000);
     const releaseChecklist = await readFile(path.join(root, "docs", "release-checklist.md"), "utf8");
     const runbook = await readFile(path.join(root, "docs", "release-publish-runbook.md"), "utf8");
 
-    expect(releaseReport).toContain("0.1.0-alpha.2");
-    expect(releaseReport).toContain("published");
+    expect(releaseReport).toContain("0.1.0-alpha.3");
+    expect(releaseReport).toContain("corrective pre-alpha release");
     expect(releaseReport).toContain("agent-cli-runtime.releaseVerification.v1");
     expect(releaseReport).toContain("agent-cli-runtime.releaseGateEvidence.v1");
     expect(releaseReport).toContain("compat:real:evidence:verify");
     expect(releaseReport).toContain(".release-evidence/");
-    expect(releaseChecklist).toContain("P7-4 Alpha.2 Publish");
-    expect(releaseChecklist).toContain("0.1.0-alpha.2");
-    expect(runbook).toContain("Published package: `agent-cli-runtime@0.1.0-alpha.2`");
+    expect(releaseChecklist).toContain("P7-5 Alpha.3 Corrective Release");
+    expect(releaseChecklist).toContain("0.1.0-alpha.3");
+    expect(runbook).toContain("Corrective package line: `agent-cli-runtime@0.1.0-alpha.3`");
 
     const productionReadiness = await readFile(path.join(root, "docs", "production-readiness.md"), "utf8");
     const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
-    expect(productionReadiness).toContain("0.1.0-alpha.2` is published");
+    expect(productionReadiness).toContain("0.1.0-alpha.3` is the corrective pre-alpha release");
     expect(productionReadiness).toContain("installed-package CLI smoke");
-    expect(changelog).toContain("0.1.0-alpha.2 — published pre-alpha release");
-    expect(changelog).toContain("P7-4 alpha.2 real publish and post-publish evidence");
+    expect(changelog).toContain("0.1.0-alpha.3 — corrective pre-alpha release");
+    expect(changelog).toContain("P7-5 alpha.3 corrective release");
 
     for (const doc of docs) {
       const text = await readFile(path.join(root, doc), "utf8");
@@ -3681,7 +3732,8 @@ setInterval(() => {}, 1000);
       expect(text, doc + " must not include artifact digests").not.toMatch(/sha256:[0-9a-f]{16,}/iu);
       expect(text, doc + " must not include raw tarball or pack hashes").not.toMatch(/(?:tarball sha256|tarball shasum|npm pack shasum|pack shasum)\s*[:：]?\s*[0-9a-f]{16,}/iu);
       expect(text, doc + " must keep executable shell snippets executable").not.toMatch(/mktemp -d\s+<local-temp-dir>|>\s*<local-temp-dir>|readFileSync\(['"]<local-temp-dir>['"]/u);
-      expect(text, doc + " must record alpha.2 as published").toMatch(/0\.1\.0-alpha\.2[^\n]*(?:published|GitHub pre-release|已发布|发布到 npm)/iu);
+      expect(text, doc + " must record alpha.2 stale-docs incident").toMatch(/0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu);
+      expect(text, doc + " must not describe alpha.3 as unpublished").not.toMatch(/(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:not published|unpublished|has not occurred|not yet published|未发布|尚未发布|尚未发生)/iu);
       expect(text).not.toMatch(/P6-6[^\n]*(?:run \d{8,}|artifact digest|artifact id|tarball shasum|npm pack shasum|pack shasum|包 shasum|local temp|临时路径)/iu);
     }
 
@@ -3691,7 +3743,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("locks packaged docs to the P7-4 alpha.2 published boundary", async () => {
+  it("locks packaged docs to the P7-5 alpha.3 corrective boundary", async () => {
     const packagedDocs = [
       "CHANGELOG.md",
       "README.md",
@@ -3705,24 +3757,24 @@ setInterval(() => {}, 1000);
     ];
     const compatibility = await readFile(path.join(root, "docs", "compatibility.md"), "utf8");
 
-    expect(compatibility).toContain("P7-4");
-    expect(compatibility).toContain("0.1.0-alpha.2` published");
+    expect(compatibility).toContain("P7-5");
+    expect(compatibility).toContain("0.1.0-alpha.3` is the corrective pre-alpha release");
     expect(compatibility).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
-    expect(compatibility).toContain("alpha -> 0.1.0-alpha.2");
-    expect(compatibility).toContain("latest -> 0.1.0-alpha.1");
-    expect(compatibility).toContain("GitHub pre-release `v0.1.0-alpha.2`");
+    expect(compatibility).toContain("0.1.0-alpha.2");
+    expect(compatibility).toContain("stale package docs");
 
     for (const doc of packagedDocs) {
       const text = await readFile(path.join(root, doc), "utf8");
-      expect(text, `${doc} must not keep the old alpha.2 candidate/prep status`).not.toMatch(
-        /0\.1\.0-alpha\.2[^\n]*(?:candidate\s*\/\s*prep|candidate\s+\/\s+prep)/iu,
+      expect(text, `${doc} must not describe alpha.3 as a candidate or unpublished package`).not.toMatch(
+        /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:release candidate|publish-ready|candidate\s*\/\s*prep|not published|unpublished|未发布|候选)/iu,
       );
       expect(text, `${doc} must not use only the P7-1 alpha.2 prep state as current status`).not.toMatch(
         /P7-1 prepares `0\.1\.0-alpha\.2` as a candidate version only/iu,
       );
-      expect(text, `${doc} must record alpha.2 as published`).toMatch(
-        /0\.1\.0-alpha\.2[^\n]*(?:published|GitHub pre-release|已发布|发布到 npm)/iu,
+      expect(text, `${doc} must record alpha.2 stale-docs incident`).toMatch(
+        /0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu,
       );
+      expect(text, `${doc} must not keep old current dist-tag claims`).not.toMatch(/(?:current npm dist-tags|当前 npm dist-tags)[^\n]*alpha\s*->\s*0\.1\.0-alpha\.2/iu);
     }
   });
 
@@ -4006,14 +4058,14 @@ setInterval(() => {}, 1000);
     expect(runbook).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
     expect(runbook).toContain("npm publish --tag alpha");
     expect(runbook).toContain("npm dist-tag ls agent-cli-runtime");
-    expect(runbook).toContain("npm dist-tag add agent-cli-runtime@0.1.0-alpha.1 alpha");
-    expect(runbook).toContain("npm unpublish agent-cli-runtime@0.1.0-alpha.1");
+    expect(runbook).toContain("npm dist-tag add agent-cli-runtime@0.1.0-alpha.3 alpha");
+    expect(runbook).toContain("npm unpublish agent-cli-runtime@0.1.0-alpha.3");
     expect(runbook).toContain("2FA");
     expect(runbook).toContain("trusted publishing");
     expect(runbook).toContain("provenance");
     expect(runbook).toContain("not configured");
-    expect(runbook).toContain("post-alpha registry state");
-    expect(runbook).toContain("Published package: `agent-cli-runtime@0.1.0-alpha.2`");
+    expect(runbook).toContain("npm registry metadata and GitHub Releases are the source of truth");
+    expect(runbook).toContain("Corrective package line: `agent-cli-runtime@0.1.0-alpha.3`");
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
     expect(ci).not.toMatch(/\bnpm publish\b/u);
@@ -4050,7 +4102,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("documents post-alpha registry and release reality without treating latest -> alpha.1 as failure", async () => {
+  it("documents alpha.3 registry source-of-truth and stale alpha.2 release reality", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
@@ -4064,7 +4116,9 @@ setInterval(() => {}, 1000);
     for (const doc of docs) {
       const text = await readFile(path.join(root, doc), "utf8");
       expect(text).toContain("0.1.0-alpha.1");
-      expect(text).toMatch(/latest[^\n]*0\.1\.0-alpha\.1|`latest`[^\n]*`0\.1\.0-alpha\.1`|latest -> 0\.1\.0-alpha\.1/u);
+      expect(text).toContain("0.1.0-alpha.3");
+      expect(text).toMatch(/0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu);
+      expect(text).toMatch(/(?:npm registry|GitHub)[^\n]*(?:source of truth|authoritative|为准|权威)/iu);
       expect(text).toMatch(/0\.1\.0-alpha\.0[^\n]*(?:deprecated|deprecate|deprecate|已 deprecate|已弃用)/iu);
       expect(text).toMatch(/v0\.1\.0-alpha\.1/u);
     }

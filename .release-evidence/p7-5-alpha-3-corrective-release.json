@@ -1,0 +1,166 @@
+{
+  "schemaVersion": "agent-cli-runtime.correctiveReleaseEvidence.v1",
+  "stage": "P7-5",
+  "evidenceKind": "alpha-3-corrective-release-candidate",
+  "createdAt": "2026-06-26T12:20:39Z",
+  "package": {
+    "name": "agent-cli-runtime",
+    "version": "0.1.0-alpha.3",
+    "publishTag": "alpha"
+  },
+  "git": {
+    "branch": "codex/p7-5-alpha-3-corrective-release",
+    "sourceBaseSha": "0c452408cb53c2ba62935d7cb58977c2c8377b6d",
+    "originMainShaAtEvidenceCreation": "0c452408cb53c2ba62935d7cb58977c2c8377b6d",
+    "reviewedPreFixCandidateSha": "4f05fa9c5053f7b7b2ae458774abcffd484823e5",
+    "implementationCommitSha": "a34e34b4995b701f808e485435026765ef102959",
+    "mainEvidence": false,
+    "branchHeadShaStatus": "reported_by_git_at_final_handoff",
+    "selfReferentialFinalShaNote": "This evidence file does not embed the final commit SHA that contains itself because changing this file changes the commit SHA. The final branch HEAD is reported by git at handoff, and post-merge fresh main release-candidate evidence must bind the main headSha."
+  },
+  "alpha2Diagnosis": {
+    "package": "agent-cli-runtime@0.1.0-alpha.2",
+    "registryVersionExists": true,
+    "registryGitHead": "aad554cd63fd2eb05a28851296f2aa81216acd97",
+    "immutableNpmVersion": true,
+    "stalePackageDocs": true,
+    "repairStrategy": "publish-new-corrective-prerelease",
+    "rewriteAlpha2Tarball": false
+  },
+  "alpha0RegistryState": {
+    "package": "agent-cli-runtime@0.1.0-alpha.0",
+    "registryVersionExists": true,
+    "deprecated": true
+  },
+  "alpha3RegistryPrecheck": {
+    "command": "npm view agent-cli-runtime@0.1.0-alpha.3 version --json",
+    "status": "expected_not_found",
+    "registryVersionExists": false,
+    "diagnosticClass": "E404"
+  },
+  "localChecks": [
+    {
+      "command": "npm test",
+      "status": "passed",
+      "summary": {
+        "testFilesPassed": 11,
+        "testsPassed": 215,
+        "testsSkipped": 1
+      }
+    },
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npm run lint",
+      "status": "passed"
+    },
+    {
+      "command": "npm run package:check",
+      "status": "passed",
+      "summary": {
+        "packageBoundaryFilesChecked": 151,
+        "packagedDocsChecked": true
+      }
+    },
+    {
+      "command": "npm run prepublish:check",
+      "status": "passed",
+      "summary": {
+        "includesTypecheck": true,
+        "includesLint": true,
+        "includesTests": true,
+        "includesDaemonVerify": true,
+        "includesRuntimeSafety": true,
+        "includesOfflineRealCompatibilityEvidenceVerify": true,
+        "includesDogfood": true,
+        "includesNpmAuditOmitDev": true,
+        "includesPackageCheck": true,
+        "includesNpmPackDryRun": true
+      }
+    },
+    {
+      "command": "node ./scripts/verify-published-verification-evidence.mjs --self-test",
+      "status": "passed",
+      "summary": {
+        "packagedDocsChecked": true
+      }
+    },
+    {
+      "command": "npm pack --dry-run",
+      "status": "passed",
+      "summary": {
+        "packageFilesChecked": 151
+      }
+    },
+    {
+      "command": "npm publish --dry-run --ignore-scripts --tag alpha",
+      "status": "passed",
+      "summary": {
+        "dryRun": true,
+        "tag": "alpha",
+        "realPublish": false
+      }
+    }
+  ],
+  "packagedDocsInspection": {
+    "schemaVersion": "agent-cli-runtime.packagedDocsVerification.v1",
+    "ok": true,
+    "packageSource": "local-pack",
+    "docsChecked": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/ssot.md",
+      "docs/compatibility.md",
+      "docs/production-readiness.md",
+      "docs/release-report.md",
+      "docs/release-checklist.md",
+      "docs/release-publish-runbook.md"
+    ],
+    "diagnostics": [],
+    "noAlpha3UnpublishedClaim": true,
+    "noDryRunStopPoint": true,
+    "noPublishReadyCandidate": true,
+    "noOldDistTagClaim": true
+  },
+  "publishedVerificationGate": {
+    "registryPackageDocsInspectionRequired": true,
+    "registryPackageDocsInspectionSchema": "agent-cli-runtime.packagedDocsVerification.v1",
+    "selfTestPassed": true
+  },
+  "freshMainReleaseCandidateWorkflow": {
+    "status": "pending_main_merge",
+    "reason": "Objective requires this workflow after P7-5 docs and version are merged to main; this branch is not merged to main yet.",
+    "historicalWorkflowRunReused": false
+  },
+  "releaseActions": {
+    "realNpmPublishAuthorized": false,
+    "npmPublishExecuted": false,
+    "npmDeprecateExecuted": false,
+    "githubReleaseCreatedOrEdited": false
+  },
+  "safetyBoundary": {
+    "noRawLogs": true,
+    "noRawStdout": true,
+    "noRawStderr": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvironmentAssignment": true,
+    "noLocalTempPath": true,
+    "noPrivateHomePath": true,
+    "noPackageIntegrityValue": true,
+    "noTarballHashValue": true,
+    "noPackHashValue": true,
+    "noArtifactDigestValue": true,
+    "noTarballSizeValue": true,
+    "noCurrentRunId": true,
+    "noArtifactId": true
+  },
+  "verdict": {
+    "localCorrectiveReleaseCandidateReady": true,
+    "readyForRealPublish": false,
+    "nextRequiredGate": "merge_to_main_then_trigger_fresh_release_candidate_workflow_for_exact_main_sha"
+  }
+}

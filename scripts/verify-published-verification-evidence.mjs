@@ -57,6 +57,7 @@ function containsUnsafe(value) {
     "P5_PUBLISHED_ADAPTER_COMPAT_PROMPT_",
   ].filter(Boolean).some((needle) => text.includes(needle)) ||
     /\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=\s*(?!<|\$|\$\{|\[REDACTED\]|redacted\b)[^\s#'"]{4,}/iu.test(text) ||
+    /\b(?:shasum|integrity|unpackedSize|sizeBytes|sizeInBytes)\s*["':]/iu.test(text) ||
     /\/Users\/[^/\s"']+|\/home\/[^/\s"']+|[A-Z]:\\Users\\/u.test(text);
 }
 
@@ -76,7 +77,7 @@ function validate(summary) {
       actual: typeof summary?.schemaVersion === "string" ? summary.schemaVersion : null,
     });
   }
-  for (const field of ["ok", "packageName", "version", "gitSha", "checkedAt", "packageSource", "gates", "registry", "diagnostics"]) {
+  for (const field of ["ok", "packageName", "version", "gitSha", "checkedAt", "packageSource", "gates", "registry", "registryPackageDocsInspection", "diagnostics"]) {
     if (!(field in (summary ?? {}))) addDiagnostic(diagnostics, "missing_field", `Published verification summary is missing ${field}.`, { field });
   }
   if (summary?.packageSource !== "npm-registry") addDiagnostic(diagnostics, "invalid_package_source", "packageSource must be npm-registry.");
@@ -102,6 +103,18 @@ function validate(summary) {
   if (summary?.registry?.summary?.version !== summary?.version) {
     addDiagnostic(diagnostics, "registry_version_mismatch", "npm registry metadata version does not match package.json version.");
   }
+  if (summary?.registryPackageDocsInspection?.ok !== true) {
+    addDiagnostic(diagnostics, "registry_packaged_docs_failed", "Published package docs inspection did not pass.");
+  }
+  if (summary?.registryPackageDocsInspection?.schemaVersion !== "agent-cli-runtime.packagedDocsVerification.v1") {
+    addDiagnostic(diagnostics, "invalid_packaged_docs_schema", "Published package docs inspection schema version is unsupported.");
+  }
+  if (summary?.registryPackageDocsInspection?.packageSource !== "npm-registry") {
+    addDiagnostic(diagnostics, "invalid_packaged_docs_source", "Published package docs inspection must use npm-registry package source.");
+  }
+  if (summary?.registryPackageDocsInspection?.version !== summary?.version) {
+    addDiagnostic(diagnostics, "packaged_docs_version_mismatch", "Published package docs inspection version does not match package.json version.");
+  }
   if (containsUnsafe(summary)) addDiagnostic(diagnostics, "unsafe_content", "Published verification evidence contains unredacted sensitive content.");
   if (summary?.ok !== (diagnostics.length === 0)) {
     addDiagnostic(diagnostics, "ok_mismatch", "Top-level ok does not match verifier diagnostics.");
@@ -112,6 +125,13 @@ function validate(summary) {
     packageName: summary?.packageName ?? null,
     version: summary?.version ?? null,
     checkedGates: gates.map((gate) => gate.script).filter(Boolean),
+    packagedDocs: {
+      schemaVersion: summary?.registryPackageDocsInspection?.schemaVersion ?? null,
+      ok: summary?.registryPackageDocsInspection?.ok === true,
+      inspectedDocs: Array.isArray(summary?.registryPackageDocsInspection?.inspectedDocs)
+        ? summary.registryPackageDocsInspection.inspectedDocs.map((doc) => doc.path).filter(Boolean)
+        : [],
+    },
     diagnostics,
     noAuthenticatedRealRun: summary?.noAuthenticatedRealRun === true,
     noNpmPublish: summary?.noNpmPublish === true,
@@ -148,6 +168,23 @@ function fixture({ ok = true, unsafe = false } = {}) {
       summary: { version: "0.1.0-alpha.1", distTags: { alpha: "0.1.0-alpha.1" }, dist: { tarball: "agent-cli-runtime-0.1.0-alpha.1.tgz" } },
       diagnostics: [],
     },
+    registryPackageDocsInspection: {
+      command: "node ./scripts/check-packaged-docs.mjs --package-spec agent-cli-runtime@0.1.0-alpha.1",
+      ok: true,
+      durationMs: 1,
+      schemaVersion: "agent-cli-runtime.packagedDocsVerification.v1",
+      packageSource: "npm-registry",
+      version: "0.1.0-alpha.1",
+      inspectedDocs: [
+        { path: "README.md", ok: true },
+        { path: "docs/release-report.md", ok: true },
+      ],
+      diagnostics: [],
+      noAlpha3UnpublishedClaim: true,
+      noDryRunStopPoint: true,
+      noPublishReadyCandidate: true,
+      noOldDistTagClaim: true,
+    },
     diagnostics: ok ? [] : [{ code: "gate_failed", message: "npm run published:daemon:verify did not pass", gate: "published-daemon" }],
     noAuthenticatedRealRun: true,
     noNpmPublish: true,
@@ -167,6 +204,7 @@ function runSelfTest() {
       failedGateRejected: failing.diagnostics.some((diagnostic) => diagnostic.code === "failed_gate"),
       unsafeContentRejected: unsafe.diagnostics.some((diagnostic) => diagnostic.code === "unsafe_content"),
       safetyFlagsChecked: passing.noAuthenticatedRealRun && passing.noNpmPublish && passing.noNpmToken,
+      packagedDocsChecked: passing.packagedDocs.ok === true && passing.packagedDocs.inspectedDocs.includes("README.md"),
     },
     diagnostics: [],
     noAuthenticatedRealRun: true,

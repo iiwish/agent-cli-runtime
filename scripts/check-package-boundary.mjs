@@ -152,6 +152,24 @@ const publishOverclaimPatterns = [
     pattern: /npm publish --dry-run[^\n]*(?:really published|published to npm|真实发布成功|已经发布到 npm|已发布到 npm)/iu,
   },
   {
+    name: "alpha.3 described as unpublished",
+    pattern:
+      /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:not published|unpublished|has not occurred|not yet published|未发布|尚未发布|尚未发生)/iu,
+  },
+  {
+    name: "self-expiring dry-run stop point",
+    pattern: /dry-run stop point|stop point.*dry-run|停在\s*dry-run/iu,
+  },
+  {
+    name: "publish-ready release candidate wording",
+    pattern: /publish-ready release candidate|publish ready release candidate/iu,
+  },
+  {
+    name: "old current alpha dist-tag claim",
+    pattern:
+      /(?:current npm dist-tags|current registry state|当前 npm dist-tags|当前 registry)[^\n]*(?:alpha\s*(?:->|:|为)\s*`?0\.1\.0-alpha\.2`?)/iu,
+  },
+  {
     name: "release-candidate workflow described as publishing",
     pattern: /release-candidate workflow[^\n]*(?:publishes npm|published npm|发布到 npm)/iu,
   },
