@@ -1,0 +1,208 @@
+{
+  "schemaVersion": "agent-cli-runtime.mainReleaseCandidateEvidence.v1",
+  "stage": "P7-6",
+  "evidenceKind": "alpha-3-main-release-candidate",
+  "createdAt": "2026-06-26T13:56:18Z",
+  "targetRef": "main",
+  "targetSha": "4b29fea3f69602c6c116dde9d2b6c31e426d8d19",
+  "mainEvidence": true,
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.3",
+  "p7_5Merge": {
+    "method": "pull-request-merge-commit",
+    "pr": 13,
+    "mergeCommit": "4b29fea3f69602c6c116dde9d2b6c31e426d8d19",
+    "url": "https://github.com/iiwish/agent-cli-runtime/pull/13",
+    "mergedAt": "2026-06-26T13:49:49Z"
+  },
+  "run": {
+    "id": 28242541395,
+    "url": "https://github.com/iiwish/agent-cli-runtime/actions/runs/28242541395",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-06-26T13:53:46Z",
+    "updatedAt": "2026-06-26T13:54:59Z",
+    "headBranch": "main",
+    "headSha": "4b29fea3f69602c6c116dde9d2b6c31e426d8d19"
+  },
+  "job": {
+    "name": "Build release candidate artifacts",
+    "id": 83672882215,
+    "status": "completed",
+    "conclusion": "success",
+    "startedAt": "2026-06-26T13:53:49Z",
+    "completedAt": "2026-06-26T13:54:59Z"
+  },
+  "artifacts": {
+    "count": 5,
+    "names": [
+      "agent-cli-runtime-tarball",
+      "agent-cli-runtime-pack-metadata",
+      "agent-cli-runtime-package-files",
+      "agent-cli-runtime-gate-evidence",
+      "agent-cli-runtime-release-verification"
+    ],
+    "items": [
+      {
+        "name": "agent-cli-runtime-tarball",
+        "id": 7907246496,
+        "digest": "sha256:13c5c57afc9321f71d6d27b590756fff103a95581737714226c5ae34bf214e55"
+      },
+      {
+        "name": "agent-cli-runtime-pack-metadata",
+        "id": 7907246728,
+        "digest": "sha256:c706c226f0a33ec7d17759a7617f5273910878374c4810312d0394be9f30ff63"
+      },
+      {
+        "name": "agent-cli-runtime-package-files",
+        "id": 7907246953,
+        "digest": "sha256:4557c791d1143f61f59ec554ce0b208516b651dd6c5c6036b86f050c4ba5ac06"
+      },
+      {
+        "name": "agent-cli-runtime-gate-evidence",
+        "id": 7907247201,
+        "digest": "sha256:38f07b4c8f148a7cb56f121a7d67c12faf0e2480a93c34157e39a3218b8eeb61"
+      },
+      {
+        "name": "agent-cli-runtime-release-verification",
+        "id": 7907247464,
+        "digest": "sha256:442af3bed605bf5724cb0ead241f97b70e91c3d3cdb7ec46d5a5ffdf08036b7d"
+      }
+    ]
+  },
+  "localMainGates": [
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "npm run prepublish:check",
+      "status": "passed",
+      "summary": {
+        "includesTypecheck": true,
+        "includesLint": true,
+        "includesTests": true,
+        "includesDaemonVerify": true,
+        "includesRuntimeSafety": true,
+        "includesOfflineRealCompatibilityEvidenceVerify": true,
+        "includesDogfood": true,
+        "includesNpmAuditOmitDev": true,
+        "includesPackageCheck": true,
+        "includesNpmPackDryRun": true
+      }
+    },
+    {
+      "command": "node ./scripts/check-packaged-docs.mjs",
+      "status": "passed",
+      "summary": {
+        "schemaVersion": "agent-cli-runtime.packagedDocsVerification.v1",
+        "packageSource": "local-pack",
+        "ok": true,
+        "diagnosticsCount": 0
+      }
+    },
+    {
+      "command": "npm publish --dry-run --ignore-scripts --tag alpha",
+      "status": "passed",
+      "summary": {
+        "dryRun": true,
+        "tag": "alpha",
+        "realPublish": false,
+        "package": "agent-cli-runtime@0.1.0-alpha.3"
+      }
+    }
+  ],
+  "registryPrecheck": {
+    "alpha3Version": {
+      "command": "npm view agent-cli-runtime@0.1.0-alpha.3 version --json",
+      "status": "expected_not_found",
+      "registryVersionExists": false,
+      "diagnosticClass": "E404"
+    },
+    "distTags": {
+      "command": "npm view agent-cli-runtime dist-tags --json",
+      "alpha": "0.1.0-alpha.2",
+      "latest": "0.1.0-alpha.1"
+    }
+  },
+  "downloadedVerification": {
+    "command": "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+    "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+    "ok": true,
+    "diagnosticsCount": 0,
+    "packageFiles": 151,
+    "packageName": "agent-cli-runtime",
+    "version": "0.1.0-alpha.3",
+    "tarball": {
+      "filename": "agent-cli-runtime-0.1.0-alpha.3.tgz"
+    }
+  },
+  "gateEvidence": {
+    "schemaVersion": "agent-cli-runtime.releaseGateEvidence.v1",
+    "gates": [
+      {
+        "name": "daemon-ready",
+        "script": "daemon:verify",
+        "command": "npm run daemon:verify",
+        "ok": true,
+        "outputSchemaVersion": "agent-runtime.daemonVerification.v1",
+        "packageSource": "installed-tarball"
+      },
+      {
+        "name": "runtime-safety",
+        "script": "runtime:safety",
+        "command": "npm run runtime:safety",
+        "ok": true,
+        "outputSchemaVersion": "agent-runtime.runtimeSafety.v1",
+        "packageSource": "installed-tarball"
+      },
+      {
+        "name": "real-compatibility-evidence",
+        "script": "compat:real:evidence:verify",
+        "command": "npm run compat:real:evidence:verify",
+        "ok": true,
+        "outputSchemaVersion": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+        "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityEvidence.v1",
+        "diagnostics": {
+          "count": 0,
+          "codes": []
+        }
+      }
+    ],
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noNpmToken": true
+  },
+  "releaseActions": {
+    "realNpmPublishAuthorized": false,
+    "npmPublishExecuted": false,
+    "npmDeprecateExecuted": false,
+    "githubReleaseCreatedOrEdited": false
+  },
+  "boundary": {
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noGithubRelease": true,
+    "noNpmToken": true,
+    "noTrustedPublishing": true,
+    "noRawLogs": true,
+    "noRawStdoutStderr": true,
+    "noRawCliOutput": true,
+    "noFullPrompt": true,
+    "noPrivatePath": true,
+    "noLocalTempPath": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvAssignment": true,
+    "noTarballSize": true,
+    "noTarballShasum": true,
+    "noPackageIntegrity": true,
+    "noPackShasum": true
+  },
+  "verdict": {
+    "mainReleaseCandidateEvidenceReady": true,
+    "readyForRealPublish": false,
+    "nextRequiredGate": "explicit_maintainer_authorization_before_real_npm_publish_or_github_release"
+  }
+}
