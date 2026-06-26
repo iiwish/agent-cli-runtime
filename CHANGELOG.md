@@ -1,11 +1,22 @@
 # Changelog
 
+## 0.1.0-alpha.3 — corrective pre-alpha release
+
+- P7-5 alpha.3 corrective release:
+  - records that `0.1.0-alpha.2` was published but its immutable npm tarball kept stale pre-publish package docs;
+  - recommends `0.1.0-alpha.3` as the corrective pre-alpha release for package consumers;
+  - adds a packaged-docs verification gate that packs and unpacks the local tarball before publish;
+  - extends published verification so registry tarball docs are downloaded, unpacked, and checked instead of trusting later repository docs;
+  - keeps npm registry metadata and GitHub Releases authoritative for available versions and dist-tags;
+  - keeps `.release-evidence/`, run ids, artifact ids, digests, tarball shasums, integrity values, local temporary paths, raw logs, raw CLI output, prompts, and token-looking values out of packaged docs.
+
 ## 0.1.0-alpha.2 — published pre-alpha release
 
 - P7-4 alpha.2 real publish and post-publish evidence:
   - publishes `0.1.0-alpha.2` to npm with the `alpha` dist-tag;
   - creates GitHub pre-release `v0.1.0-alpha.2`;
   - verifies registry version, dist-tags, installed-package CLI smoke, and GitHub Release metadata;
+  - the published `0.1.0-alpha.2` npm tarball contains stale pre-publish package docs, so package consumers should use `0.1.0-alpha.3`;
   - records post-publish evidence outside the npm package under `.release-evidence/`;
   - keeps current-run ids, artifact ids, digests, tarball shasums, pack shasums, local temporary paths, raw logs, raw CLI output, prompts, and token-looking values out of packaged docs.
 - P7-3 alpha.2 publish dry-run evidence:

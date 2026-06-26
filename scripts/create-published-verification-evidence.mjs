@@ -153,7 +153,13 @@ function summarizeGatePayload(payload) {
           distTags: payload.npm.distTags,
           registryShasumMatches: payload.npm.registryShasumMatches,
           registryIntegrityPresent: payload.npm.registryIntegrityPresent,
-          dist: payload.npm.dist,
+          dist: payload.npm.dist
+            ? {
+                tarball: typeof payload.npm.dist.tarball === "string" ? path.basename(new URL(payload.npm.dist.tarball).pathname) : null,
+                shasumPresent: typeof payload.npm.dist.shasum === "string",
+                integrityPresent: typeof payload.npm.dist.integrity === "string",
+              }
+            : undefined,
         }
       : undefined,
     githubRelease: payload.githubRelease
@@ -198,6 +204,33 @@ function runRegistryView(packageName, version) {
   };
 }
 
+function runRegistryPackageDocsInspection(packageName, version) {
+  const packageSpec = `${packageName}@${version}`;
+  const command = `node ./scripts/check-packaged-docs.mjs --package-spec ${packageSpec}`;
+  const started = Date.now();
+  const result = spawnSync(process.execPath, ["./scripts/check-packaged-docs.mjs", "--package-spec", packageSpec], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const durationMs = Date.now() - started;
+  const payload = parseJson(result.stdout ?? "");
+  return {
+    command,
+    ok: result.status === 0 && payload?.ok === true,
+    durationMs,
+    schemaVersion: typeof payload?.schemaVersion === "string" ? payload.schemaVersion : null,
+    packageSource: typeof payload?.packageSource === "string" ? payload.packageSource : null,
+    version: typeof payload?.version === "string" ? payload.version : null,
+    inspectedDocs: Array.isArray(payload?.docs) ? payload.docs.map((doc) => ({ path: doc.path, ok: doc.ok })) : [],
+    diagnostics: sanitize(payload?.diagnostics ?? [{ code: "registry_packaged_docs_failed", message: "registry package docs inspection failed" }]),
+    noAlpha3UnpublishedClaim: payload?.noAlpha3UnpublishedClaim === true,
+    noDryRunStopPoint: payload?.noDryRunStopPoint === true,
+    noPublishReadyCandidate: payload?.noPublishReadyCandidate === true,
+    noOldDistTagClaim: payload?.noOldDistTagClaim === true,
+  };
+}
+
 function normalizeRegistryPayload(payload) {
   if (!payload || typeof payload !== "object") return null;
   return sanitize({
@@ -205,10 +238,9 @@ function normalizeRegistryPayload(payload) {
     distTags: payload["dist-tags"] ?? payload.distTags ?? null,
     dist: payload.dist
       ? {
-          shasum: payload.dist.shasum ?? null,
-          integrity: payload.dist.integrity ?? null,
           fileCount: payload.dist.fileCount ?? null,
-          unpackedSize: payload.dist.unpackedSize ?? null,
+          shasumPresent: typeof payload.dist.shasum === "string",
+          integrityPresent: typeof payload.dist.integrity === "string",
           tarball: typeof payload.dist.tarball === "string" ? path.basename(new URL(payload.dist.tarball).pathname) : null,
         }
       : null,
@@ -239,13 +271,15 @@ function main() {
   const packageJson = JSON.parse(readFileSync(path.join(process.cwd(), "package.json"), "utf8"));
   const gates = gateCommands.map(runGate);
   const registry = runRegistryView(packageJson.name, packageJson.version);
+  const registryPackageDocsInspection = runRegistryPackageDocsInspection(packageJson.name, packageJson.version);
   const diagnostics = [
     ...gates.flatMap((gate) => gate.ok ? [] : [{ code: "gate_failed", message: `${gate.command} did not pass`, gate: gate.name }]),
     ...registry.diagnostics,
+    ...(registryPackageDocsInspection.ok ? [] : [{ code: "registry_packaged_docs_failed", message: "Published package docs inspection did not pass" }]),
   ];
   const summary = {
     schemaVersion: SCHEMA_VERSION,
-    ok: gates.every((gate) => gate.ok) && registry.ok,
+    ok: gates.every((gate) => gate.ok) && registry.ok && registryPackageDocsInspection.ok,
     packageName: packageJson.name,
     version: packageJson.version,
     gitSha: gitSha(),
@@ -253,6 +287,7 @@ function main() {
     packageSource: PACKAGE_SOURCE,
     gates,
     registry,
+    registryPackageDocsInspection,
     diagnostics: sanitize(diagnostics),
     noAuthenticatedRealRun: true,
     noNpmPublish: true,

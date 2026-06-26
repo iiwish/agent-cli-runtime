@@ -24,9 +24,10 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 
 发布边界说明：
 - `agent-cli-runtime@0.1.0-alpha.1` 已发布到 npm，并创建了 GitHub pre-release `v0.1.0-alpha.1`。
-- `agent-cli-runtime@0.1.0-alpha.2` 已发布到 npm，并创建了 GitHub pre-release `v0.1.0-alpha.2`。
+- `agent-cli-runtime@0.1.0-alpha.2` 已发布到 npm，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 npm tarball 内含过期的发布前 package docs。
+- `agent-cli-runtime@0.1.0-alpha.3` 是面向 package consumer 的 corrective pre-alpha release。
 - `agent-cli-runtime@0.1.0-alpha.0` 已 deprecate，原因是不可变 package docs 内含过期的发布前状态。
-- 当前 npm dist-tags 为 `alpha -> 0.1.0-alpha.2` 和 `latest -> 0.1.0-alpha.1`；由于目前没有 stable 版本，这被记录为 pre-alpha registry 现实状态，不当作发布失败。
+- 可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。
 - release-candidate 与 post-alpha evidence 将 current-head release 和下载 artifact 细节保存在 npm 包外的 `.release-evidence/` 或 GitHub Release assets 中。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、API server、WAL、database 或 remote runtime 模式承诺。
@@ -360,7 +361,7 @@ CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、product
 
 本地 release-candidate 置信门禁使用 `npm run prepublish:check`。它会组合 typecheck、lint、tests、build、daemon embedding verification、runtime safety verification、offline real compatibility evidence verification、dogfood、production audit、package boundary check 和 pack dry-run。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood` 和 `npm run release:candidate -- --out-dir release-candidate`；生成并上传 `agent-cli-runtime-tarball`、`agent-cli-runtime-pack-metadata`、`agent-cli-runtime-package-files`、`agent-cli-runtime-gate-evidence` 和 `agent-cli-runtime-release-verification`。
 
-`0.1.0-alpha.1` 已发布到 npm，并有 GitHub pre-release `v0.1.0-alpha.1`。`0.1.0-alpha.2` 已发布到 npm，使用 `alpha` dist-tag，并创建了 GitHub pre-release `v0.1.0-alpha.2`。`0.1.0-alpha.0` 已 deprecate，原因是该不可变 tarball 内含过期的发布前状态说明。当前 npm dist-tags 为 `alpha -> 0.1.0-alpha.2` 和 `latest -> 0.1.0-alpha.1`；在目前只有 pre-alpha 版本时，这是可接受的 registry 现实状态。由于 release docs 会进入 npm package，current-run 的易漂移证据必须留在包外的 `.release-evidence/` 或 GitHub Release assets 中。
+`0.1.0-alpha.1` 已发布到 npm，并有 GitHub pre-release `v0.1.0-alpha.1`。`0.1.0-alpha.2` 已发布到 npm，使用 `alpha` dist-tag，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 tarball 内含过期的发布前 package docs。`0.1.0-alpha.3` 是面向 package consumer 的 corrective pre-alpha release。`0.1.0-alpha.0` 已 deprecate，原因是该不可变 tarball 内含过期的发布前状态说明。可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。由于 release docs 会进入 npm package，current-run 的易漂移证据必须留在包外的 `.release-evidence/` 或 GitHub Release assets 中。
 
 post-alpha 验证：
 
