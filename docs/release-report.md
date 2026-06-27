@@ -60,6 +60,8 @@ npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
 ```
 
+`published:verify` creates the evidence file. `published:verify:evidence` verifies an existing local output directory or downloaded `agent-cli-runtime-published-verification` artifact directory; a bare verifier run without `published-verification/published-verification.json` exits `1` with redacted actionable JSON by design.
+
 ## Release-Candidate Artifacts
 
 `npm run release:candidate -- --out-dir <tmp-dir>` writes five review artifacts:

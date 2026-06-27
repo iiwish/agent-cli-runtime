@@ -119,6 +119,8 @@ npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
 ```
 
+`published:verify` is the evidence generator. `published:verify:evidence` is the verifier and does not generate `published-verification.json`; missing default evidence is an expected guard failure with redacted JSON. For GitHub artifact review, download `agent-cli-runtime-published-verification` and pass `--dir <downloaded-artifact-dir>`.
+
 Expected result:
 
 - `agent-cli-runtime@0.1.0-alpha.3` is the corrective package line.

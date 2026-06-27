@@ -498,6 +498,101 @@ describe("public contract", () => {
     });
   });
 
+  it("reports missing default published verification evidence as actionable redacted JSON", async () => {
+    const isolatedCwd = await tempDir("agent-runtime-published-verification-missing-");
+    const failure = await execCliFailureViaNode([publishedVerificationVerifier], { cwd: isolatedCwd });
+    const payload = JSON.parse(failure.stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      diagnostics: Array<{ code: string; message: string; expectedFile?: string; nextCommands?: string[]; githubArtifactHint?: string }>;
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+    };
+
+    expect(failure.code).toBe(1);
+    expect(payload).toMatchObject({
+      schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+      ok: false,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+    expect(payload.diagnostics[0]).toMatchObject({
+      code: "missing_default_evidence_file",
+      expectedFile: "published-verification/published-verification.json",
+      nextCommands: [
+        "npm run published:verify -- --out-dir published-verification",
+        "npm run published:verify:evidence -- --dir published-verification",
+      ],
+      githubArtifactHint: "For GitHub artifact verification, download agent-cli-runtime-published-verification and pass --dir <downloaded-artifact-dir>.",
+    });
+    expect(payload.diagnostics[0]?.message).toContain("published:verify:evidence is a verifier");
+    expect(failure.stdout).not.toContain(isolatedCwd);
+    expect(failure.stdout).not.toContain(root);
+    expect(failure.stdout).not.toContain(process.env.HOME ?? "__no_home__");
+    expect(failure.stdout).not.toContain("/tmp/");
+    expect(failure.stdout).not.toContain("/private/tmp/");
+    expect(failure.stdout).not.toContain("/var/folders/");
+  });
+
+  it("accepts published verification evidence from an explicit --dir", async () => {
+    const evidenceDir = await tempDir("agent-runtime-published-verification-valid-");
+    const summary = {
+      schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+      ok: true,
+      packageName: "agent-cli-runtime",
+      version: "0.1.0-alpha.3",
+      gitSha: "0123456789abcdef0123456789abcdef01234567",
+      checkedAt: "2026-06-26T00:00:00.000Z",
+      packageSource: "npm-registry",
+      gates: [
+        { script: "smoke:published", command: "npm run smoke:published", ok: true, schemaVersion: "agent-cli-runtime.publishedSmoke.v1", durationMs: 1 },
+        { script: "published:daemon:verify", command: "npm run published:daemon:verify", ok: true, schemaVersion: "agent-runtime.publishedDaemonConsumer.v1", durationMs: 1 },
+        { script: "published:adapters:verify", command: "npm run published:adapters:verify", ok: true, schemaVersion: "agent-runtime.publishedAdapters.v1", durationMs: 1 },
+        { script: "release:post-alpha:verify", command: "npm run release:post-alpha:verify", ok: true, schemaVersion: "agent-cli-runtime.postAlphaEvidence.v1", durationMs: 1 },
+      ],
+      registry: {
+        command: "npm view agent-cli-runtime@0.1.0-alpha.3 version dist-tags dist --json",
+        ok: true,
+        durationMs: 1,
+        summary: { version: "0.1.0-alpha.3", distTags: { alpha: "0.1.0-alpha.3" }, dist: { tarball: "agent-cli-runtime-0.1.0-alpha.3.tgz" } },
+        diagnostics: [],
+      },
+      registryPackageDocsInspection: {
+        command: "node ./scripts/check-packaged-docs.mjs --package-spec agent-cli-runtime@0.1.0-alpha.3",
+        ok: true,
+        durationMs: 1,
+        schemaVersion: "agent-cli-runtime.packagedDocsVerification.v1",
+        packageSource: "npm-registry",
+        version: "0.1.0-alpha.3",
+        inspectedDocs: [{ path: "README.md", ok: true }],
+        diagnostics: [],
+        noAlpha3UnpublishedClaim: true,
+        noDryRunStopPoint: true,
+        noPublishReadyCandidate: true,
+        noOldDistTagClaim: true,
+      },
+      diagnostics: [],
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    };
+    await writeFile(path.join(evidenceDir, "published-verification.json"), `${JSON.stringify(summary)}\n`, "utf8");
+
+    const { stdout } = await execFileP(process.execPath, [publishedVerificationVerifier, "--dir", evidenceDir]);
+    const payload = JSON.parse(stdout) as { ok: boolean; checkedGates: string[]; diagnostics: unknown[] };
+
+    expect(payload.ok).toBe(true);
+    expect(payload.checkedGates.sort()).toEqual([
+      "published:adapters:verify",
+      "published:daemon:verify",
+      "release:post-alpha:verify",
+      "smoke:published",
+    ]);
+    expect(payload.diagnostics).toEqual([]);
+  });
+
   it("keeps real compatibility evidence creator explicit and offline self-testable", async () => {
     const { stdout } = await execFileP(process.execPath, [realCompatibilityEvidenceCreator, "--self-test"]);
     const result = JSON.parse(stdout) as { schemaVersion: string; ok: boolean };
@@ -3693,6 +3788,64 @@ setInterval(() => {}, 1000);
       expect(text).not.toMatch(/P7-2[^\n]*(?:run `?\d{8,}`?|artifact digest|artifact id|tarball shasum|npm pack shasum|pack shasum|包 shasum|local temp|临时路径)/iu);
       expect(text).not.toMatch(/npm publish --dry-run[^\n]*(?:really published|published to npm|真实发布成功|已经发布到 npm|已发布到 npm)/iu);
     }
+  });
+
+  it("records P8-1 published usability evidence as repo-safe external consumer proof", async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
+      files: string[];
+      scripts: Record<string, string>;
+    };
+    const script = await readFile(path.join(root, "scripts", "create-published-usability-evidence.mjs"), "utf8");
+    const evidenceText = await readFile(path.join(root, ".release-evidence", "p8-1-published-usability.json"), "utf8");
+    const evidence = JSON.parse(evidenceText) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageName: string;
+      version: string;
+      packageSource: string;
+      cleanTempConsumer: boolean;
+      noLocalSourcePath: boolean;
+      commands: Array<{ name: string; command: string; ok: boolean; schemaVersion: string | null; diagnostics: unknown[] }>;
+      diagnostics: unknown[];
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+    };
+
+    expect(manifest.scripts["published:usability:audit"]).toBe("node ./scripts/create-published-usability-evidence.mjs");
+    expect(manifest.files).not.toContain("scripts/create-published-usability-evidence.mjs");
+    expect(script).toContain("agent-cli-runtime.publishedUsability.v1");
+    expect(script).toContain("npm install");
+    expect(script).not.toMatch(/\bnpm publish\b/u);
+    expect(script).not.toContain("NODE_AUTH_TOKEN");
+    expect(script).not.toContain("--allow-real-run");
+    expect(evidence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.publishedUsability.v1",
+      ok: true,
+      packageName: "agent-cli-runtime",
+      version: "0.1.0-alpha.3",
+      packageSource: "npm-registry",
+      cleanTempConsumer: true,
+      noLocalSourcePath: true,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+    expect(evidence.commands.map((command) => command.name)).toEqual([
+      "npm_install",
+      "esm_import",
+      "cli_agents_json",
+      "cli_doctor_json",
+      "cli_conformance_fake",
+      "cli_run_fake_codex",
+      "cli_goal_fake_codex",
+    ]);
+    expect(evidence.commands.every((command) => command.ok)).toBe(true);
+    expect(evidence.commands.find((command) => command.name === "npm_install")?.command).toBe("npm install agent-cli-runtime@0.1.0-alpha.3");
+    expect(evidence.commands.find((command) => command.name === "cli_conformance_fake")?.schemaVersion).toBe("agent-runtime.conformance.v1");
+    expect(evidence.diagnostics).toEqual([]);
+    expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(evidenceText).not.toMatch(/rawStdout|rawStderr|stdout|stderr|node_modules|p8 run smoke|p8 minimal goal/u);
   });
 
   it("keeps alpha.3 corrective docs stable and package-safe", async () => {

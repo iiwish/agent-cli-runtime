@@ -293,6 +293,8 @@ npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
 ```
 
+`published:verify` 负责生成 `published-verification/published-verification.json`。`published:verify:evidence` 只是 verifier，不会生成 evidence。没有 evidence 文件时裸跑 verifier 会按预期失败，这是一道 guard，不表示发布失败。本地验证先执行 `npm run published:verify -- --out-dir published-verification`，再执行 `npm run published:verify:evidence -- --dir published-verification`。远端复验先下载 `agent-cli-runtime-published-verification` artifact，再用 `npm run published:verify:evidence -- --dir <downloaded-artifact-dir>` 指向下载目录。
+
 更完整的 release gate 会把 packed tarball 安装到临时 TypeScript 项目，执行 `tsc --noEmit`，再用 fake CLI 跑 library run / goal / replay / diagnostics smoke。见 `npm run daemon:verify`、`npm run runtime:safety`、`npm run published:daemon:verify`、`npm run published:adapters:verify`、`npm run published:verify`、`npm run dogfood` 和 [docs/release-checklist.md](./docs/release-checklist.md)。
 
 本机 agent CLI 按场景安装即可：
@@ -381,6 +383,8 @@ npm run published:verify:evidence -- --dir published-verification
 `published:adapters:verify` 同样从 npm registry 安装，输出 `schemaVersion: "agent-runtime.publishedAdapters.v1"` 且 `packageSource: "npm-registry"`。它用 fake Codex/Claude/OpenCode binaries 验证已发布包的内置 adapter invocation shape、stdin prompt transport、parser noise tolerance、redaction 和 per-adapter failure isolation。这是 fake-CLI adapter contract evidence，不是 authenticated real CLI compatibility success evidence。
 
 `published:verify` 输出 `schemaVersion: "agent-cli-runtime.publishedVerification.v1"`，默认写入 `published-verification/published-verification.json`。它聚合 `smoke:published`、`published:daemon:verify`、`published:adapters:verify`、`release:post-alpha:verify` 和 npm registry metadata，不保存 raw stdout/stderr，也不需要发布凭证。GitHub Actions 的手动 `Published Package Verification` workflow 会在 Node.js 22 上执行同一套 post-publish verification，并上传 `agent-cli-runtime-published-verification`。
+
+`published:verify:evidence` 只读取 `--dir` 或 `--summary` 指向的既有 `published-verification.json`，并复验四个 published gates 与 registry packaged-docs inspection。它不会运行 gates，也不会创建 evidence。默认的 `published-verification/published-verification.json` 缺失时，它会以 exit `1` 输出脱敏、可解析 JSON，并提示本地生成命令和 GitHub artifact 的 `--dir` 复验方式。
 
 如需在本地生成可审查的 release-candidate artifact set：
 

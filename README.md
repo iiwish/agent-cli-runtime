@@ -295,6 +295,8 @@ npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
 ```
 
+`published:verify` generates `published-verification/published-verification.json`. `published:verify:evidence` is a verifier only; it does not generate evidence. Running the verifier without an existing evidence file is an expected guard failure, not a publish failure. For a local check, run `npm run published:verify -- --out-dir published-verification` before `npm run published:verify:evidence -- --dir published-verification`. For a GitHub Actions review, download the `agent-cli-runtime-published-verification` artifact and pass its directory with `npm run published:verify:evidence -- --dir <downloaded-artifact-dir>`.
+
 The broader release gate installs the packed tarball into a temporary TypeScript project, runs `tsc --noEmit`, and then executes fake-CLI library run/goal/replay/diagnostics smoke. See `npm run daemon:verify`, `npm run runtime:safety`, `npm run published:daemon:verify`, `npm run published:adapters:verify`, `npm run published:verify`, `npm run dogfood`, and [docs/release-checklist.md](./docs/release-checklist.md).
 
 Required local agent CLIs are optional by scenario:
@@ -383,6 +385,8 @@ npm run published:verify:evidence -- --dir published-verification
 `published:adapters:verify` also installs from the npm registry and emits `schemaVersion: "agent-runtime.publishedAdapters.v1"` with `packageSource: "npm-registry"`. It uses fake Codex/Claude/OpenCode binaries to verify the published package's built-in adapter invocation shape, stdin prompt transport, parser noise tolerance, redaction, and per-adapter failure isolation. This is fake-CLI adapter contract evidence, not authenticated real CLI compatibility success evidence.
 
 `published:verify` emits `schemaVersion: "agent-cli-runtime.publishedVerification.v1"` and writes `published-verification/published-verification.json` by default. It aggregates `smoke:published`, `published:daemon:verify`, `published:adapters:verify`, `release:post-alpha:verify`, and npm registry metadata without storing raw stdout/stderr or requiring publish credentials. The manual GitHub Actions `Published Package Verification` workflow runs the same post-publish verification on Node.js 22 and uploads `agent-cli-runtime-published-verification`.
+
+`published:verify:evidence` reads an existing `published-verification.json` from `--dir` or `--summary` and verifies the four published gates plus registry packaged-docs inspection. It never runs the gates or creates evidence. If the default `published-verification/published-verification.json` is missing, it exits `1` with redacted parseable JSON that points to the local generation command and the GitHub artifact `--dir` path.
 
 To create a local release-candidate artifact set without publishing, run:
 
