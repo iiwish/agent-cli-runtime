@@ -399,9 +399,22 @@ npm run release:candidate -- --out-dir release-candidate
 npm run release:verify -- --dir release-candidate
 ```
 
-`release:candidate` writes `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, the tarball, and `release-verification.json` to the output directory. `release:verify` can also validate the same files after downloading GitHub Actions artifacts, including proof that `daemon:verify`, `runtime:safety`, and either a local strict compatibility verifier summary or a remote repo-only skipped compatibility summary were recorded for the candidate.
+`release:candidate` writes `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, the tarball, and `release-verification.json` to the output directory. After `gh run download` unpacks the five GitHub Actions artifacts into per-artifact subdirectories, normalize them before verification:
 
-The release evidence summary is [docs/release-report.md](./docs/release-report.md), with volatile P8-4 target-SHA evidence under `.release-evidence/p8-4-release-strict-compatibility.json`. The alpha publish decision runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate. Published package verification is a separate manual post-publish workflow, not a publish workflow.
+```bash
+npm run release:artifacts:normalize -- --download-dir <gh-download-dir> --out-dir <normalized-artifact-dir>
+npm run release:verify -- --dir <normalized-artifact-dir>
+```
+
+`release:artifacts:normalize` emits `schemaVersion: "agent-cli-runtime.releaseArtifactNormalization.v1"`, copies only the expected five release-candidate files from their matching GitHub artifact directories, and rejects missing, duplicate, unknown, or misplaced files without printing absolute local paths. `release:verify` validates the normalized files, including proof that `daemon:verify`, `runtime:safety`, and either a local strict compatibility verifier summary or a remote repo-only skipped compatibility summary were recorded for the candidate.
+
+Main-scoped release-candidate evidence is generated with:
+
+```bash
+npm run release:main-candidate:evidence -- --release-target-sha <origin-main-sha> --local-release-dir <local-strict-dir> --remote-run-json <run.json> --artifacts-json <artifacts.json> --downloaded-dir <normalized-artifact-dir>
+```
+
+The release evidence summary is [docs/release-report.md](./docs/release-report.md), with volatile P8-4 target-SHA evidence under `.release-evidence/p8-4-release-strict-compatibility.json` and P8-5 main remote evidence under `.release-evidence/p8-5-main-release-candidate.json`. The alpha publish decision runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate. Published package verification is a separate manual post-publish workflow, not a publish workflow.
 
 Runnable examples are in [examples/library-run.js](./examples/library-run.js), [examples/library-goal.js](./examples/library-goal.js), and [examples/cli-dogfood.md](./examples/cli-dogfood.md). The JavaScript examples create local fake CLIs and do not require real provider secrets.
 

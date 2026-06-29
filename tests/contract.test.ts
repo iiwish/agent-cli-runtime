@@ -53,7 +53,9 @@ const packagedDocsChecker = path.join(root, "scripts", "check-packaged-docs.mjs"
 const realCompatibilityEvidenceCreator = path.join(root, "scripts", "create-real-compatibility-evidence.mjs");
 const realCompatibilityEvidenceVerifier = path.join(root, "scripts", "verify-real-compatibility-evidence.mjs");
 const releaseStrictCompatibilityEvidenceCreator = path.join(root, "scripts", "create-release-strict-compatibility-evidence.mjs");
+const mainReleaseCandidateEvidenceCreator = path.join(root, "scripts", "create-main-release-candidate-evidence.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
+const releaseArtifactNormalizer = path.join(root, "scripts", "normalize-release-artifacts.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
 const runInstalledPackageContractTests = process.env.AGENT_RUNTIME_RUN_INSTALLED_PACKAGE_TESTS === "1";
@@ -113,6 +115,75 @@ function releaseCompatibilityRepoOnlySkippedGate(overrides: Record<string, unkno
     },
     ...overrides,
   };
+}
+
+function releaseArtifactFixture(): { pack: Array<{ filename: string; files: Array<{ path: string; size: number; mode: number }> }>; files: Record<string, string> } {
+  const pack = [{
+    id: "agent-cli-runtime@0.1.0-alpha.0",
+    name: "agent-cli-runtime",
+    version: "0.1.0-alpha.0",
+    filename: "agent-cli-runtime-0.1.0-alpha.0.tgz",
+    files: [
+      { path: "dist/index.js", size: 1, mode: 420 },
+      { path: "README.md", size: 1, mode: 420 },
+      { path: "docs/release-report.md", size: 1, mode: 420 },
+    ],
+  }];
+  const gateEvidence = {
+    schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
+    generatedAt: "2026-06-29T00:00:00.000Z",
+    gates: [
+      {
+        name: "daemon-ready",
+        script: "daemon:verify",
+        command: "npm run daemon:verify",
+        ok: true,
+        outputSchemaVersion: "agent-runtime.daemonVerification.v1",
+        packageSource: "installed-tarball",
+      },
+      {
+        name: "runtime-safety",
+        script: "runtime:safety",
+        command: "npm run runtime:safety",
+        ok: true,
+        outputSchemaVersion: "agent-runtime.runtimeSafety.v1",
+        packageSource: "installed-tarball",
+      },
+      releaseCompatibilityRepoOnlySkippedGate(),
+    ],
+    noAuthenticatedRealRun: true,
+    noNpmPublish: true,
+    noNpmToken: true,
+  };
+  return {
+    pack,
+    files: {
+      "npm-pack.json": JSON.stringify(pack, null, 2),
+      "package-files.txt": `${pack[0].files.map((file) => file.path).join("\n")}\n`,
+      "gate-evidence.json": JSON.stringify(gateEvidence, null, 2),
+      "release-verification.json": JSON.stringify({ schemaVersion: "agent-cli-runtime.releaseVerification.v1", ok: true }, null, 2),
+      [pack[0].filename]: "fake tarball",
+    },
+  };
+}
+
+async function writeDownloadedReleaseArtifactFixture(downloadDir: string): Promise<{ tarball: string }> {
+  const fixture = releaseArtifactFixture();
+  const placements: Array<[string, string]> = [
+    ["agent-cli-runtime-pack-metadata", "npm-pack.json"],
+    ["agent-cli-runtime-package-files", "package-files.txt"],
+    ["agent-cli-runtime-gate-evidence", "gate-evidence.json"],
+    ["agent-cli-runtime-release-verification", "release-verification.json"],
+    ["agent-cli-runtime-tarball", fixture.pack[0].filename],
+  ];
+
+  for (const [artifactDir, file] of placements) {
+    const dir = path.join(downloadDir, artifactDir);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, file), fixture.files[file], "utf8");
+  }
+
+  return { tarball: fixture.pack[0].filename };
 }
 
 function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
@@ -3143,6 +3214,139 @@ setInterval(() => {}, 1000);
     expect(stdout).not.toContain("/var/folders/");
   });
 
+  it("normalizes downloaded release candidate artifacts into a release:verify-ready directory", async () => {
+    const downloadDir = await tempDir("agent-runtime-release-download-");
+    const outDir = await tempDir("agent-runtime-release-normalized-");
+    const { tarball } = await writeDownloadedReleaseArtifactFixture(downloadDir);
+
+    const { stdout } = await execFileP(process.execPath, [
+      releaseArtifactNormalizer,
+      "--download-dir",
+      downloadDir,
+      "--out-dir",
+      outDir,
+    ]);
+    const result = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      downloadDir: string;
+      outDir: string;
+      artifacts: Array<{ artifactName: string; expectedFile: string; source: string; output: string }>;
+      diagnostics: unknown[];
+    };
+
+    expect(result).toMatchObject({
+      schemaVersion: "agent-cli-runtime.releaseArtifactNormalization.v1",
+      ok: true,
+      downloadDir: "<external_artifact_dir>",
+      outDir: "<external_output_dir>",
+      diagnostics: [],
+    });
+    expect(result.artifacts.map((artifact) => artifact.artifactName).sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(result.artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-pack-metadata",
+        source: "agent-cli-runtime-pack-metadata/npm-pack.json",
+      }),
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-package-files",
+        source: "agent-cli-runtime-package-files/package-files.txt",
+      }),
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-gate-evidence",
+        source: "agent-cli-runtime-gate-evidence/gate-evidence.json",
+      }),
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-release-verification",
+        source: "agent-cli-runtime-release-verification/release-verification.json",
+      }),
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-tarball",
+        source: `agent-cli-runtime-tarball/${tarball}`,
+      }),
+    ]));
+    expect(result.artifacts.map((artifact) => artifact.output).sort()).toEqual([
+      "gate-evidence.json",
+      tarball,
+      "npm-pack.json",
+      "package-files.txt",
+      "release-verification.json",
+    ].sort());
+    expect(stdout).not.toContain(downloadDir);
+    expect(stdout).not.toContain(outDir);
+    expectNoLocalOrSecretLeak(stdout);
+
+    const normalizedFiles = await readdir(outDir);
+    expect(normalizedFiles.sort()).toEqual([
+      "gate-evidence.json",
+      tarball,
+      "npm-pack.json",
+      "package-files.txt",
+      "release-verification.json",
+    ].sort());
+
+    const verification = JSON.parse((await execFileP(process.execPath, [releaseVerifier, "--dir", outDir])).stdout) as {
+      ok: boolean;
+      diagnostics: unknown[];
+    };
+    expect(verification.ok).toBe(true);
+    expect(verification.diagnostics).toEqual([]);
+  });
+
+  it("rejects downloaded release artifact directories with missing, duplicate, unknown, or misplaced files", async () => {
+    const missingDir = await tempDir("agent-runtime-release-download-missing-");
+    const duplicateDir = await tempDir("agent-runtime-release-download-duplicate-");
+    const unknownDir = await tempDir("agent-runtime-release-download-unknown-");
+    const misplacedDir = await tempDir("agent-runtime-release-download-misplaced-");
+    const outDir = await tempDir("agent-runtime-release-normalized-fail-");
+    await writeDownloadedReleaseArtifactFixture(missingDir);
+    await writeDownloadedReleaseArtifactFixture(duplicateDir);
+    await writeDownloadedReleaseArtifactFixture(unknownDir);
+    await writeDownloadedReleaseArtifactFixture(misplacedDir);
+    await rm(path.join(missingDir, "agent-cli-runtime-release-verification", "release-verification.json"));
+    await writeFile(path.join(duplicateDir, "agent-cli-runtime-tarball", "agent-cli-runtime-extra.tgz"), "fake duplicate tarball", "utf8");
+    await mkdir(path.join(unknownDir, "agent-cli-runtime-pack-metadata"), { recursive: true });
+    await writeFile(path.join(unknownDir, "agent-cli-runtime-pack-metadata", "extra.txt"), "extra\n", "utf8");
+    await rm(path.join(misplacedDir, "agent-cli-runtime-pack-metadata", "npm-pack.json"));
+    await mkdir(path.join(misplacedDir, "bad-pack"), { recursive: true });
+    await writeFile(path.join(misplacedDir, "bad-pack", "npm-pack.json"), "[]\n", "utf8");
+
+    for (const [dir, code] of [
+      [missingDir, "missing_artifact_file"],
+      [duplicateDir, "duplicate_artifact_file"],
+      [unknownDir, "unknown_artifact_file"],
+      [misplacedDir, "unexpected_artifact_path"],
+    ] as Array<[string, string]>) {
+      const failure = await execCliFailureViaNode([
+        releaseArtifactNormalizer,
+        "--download-dir",
+        dir,
+        "--out-dir",
+        outDir,
+      ]);
+      const result = JSON.parse(failure.stdout) as {
+        schemaVersion: string;
+        ok: boolean;
+        diagnostics: Array<{ code: string; file?: string; files?: string[]; actual?: string; expected?: string }>;
+      };
+
+      expect(failure.code).toBe(1);
+      expect(result.schemaVersion).toBe("agent-cli-runtime.releaseArtifactNormalization.v1");
+      expect(result.ok).toBe(false);
+      expect(result.diagnostics).toContainEqual(expect.objectContaining({ code }));
+      if (code === "unexpected_artifact_path") {
+        expect(result.diagnostics).toContainEqual(expect.objectContaining({
+          code,
+          actual: "bad-pack/npm-pack.json",
+          expected: "agent-cli-runtime-pack-metadata/npm-pack.json",
+        }));
+      }
+      expect(failure.stdout).not.toContain(dir);
+      expect(failure.stdout).not.toContain(outDir);
+      expectNoLocalOrSecretLeak(failure.stdout);
+    }
+  });
+
   it("accepts different npm and GitHub tarball gzip hashes when unpacked package content matches", async () => {
     const dir = await tempDir("agent-runtime-post-alpha-fixture-");
     const npmRoot = path.join(dir, "npm-root", "package");
@@ -3723,6 +3927,8 @@ setInterval(() => {}, 1000);
     expect(manifest.scripts["prepublish:check"]).toContain("npm run compat:real:evidence:verify");
     expect(manifest.scripts["prepublish:check"]).not.toContain("npm run compat:real:evidence &&");
     expect(manifest.scripts["release:post-alpha:verify"]).toBe("node ./scripts/verify-post-alpha-release.mjs");
+    expect(manifest.scripts["release:artifacts:normalize"]).toBe("node ./scripts/normalize-release-artifacts.mjs");
+    expect(manifest.scripts["release:main-candidate:evidence"]).toBe("node ./scripts/create-main-release-candidate-evidence.mjs");
     expect(manifest.scripts["smoke:published"]).toBe("node ./scripts/smoke-published.mjs");
     expect(manifest.scripts["published:verify"]).toBe("node ./scripts/create-published-verification-evidence.mjs");
     expect(manifest.scripts["published:verify:evidence"]).toBe("node ./scripts/verify-published-verification-evidence.mjs");
@@ -4630,6 +4836,273 @@ setInterval(() => {}, 1000);
     expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
     expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|stdout|stderr|promptText|fullPrompt|resolvedExecutablePath|<resolved_executable>/u);
     expect(evidenceText).not.toMatch(/"id":\s*\d+|"url":\s*"https:\/\/github\.com\/iiwish\/agent-cli-runtime\/actions\/runs\//u);
+  });
+
+  it("records P8-5 main remote release-candidate closure as repo-only evidence", async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
+      files: string[];
+      scripts: Record<string, string>;
+    };
+    const script = await readFile(mainReleaseCandidateEvidenceCreator, "utf8");
+    const evidenceText = await readFile(path.join(root, ".release-evidence", "p8-5-main-release-candidate.json"), "utf8");
+    const selfTest = JSON.parse((await execFileP(process.execPath, [mainReleaseCandidateEvidenceCreator, "--self-test"])).stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      cases: Array<{ name: string; ok: boolean; expectedCode: string; actualCode: string }>;
+    };
+    const evidence = JSON.parse(evidenceText) as {
+      schemaVersion: string;
+      stage: string;
+      evidenceKind: string;
+      releaseTargetSha: string;
+      targetRef: string;
+      currentHeadSha: string;
+      originMainShaAtCheck: string;
+      p8_4TargetInOriginMain: boolean;
+      mainEvidence: boolean;
+      branchEvidence: boolean;
+      matrix: { gitSha: string; gitInputDirty: boolean; gitOutputDirty: boolean };
+      compatibilityVerification: {
+        ok: boolean;
+        evidenceSchemaVersion: string;
+        targetSha: { expected: string; actual: string; ok: boolean; status: string };
+        freshness: { maxAgeHours: number; ok: boolean; status: string };
+        dirtyPolicy: { policy: string; inputDirty: boolean; outputDirty: boolean; ok: boolean; status: string };
+        diagnosticSummary: { count: number; codes: string[] };
+      };
+      localReleaseCandidate: {
+        verification: {
+          ok: boolean;
+          schemaVersion: string;
+          artifactNames: string[];
+          gateEvidence: { schemaVersion: string; gates: Array<{ script: string; ok: boolean; evidenceSchemaVersion: string | null; diagnostics: { count: number | null; codes: string[] } }> };
+        };
+      };
+      remoteReleaseCandidate: {
+        workflow: string;
+        ref: string;
+        triggered: boolean;
+        run: {
+          id: number;
+          url: string;
+          event: string;
+          headBranch: string;
+          headSha: string;
+          status: string;
+          conclusion: string;
+          headShaMatchesReleaseTarget: boolean;
+          jobs: Array<{ name: string; status: string; conclusion: string }>;
+        };
+        artifacts: {
+          count: number;
+          names: string[];
+          expectedNames: string[];
+          complete: boolean;
+          items: Array<{ name: string; id: number; digest: string; expired: boolean }>;
+        };
+      };
+      downloadedArtifacts: {
+        verified: boolean;
+        skippedReason: string | null;
+        verification: {
+          command: string;
+          schemaVersion: string;
+          ok: boolean;
+          diagnosticsCount: number;
+          artifactNames: string[];
+          gateEvidence: {
+            schemaVersion: string;
+            gates: Array<{
+              script: string;
+              command: string;
+              ok: boolean;
+              evidenceSchemaVersion: string | null;
+              targetSha: { expected: string; actual: string | null; ok: boolean | null; status: string | null };
+              freshness: { status: string | null };
+              dirtyPolicy: { policy: string | null; status: string | null };
+              diagnostics: { count: number | null; codes: string[] };
+              repoOnlyEvidence: { status: string; reason: string } | null;
+            }>;
+            noAuthenticatedRealRun: boolean;
+            noNpmPublish: boolean;
+            noNpmToken: boolean;
+          };
+        };
+      };
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+      boundary: Record<string, boolean>;
+    };
+
+    expect(manifest.files).not.toContain("scripts/create-main-release-candidate-evidence.mjs");
+    expect(manifest.files).not.toContain("scripts/normalize-release-artifacts.mjs");
+    expect(manifest.scripts["release:main-candidate:evidence"]).toBe("node ./scripts/create-main-release-candidate-evidence.mjs");
+    expect(manifest.scripts["release:artifacts:normalize"]).toBe("node ./scripts/normalize-release-artifacts.mjs");
+    expect(script).toContain("agent-cli-runtime.p8MainReleaseCandidateEvidence.v1");
+    expect(script).toContain("agent-cli-runtime.p8MainReleaseCandidateEvidenceSelfTest.v1");
+    expect(script).toContain("releaseTargetSha");
+    expect(script).toContain("headShaMatchesReleaseTarget");
+    expect(script).toContain("workflow_dispatch");
+    expect(script).toContain("remote_run_head_sha_mismatch");
+    expect(script).toContain("remote_run_conclusion_not_success");
+    expect(script).toContain("missing_remote_artifact");
+    expect(script).toContain("remote_artifact_expiration_unverified");
+    expect(script).toContain("downloaded_release_artifacts_not_ok");
+    expect(script).toContain("release-candidate.yml");
+    expect(script).toContain("repo-only real compatibility evidence not refreshed in CI");
+    expect(script).not.toMatch(/\bnpm publish\b/u);
+    expect(script).not.toContain("--allow-real-run");
+    expect(script).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(selfTest).toMatchObject({
+      schemaVersion: "agent-cli-runtime.p8MainReleaseCandidateEvidenceSelfTest.v1",
+      ok: true,
+    });
+    expect(selfTest.cases.map((testCase) => testCase.expectedCode).sort()).toEqual([
+      "downloaded_release_artifacts_not_ok",
+      "missing_remote_artifact",
+      "remote_artifact_expiration_unverified",
+      "remote_run_conclusion_not_success",
+      "remote_run_head_sha_mismatch",
+    ].sort());
+    expect(selfTest.cases.every((testCase) => testCase.ok && testCase.actualCode === testCase.expectedCode)).toBe(true);
+
+    expect(evidence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.p8MainReleaseCandidateEvidence.v1",
+      stage: "P8-5",
+      evidenceKind: "main-scoped-remote-release-candidate",
+      targetRef: "main",
+      mainEvidence: true,
+      branchEvidence: false,
+      p8_4TargetInOriginMain: true,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+    expect(evidence.releaseTargetSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(evidence.currentHeadSha).toBe(evidence.releaseTargetSha);
+    expect(evidence.originMainShaAtCheck).toBe(evidence.releaseTargetSha);
+    expect(evidence.matrix.gitSha).toBe(evidence.releaseTargetSha);
+    expect(evidence.matrix.gitInputDirty).toBe(false);
+    expect(evidence.matrix.gitOutputDirty).toBe(true);
+    expect(evidence.compatibilityVerification).toMatchObject({
+      ok: true,
+      evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityMatrix.v1",
+      targetSha: { expected: evidence.releaseTargetSha, actual: evidence.releaseTargetSha, ok: true, status: "matched" },
+      freshness: { maxAgeHours: 24, ok: true, status: "fresh" },
+      dirtyPolicy: { policy: "release-strict", inputDirty: false, outputDirty: true, ok: true, status: "self_dirty_only" },
+      diagnosticSummary: { count: 0, codes: [] },
+    });
+    expect(evidence.localReleaseCandidate.verification).toMatchObject({
+      ok: true,
+      schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+    });
+    expect(evidence.localReleaseCandidate.verification.artifactNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.localReleaseCandidate.verification.gateEvidence.gates.map((gate) => gate.script).sort()).toEqual([
+      "compat:real:evidence:verify",
+      "daemon:verify",
+      "runtime:safety",
+    ]);
+
+    expect(evidence.remoteReleaseCandidate).toMatchObject({
+      workflow: ".github/workflows/release-candidate.yml",
+      ref: "main",
+      triggered: true,
+      run: {
+        event: "workflow_dispatch",
+        headBranch: "main",
+        headSha: evidence.releaseTargetSha,
+        status: "completed",
+        conclusion: "success",
+        headShaMatchesReleaseTarget: true,
+      },
+      artifacts: {
+        count: 5,
+        complete: true,
+      },
+    });
+    expect(evidence.remoteReleaseCandidate.run.id).toBeGreaterThan(0);
+    expect(evidence.remoteReleaseCandidate.run.url).toMatch(/^https:\/\/github\.com\/iiwish\/agent-cli-runtime\/actions\/runs\/\d+$/u);
+    expect(evidence.remoteReleaseCandidate.run.jobs).toEqual([
+      { name: "Build release candidate artifacts", status: "completed", conclusion: "success" },
+    ]);
+    expect(evidence.remoteReleaseCandidate.artifacts.names.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.remoteReleaseCandidate.artifacts.expectedNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.remoteReleaseCandidate.artifacts.items.map((artifact) => artifact.name).sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    for (const artifact of evidence.remoteReleaseCandidate.artifacts.items) {
+      expect(artifact.id).toBeGreaterThan(0);
+      expect(artifact.digest).toMatch(/^sha256:[0-9a-f]{64}$/u);
+      expect(artifact.expired).toBe(false);
+    }
+
+    expect(evidence.downloadedArtifacts).toMatchObject({
+      verified: true,
+      skippedReason: null,
+      verification: {
+        command: "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+        schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+        ok: true,
+        diagnosticsCount: 0,
+      },
+    });
+    expect(evidence.downloadedArtifacts.verification.artifactNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.downloadedArtifacts.verification.gateEvidence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+    const remoteCompatibilityGate = evidence.downloadedArtifacts.verification.gateEvidence.gates.find((gate) => gate.script === "compat:real:evidence:verify");
+    expect(remoteCompatibilityGate).toMatchObject({
+      command: "repo-only real compatibility evidence not refreshed in CI",
+      ok: true,
+      evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityMatrix.v1",
+      targetSha: { expected: evidence.releaseTargetSha, actual: null, ok: null, status: "repo_only_not_run" },
+      freshness: { status: "repo_only_not_run" },
+      dirtyPolicy: { policy: "repo-only-skipped", status: "repo_only_not_run" },
+      diagnostics: { count: 0, codes: [] },
+      repoOnlyEvidence: { status: "not_refreshed_in_ci", reason: "real_compatibility_matrix_is_repo_only" },
+    });
+    expect(evidence.boundary).toMatchObject({
+      repoOnlyEvidence: true,
+      noGithubRelease: true,
+      noTrustedPublishing: true,
+      noRawStdoutStderr: true,
+      noRawCliOutput: true,
+      noFullPrompt: true,
+      noPrivatePath: true,
+      noLocalTempPath: true,
+      noResolvedExecutablePath: true,
+      noWorkflowLogs: true,
+      noTokenValue: true,
+      noBearerValue: true,
+      noAuthEnvAssignment: true,
+    });
+
+    expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|"stdout"|"stderr"|promptText|fullPrompt|workflowLog|logs|resolvedExecutablePath|<resolved_executable>/u);
+
+    const packagedDocs = [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/compatibility.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/release-publish-runbook.md",
+      "docs/production-readiness.md",
+      "docs/ssot.md",
+    ];
+    for (const doc of packagedDocs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text, `${doc} must not include P8-5 run id`).not.toContain(String(evidence.remoteReleaseCandidate.run.id));
+      expect(text, `${doc} must not include P8-5 run URL`).not.toContain(evidence.remoteReleaseCandidate.run.url);
+      for (const artifact of evidence.remoteReleaseCandidate.artifacts.items) {
+        expect(text, `${doc} must not include P8-5 artifact id`).not.toContain(String(artifact.id));
+      }
+      expect(text, `${doc} must not include local artifact paths`).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\//u);
+    }
   });
 
   it("keeps alpha.3 corrective docs stable and package-safe", async () => {
