@@ -4,8 +4,9 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-const SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityEvidence.v1";
-const DEFAULT_OUTPUT = ".release-evidence/p6-1-real-cli-compatibility.json";
+const LEGACY_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityEvidence.v1";
+const SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityMatrix.v1";
+const DEFAULT_OUTPUT = ".release-evidence/p8-2-real-cli-compatibility-matrix.json";
 const ADAPTERS = ["codex", "claude", "opencode"];
 const CLASSIFICATIONS_THAT_ARE_NOT_SUCCESS = new Set([
   "real_run_skipped",
@@ -30,9 +31,37 @@ if (parsed.help) {
 if (parsed.selfTest) {
   const sample = {
     schemaVersion: SCHEMA_VERSION,
-    safePreflightOnly: true,
-    commands: [{ command: "node ./dist/cli/main.js smoke --mode real --agent codex --json", exitCode: 0 }],
-    authenticatedRealSmokes: [],
+    checkedAt: "2026-06-27T00:00:00.000Z",
+    packageVersion: "0.1.0-alpha.3",
+    gitSha: "0123456789abcdef0123456789abcdef01234567",
+    gitDirty: false,
+    gitInputDirty: false,
+    gitOutputDirty: true,
+    dirtySummary: {
+      outputPath: DEFAULT_OUTPUT,
+      beforeWrite: { dirty: false, changedFilesCount: 0, changedFiles: [], truncated: false },
+      afterWrite: { dirty: true, changedFilesCount: 1, changedFiles: [{ status: "M", path: DEFAULT_OUTPUT }], truncated: false },
+      inputBeforeWrite: { dirty: false, changedFilesCount: 0, changedFiles: [], truncated: false },
+      inputAfterWrite: { dirty: false, changedFilesCount: 0, changedFiles: [], truncated: false },
+      outputBeforeWrite: { dirty: false, changedFilesCount: 0, changedFiles: [], truncated: false },
+      outputAfterWrite: { dirty: true, changedFilesCount: 1, changedFiles: [{ status: "M", path: DEFAULT_OUTPUT }], truncated: false },
+    },
+    adapters: {
+      codex: {
+        executable: { status: "resolved", path: "<resolved_executable>", unavailableReason: null },
+        version: "codex-cli test",
+        auth: { status: "unknown" },
+        modelsSource: { source: "live", modelCount: 1 },
+        capabilities: { streaming: true, tools: true, models: true, authProbe: false, prompt: ["stdin"] },
+        argvProfile: { defaultArgs: ["exec", "--json", "-C", "<cwd>"], knownFlags: [], needsVerification: [{ mapsTo: "session" }, { mapsTo: "authProbe" }] },
+        parserMode: "codex-json",
+        promptTransport: "stdin:text",
+        safePreflight: { command: "node ./dist/cli/main.js conformance --mode real --agent all --json", runClassification: "real_run_skipped", skippedReason: "real_run_not_allowed", ok: false },
+        optionalSmoke: { status: "real_run_skipped", reason: "not_requested" },
+        diagnostics: [],
+        needsVerification: [{ mapsTo: "session" }, { mapsTo: "authProbe" }],
+      },
+    },
     noRawStdoutStderr: true,
     noPromptText: true,
     noTokenOrAuthEnv: true,
@@ -55,8 +84,11 @@ if (parsed.allowRealRun) {
 }
 
 const outputFile = path.resolve(root, parsed.output ?? DEFAULT_OUTPUT);
-const generatedAt = new Date().toISOString();
+const outputPath = displayEvidenceFile(outputFile);
+const checkedAt = new Date().toISOString();
 const gitBeforeWrite = gitWorktreeState();
+const inputBeforeWrite = dirtyStateExcludingPath(gitBeforeWrite, outputPath);
+const outputBeforeWrite = dirtyStateOnlyPath(gitBeforeWrite, outputPath);
 const nodeVersion = process.version;
 
 const commands = [];
@@ -104,12 +136,23 @@ for (const run of parsed.allowRealRun ? parsed.realRuns : []) {
 
 const evidence = {
   schemaVersion: SCHEMA_VERSION,
-  generatedAt,
+  checkedAt,
   gitSha: gitBeforeWrite.headSha,
   gitHeadSha: gitBeforeWrite.headSha,
-  gitShaMeaning: "HEAD commit only; see gitDirty and gitStatusBeforeWrite/gitStatusAfterWrite for uncommitted evidence inputs.",
-  gitDirty: gitBeforeWrite.dirty,
+  gitShaMeaning: "HEAD commit only; see gitInputDirty/gitOutputDirty and dirtySummary for uncommitted input evidence versus evidence-output self writes.",
+  gitDirty: inputBeforeWrite.dirty,
+  gitInputDirty: inputBeforeWrite.dirty,
+  gitOutputDirty: outputBeforeWrite.dirty,
   gitStatusBeforeWrite: gitBeforeWrite,
+  dirtySummary: {
+    outputPath,
+    beforeWrite: dirtySummary(gitBeforeWrite),
+    inputBeforeWrite: dirtySummary(inputBeforeWrite),
+    outputBeforeWrite: dirtySummary(outputBeforeWrite),
+    afterWrite: null,
+    inputAfterWrite: null,
+    outputAfterWrite: null,
+  },
   nodeVersion,
   packageVersion: packageVersion(),
   safePreflightOnly: !parsed.allowRealRun,
@@ -118,6 +161,13 @@ const evidence = {
   noPromptText: true,
   noTokenOrAuthEnv: true,
   commands,
+  adapters: buildCompatibilityMatrix({
+    agents: summarizeAgents(agents),
+    doctorAgents: summarizeAgents(doctor.agents ?? []),
+    conformance: summarizeConformance(conformance),
+    safeSmokes,
+    authenticatedRealSmokes,
+  }),
   agents: summarizeAgents(agents),
   doctor: {
     ok: doctor.ok === true,
@@ -137,9 +187,16 @@ const evidence = {
 mkdirSync(path.dirname(outputFile), { recursive: true });
 writeEvidence(outputFile, evidence);
 evidence.gitStatusAfterWrite = gitWorktreeState();
-evidence.gitDirty = evidence.gitStatusAfterWrite.dirty;
+const inputAfterWrite = dirtyStateExcludingPath(evidence.gitStatusAfterWrite, outputPath);
+const outputAfterWrite = dirtyStateOnlyPath(evidence.gitStatusAfterWrite, outputPath);
+evidence.gitDirty = inputAfterWrite.dirty;
+evidence.gitInputDirty = inputAfterWrite.dirty;
+evidence.gitOutputDirty = outputAfterWrite.dirty;
+evidence.dirtySummary.afterWrite = dirtySummary(evidence.gitStatusAfterWrite);
+evidence.dirtySummary.inputAfterWrite = dirtySummary(inputAfterWrite);
+evidence.dirtySummary.outputAfterWrite = dirtySummary(outputAfterWrite);
 writeEvidence(outputFile, evidence);
-process.stdout.write(`${JSON.stringify({ ok: true, schemaVersion: SCHEMA_VERSION, output: path.relative(root, outputFile) })}\n`);
+process.stdout.write(`${JSON.stringify({ ok: true, schemaVersion: SCHEMA_VERSION, output: outputPath })}\n`);
 
 function parseArgs(argv) {
   const out = {
@@ -203,7 +260,7 @@ function printUsage() {
   npm run compat:real:evidence -- --allow-real-run --agent codex --expect-text "agent-runtime codex smoke ok"
   npm run compat:real:evidence -- --allow-real-run --agent codex --expect-text "agent-runtime codex smoke ok" --agent opencode --expect-text "agent-runtime opencode smoke ok"
 
-Default mode runs only safe real preflight commands and does not launch authenticated real agent runs.
+Default mode writes ${DEFAULT_OUTPUT}, runs only safe real preflight commands, and does not launch authenticated real agent runs.
 `);
 }
 
@@ -239,6 +296,43 @@ function gitWorktreeState() {
     changedFiles: entries.slice(0, 100),
     truncated: entries.length > 100,
   };
+}
+
+function dirtySummary(state) {
+  return {
+    dirty: state.dirty,
+    changedFilesCount: state.changedFilesCount,
+    changedFiles: state.changedFiles,
+    truncated: state.truncated,
+  };
+}
+
+function dirtyStateExcludingPath(state, excludedPath) {
+  const changedFiles = state.changedFiles.filter((entry) => !matchesGitPath(entry.path, excludedPath));
+  return {
+    ...state,
+    dirty: changedFiles.length > 0,
+    changedFilesCount: changedFiles.length,
+    changedFiles,
+    truncated: state.truncated && changedFiles.length >= state.changedFiles.length,
+  };
+}
+
+function dirtyStateOnlyPath(state, includedPath) {
+  const changedFiles = state.changedFiles.filter((entry) => matchesGitPath(entry.path, includedPath));
+  return {
+    ...state,
+    dirty: changedFiles.length > 0,
+    changedFilesCount: changedFiles.length,
+    changedFiles,
+    truncated: false,
+  };
+}
+
+function matchesGitPath(candidate, expectedPath) {
+  if (!candidate || !expectedPath || expectedPath === "<external_evidence_file>") return false;
+  if (candidate === expectedPath) return true;
+  return candidate.split(" -> ").some((part) => part === expectedPath);
 }
 
 function parseGitStatus(stdout) {
@@ -355,12 +449,89 @@ function summarizeSmoke(smoke) {
 }
 
 function summarizeDiagnostics(diagnostics) {
-  return diagnostics.map((item) => ({
+  return diagnostics.slice(0, 20).map((item) => ({
     code: item.code,
-    message: item.message,
+    message: truncate(item.message, 240),
     probe: item.probe,
-    actionableHints: item.actionableHints,
+    actionableHints: Array.isArray(item.actionableHints) ? item.actionableHints.slice(0, 4).map((hint) => truncate(hint, 200)) : undefined,
   }));
+}
+
+function buildCompatibilityMatrix(input) {
+  return Object.fromEntries(ADAPTERS.map((adapter) => {
+    const detected = input.agents.find((agent) => agent.id === adapter);
+    const doctor = input.doctorAgents.find((agent) => agent.id === adapter);
+    const conformance = input.conformance.agents.find((agent) => agent.adapter === adapter);
+    const safeSmoke = input.safeSmokes[adapter] ?? null;
+    const optionalSmoke = input.authenticatedRealSmokes.find((smoke) => smoke.agent === adapter) ?? null;
+    const diagnostics = [
+      ...(detected?.diagnostics ?? []),
+      ...(doctor?.diagnostics ?? []),
+      ...(conformance?.diagnostics ?? []),
+      ...(safeSmoke?.diagnostics ?? []),
+      ...(optionalSmoke?.diagnostics ?? []),
+    ];
+    const available = detected?.available === true || conformance?.version !== null;
+    const unavailableReason = available ? null : firstDiagnosticCode(diagnostics) ?? "unavailable_executable";
+    return [adapter, {
+      executable: {
+        status: available ? "resolved" : "unavailable",
+        path: available ? "<resolved_executable>" : null,
+        unavailableReason,
+      },
+      version: conformance?.version ?? detected?.version ?? null,
+      auth: {
+        status: conformance?.auth ?? detected?.authStatus ?? "unknown",
+        diagnosticCodes: uniqueCodes(diagnostics.filter((item) => item.probe === "auth" || item.code === "auth_missing")),
+      },
+      modelsSource: {
+        source: conformance?.modelsSource ?? detected?.modelsSource ?? "none",
+        modelCount: detected?.modelCount ?? 0,
+      },
+      capabilities: conformance?.capabilities ?? detected?.capabilities ?? null,
+      argvProfile: conformance?.argvProfile ?? null,
+      parserMode: conformance?.parserMode ?? null,
+      promptTransport: conformance?.promptTransport ?? null,
+      safePreflight: {
+        command: "node ./dist/cli/main.js conformance --mode real --agent all --json",
+        ok: conformance?.runClassification === "success",
+        runClassification: conformance?.runClassification ?? "unavailable_executable",
+        expectedTextMatched: conformance?.expectedTextMatched ?? null,
+        cwdMutationChecked: conformance?.cwdMutationChecked === true,
+        cwdMutated: conformance?.cwdMutated ?? null,
+        skippedReason: conformance?.skippedReason ?? null,
+        failureReason: conformance?.failureReason ?? null,
+      },
+      optionalSmoke: optionalSmoke ? {
+        status: optionalSmoke.runClassification,
+        command: optionalSmoke.command,
+        ok: optionalSmoke.ok === true && optionalSmoke.runClassification === "success",
+        expectedTextRequired: optionalSmoke.expectedTextRequired === true,
+        expectedTextMatched: optionalSmoke.expectedTextMatched ?? null,
+        expectedTextSha256: optionalSmoke.expectedTextSha256 ?? null,
+        observedTextTailSha256: optionalSmoke.observedTextTailSha256 ?? null,
+        cwdMutationChecked: optionalSmoke.cwdMutationChecked === true,
+        cwdMutated: optionalSmoke.cwdMutated ?? null,
+        cwdMutationCount: optionalSmoke.cwdMutationCount ?? null,
+        skippedReason: optionalSmoke.skippedReason ?? null,
+        failureReason: optionalSmoke.failureReason ?? null,
+      } : {
+        status: "real_run_skipped",
+        reason: "not_requested",
+        ok: false,
+      },
+      diagnostics: summarizeDiagnostics(diagnostics),
+      needsVerification: conformance?.argvProfile?.needsVerification ?? [],
+    }];
+  }));
+}
+
+function firstDiagnosticCode(diagnostics) {
+  return diagnostics.find((item) => typeof item?.code === "string")?.code ?? null;
+}
+
+function uniqueCodes(diagnostics) {
+  return [...new Set(diagnostics.map((item) => item.code).filter(Boolean))];
 }
 
 function needsVerificationAudit(conformance) {
@@ -418,8 +589,14 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function truncate(value, max) {
+  if (typeof value !== "string") return value;
+  return value.length > max ? `${value.slice(0, max)}...` : value;
+}
+
 function assertRedacted(text) {
   const forbidden = [
+    { name: "temporary path", pattern: /(?:\/tmp\/|\/private\/tmp\/|\/var\/folders\/)/u },
     { name: "private user path", pattern: /(?:\/Users\/|\/home\/[^<\s/]+|[A-Z]:\\Users\\)/u },
     { name: "OpenAI-style secret", pattern: /sk-[A-Za-z0-9_-]{20,}/u },
     { name: "Bearer value", pattern: /\bBearer\s+(?!<)[A-Za-z0-9+/_=-]{10,}\b/u },
@@ -432,6 +609,12 @@ function assertRedacted(text) {
   for (const { name, pattern } of forbidden) {
     if (pattern.test(text)) fail(`refusing to write unredacted evidence: ${name}`);
   }
+}
+
+function displayEvidenceFile(file) {
+  const relative = path.relative(root, file);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return "<external_evidence_file>";
+  return relative.split(path.sep).join("/");
 }
 
 function fail(message) {

@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "agent-cli-runtime.publishedUsability.v1",
+  "ok": true,
+  "packageName": "agent-cli-runtime",
+  "version": "0.1.0-alpha.3",
+  "packageSource": "npm-registry",
+  "checkedAt": "2026-06-27T10:56:06.362Z",
+  "environment": {
+    "node": "v24.15.0",
+    "npm": "11.12.1"
+  },
+  "cleanTempConsumer": true,
+  "noLocalSourcePath": true,
+  "commands": [
+    {
+      "name": "npm_install",
+      "command": "npm install agent-cli-runtime@0.1.0-alpha.3",
+      "ok": true,
+      "schemaVersion": null,
+      "durationMs": 1063,
+      "summary": {
+        "packageSource": "npm-registry"
+      },
+      "diagnostics": []
+    },
+    {
+      "name": "esm_import",
+      "command": "node -e import createAgentRuntime",
+      "ok": true,
+      "schemaVersion": null,
+      "durationMs": 63,
+      "summary": {
+        "createAgentRuntime": true
+      },
+      "diagnostics": []
+    },
+    {
+      "name": "cli_agents_json",
+      "command": "agent-runtime agents --json",
+      "ok": true,
+      "schemaVersion": null,
+      "durationMs": 2774,
+      "summary": {
+        "agentsCount": 3
+      },
+      "diagnostics": []
+    },
+    {
+      "name": "cli_doctor_json",
+      "command": "agent-runtime doctor --json",
+      "ok": true,
+      "schemaVersion": null,
+      "durationMs": 2434,
+      "summary": {
+        "ok": true,
+        "agentsCount": 3
+      },
+      "diagnostics": []
+    },
+    {
+      "name": "cli_conformance_fake",
+      "command": "agent-runtime conformance --mode fake --json",
+      "ok": true,
+      "schemaVersion": "agent-runtime.conformance.v1",
+      "durationMs": 475,
+      "summary": {
+        "ok": true,
+        "summaries": 3
+      },
+      "diagnostics": []
+    },
+    {
+      "name": "cli_run_fake_codex",
+      "command": "agent-runtime run --agent codex --json",
+      "ok": true,
+      "schemaVersion": null,
+      "durationMs": 103,
+      "summary": {
+        "status": "succeeded",
+        "agentId": "codex"
+      },
+      "diagnostics": []
+    },
+    {
+      "name": "cli_goal_fake_codex",
+      "command": "agent-runtime goal --agent codex --json",
+      "ok": true,
+      "schemaVersion": null,
+      "durationMs": 185,
+      "summary": {
+        "status": "succeeded",
+        "taskCount": 1
+      },
+      "diagnostics": []
+    }
+  ],
+  "diagnostics": [],
+  "noAuthenticatedRealRun": true,
+  "noNpmPublish": true,
+  "noNpmToken": true
+}

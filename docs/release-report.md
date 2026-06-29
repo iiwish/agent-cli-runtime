@@ -1,7 +1,7 @@
 # Release Report: 0.1.0-alpha.3 Corrective Release
 
 Status: `0.1.0-alpha.3` corrective pre-alpha release
-Last updated: 2026-06-26
+Last updated: 2026-06-29
 
 This report is the packaged, stable release-state summary. Volatile release evidence such as current workflow run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, command transcripts, raw logs, raw CLI output, prompt text, and token-looking values belongs outside the npm package under `.release-evidence/` or durable GitHub Release assets.
 
@@ -60,9 +60,11 @@ npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
 ```
 
+`published:verify` creates the evidence file. `published:verify:evidence` verifies an existing local output directory or downloaded `agent-cli-runtime-published-verification` artifact directory; a bare verifier run without `published-verification/published-verification.json` exits `1` with redacted actionable JSON by design.
+
 ## Release-Candidate Artifacts
 
-`npm run release:candidate -- --out-dir <tmp-dir>` writes five review artifacts:
+`npm run release:candidate -- --out-dir <tmp-dir>` writes local strict review artifacts. Remote clean-checkout workflows use `npm run release:candidate -- --out-dir release-candidate --real-compatibility-mode repo-only-skipped`. Both modes write five review artifacts:
 
 - `agent-cli-runtime-tarball`
 - `agent-cli-runtime-pack-metadata`
@@ -78,7 +80,9 @@ npm run published:verify:evidence -- --dir published-verification
 - `runtime:safety`
 - `compat:real:evidence:verify`
 
-The gate evidence must keep `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` true.
+The compatibility gate summary must include the verifier schema, verified matrix schema, target SHA status, freshness status, dirty policy status, and diagnostic count/codes. Local strict mode uses the checked-in matrix `gitSha` as the default release target, records matched/fresh release evidence, and distinguishes clean input evidence, `self_dirty_only` matrix output-file writes, and explicitly allowed dirty input evidence. Remote repo-only skipped mode records `targetSha.status`, `freshness.status`, and `dirtyPolicy.status` as `repo_only_not_run` plus the fixed `repoOnlyEvidence.status: "not_refreshed_in_ci"` reason. It must not include the raw `.release-evidence/` matrix, raw stdout/stderr, prompt text, private paths, tokens, Bearer values, or auth environment values. The gate evidence must keep `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` true.
+
+P8-4 release-strict compatibility closure uses `.release-evidence/p8-4-release-strict-compatibility.json` as the repo-only summary. It records the target SHA, matrix/verifier schemas, strict compatibility verifier result, local strict `release:candidate` and `release:verify` summary, remote workflow trigger state, downloaded-artifact verification state, and branch/main evidence decision. A target SHA that is not in `origin/main` remains branch/local evidence with `mainEvidence: false`; fresh `main` release-candidate evidence requires a workflow run whose `headSha` equals the target SHA and whose downloaded five artifacts pass `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>`.
 
 ## Package Boundary
 
@@ -104,6 +108,7 @@ The API and CLI schema inventory, versioning policy, root export boundary, and f
 - `agent-cli-runtime.releaseVerification.v1`
 - `agent-cli-runtime.releaseGateEvidence.v1`
 - `agent-cli-runtime.realCompatibilityEvidenceVerification.v1`
+- `agent-cli-runtime.realCompatibilityMatrix.v1`
 - `agent-cli-runtime.realCompatibilityEvidence.v1`
 - `agent-cli-runtime.packagedDocsVerification.v1`
 - `agent-cli-runtime.publishedVerification.v1`
