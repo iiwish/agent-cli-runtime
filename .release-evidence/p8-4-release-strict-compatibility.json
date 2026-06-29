@@ -2,11 +2,11 @@
   "schemaVersion": "agent-cli-runtime.p8ReleaseStrictCompatibilityEvidence.v1",
   "stage": "P8-4",
   "evidenceKind": "branch-local-release-strict-compatibility",
-  "checkedAt": "2026-06-29T08:19:41.838Z",
-  "targetSha": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
+  "checkedAt": "2026-06-29T09:38:07.694Z",
+  "targetSha": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
   "targetShaSource": "p8-2-real-compatibility-matrix",
   "targetRef": "codex/p8-4-release-strict-compatibility",
-  "currentHeadSha": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
+  "currentHeadSha": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
   "currentHeadShaMeaning": "HEAD at summary generation time; release target evidence remains bound to targetSha.",
   "originMainShaAtCheck": "35fe12a0b16e9803a532d5b639ea9affca170656",
   "branchEvidence": true,
@@ -20,9 +20,9 @@
   "matrix": {
     "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json",
     "schemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
-    "checkedAt": "2026-06-29T08:18:03.885Z",
+    "checkedAt": "2026-06-29T09:37:37.302Z",
     "packageVersion": "0.1.0-alpha.3",
-    "gitSha": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
+    "gitSha": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
     "gitInputDirty": false,
     "gitOutputDirty": true,
     "dirtySummary": {
@@ -75,14 +75,14 @@
     "ok": true,
     "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
     "targetSha": {
-      "expected": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
-      "actual": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
+      "expected": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
+      "actual": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
       "ok": true,
       "status": "matched"
     },
     "freshness": {
       "maxAgeHours": 24,
-      "ageHours": 0.03,
+      "ageHours": 0.01,
       "ok": true,
       "status": "fresh"
     },
@@ -199,14 +199,14 @@
             "outputSchemaVersion": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
             "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
             "targetSha": {
-              "expected": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
-              "actual": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
+              "expected": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
+              "actual": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
               "ok": true,
               "status": "matched"
             },
             "freshness": {
               "maxAgeHours": 24,
-              "ageHours": 0.02,
+              "ageHours": 0.01,
               "ok": true,
               "status": "fresh"
             },

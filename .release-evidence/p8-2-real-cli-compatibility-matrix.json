@@ -1,14 +1,14 @@
 {
   "schemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
-  "checkedAt": "2026-06-29T08:18:03.885Z",
-  "gitSha": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
-  "gitHeadSha": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
+  "checkedAt": "2026-06-29T09:37:37.302Z",
+  "gitSha": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
+  "gitHeadSha": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
   "gitShaMeaning": "HEAD commit only; see gitInputDirty/gitOutputDirty and dirtySummary for uncommitted input evidence versus evidence-output self writes.",
   "gitDirty": false,
   "gitInputDirty": false,
   "gitOutputDirty": true,
   "gitStatusBeforeWrite": {
-    "headSha": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
+    "headSha": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
     "dirty": false,
     "changedFilesCount": 0,
     "changedFiles": [],
@@ -1471,7 +1471,7 @@
     "expectedExcludedPath": ".release-evidence/"
   },
   "gitStatusAfterWrite": {
-    "headSha": "d9f1adf96fa8b55035602a9e6a644d930a6d36c7",
+    "headSha": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
     "dirty": true,
     "changedFilesCount": 1,
     "changedFiles": [
