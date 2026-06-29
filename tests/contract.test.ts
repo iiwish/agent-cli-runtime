@@ -706,6 +706,7 @@ describe("public contract", () => {
     try {
       const externalStdout = (await execFileP("npm", [
         "run",
+        "--silent",
         "compat:real:evidence",
         "--",
         "--out",
