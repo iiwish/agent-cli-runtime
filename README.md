@@ -416,6 +416,8 @@ npm run release:main-candidate:evidence -- --stage <stage> --release-target-sha 
 
 The release evidence summary is [docs/release-report.md](./docs/release-report.md), with volatile P8-4 target-SHA evidence under `.release-evidence/p8-4-release-strict-compatibility.json`, historical P8-5 main remote evidence under `.release-evidence/p8-5-main-release-candidate.json`, and current P8-7 fresh main evidence under `.release-evidence/p8-7-main-release-candidate.json`. The alpha publish decision runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate. Published package verification is a separate manual post-publish workflow, not a publish workflow.
 
+Main-scoped evidence proves only its recorded `releaseTargetSha`; an evidence-recording commit or later PR merge commit needs its own fresh main evidence before it can be used as a release target.
+
 Runnable examples are in [examples/library-run.js](./examples/library-run.js), [examples/library-goal.js](./examples/library-goal.js), and [examples/cli-dogfood.md](./examples/cli-dogfood.md). The JavaScript examples create local fake CLIs and do not require real provider secrets.
 
 ## CLI

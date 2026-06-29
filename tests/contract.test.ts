@@ -5306,6 +5306,9 @@ setInterval(() => {}, 1000);
     });
     expect(evidence.boundary).toMatchObject({
       repoOnlyEvidence: true,
+      proofAppliesToReleaseTargetShaOnly: true,
+      evidenceRecordingCommitMayDifferFromReleaseTargetSha: true,
+      futureMergeCommitRequiresFreshMainEvidence: true,
       noGithubRelease: true,
       noTrustedPublishing: true,
       noRawStdoutStderr: true,

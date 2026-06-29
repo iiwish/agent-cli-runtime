@@ -414,6 +414,8 @@ npm run release:main-candidate:evidence -- --stage <stage> --release-target-sha 
 
 Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，易漂移的 P8-4 target-SHA evidence 保存在 `.release-evidence/p8-4-release-strict-compatibility.json`，历史 P8-5 main remote evidence 保存在 `.release-evidence/p8-5-main-release-candidate.json`，当前 P8-7 fresh main evidence 保存在 `.release-evidence/p8-7-main-release-candidate.json`，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。Published package verification 是单独的手动 post-publish workflow，不是 publish workflow。
 
+Main-scoped evidence 只证明其记录的 `releaseTargetSha`；记录 evidence 的提交或后续 PR merge commit 要作为 release target 时，需要重新生成 fresh main evidence。
+
 可运行示例见 [examples/library-run.js](./examples/library-run.js)、[examples/library-goal.js](./examples/library-goal.js) 和 [examples/cli-dogfood.md](./examples/cli-dogfood.md)。两个 JavaScript 示例会创建本地 fake CLI，不需要真实 provider secret。
 
 ## CLI

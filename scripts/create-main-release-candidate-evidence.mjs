@@ -691,6 +691,9 @@ function main() {
     noNpmToken: true,
     boundary: {
       repoOnlyEvidence: true,
+      proofAppliesToReleaseTargetShaOnly: true,
+      evidenceRecordingCommitMayDifferFromReleaseTargetSha: true,
+      futureMergeCommitRequiresFreshMainEvidence: true,
       noGithubRelease: true,
       noTrustedPublishing: true,
       noRawStdoutStderr: true,
