@@ -72,6 +72,14 @@ npm run published:verify:evidence -- --dir published-verification
 - `agent-cli-runtime-gate-evidence`
 - `agent-cli-runtime-release-verification`
 
+Downloaded GitHub Actions artifacts are normalized before verification:
+
+```bash
+npm run release:artifacts:normalize -- --download-dir <gh-download-dir> --out-dir <normalized-artifact-dir>
+```
+
+The normalizer emits `schemaVersion: "agent-cli-runtime.releaseArtifactNormalization.v1"`, copies only `npm-pack.json`, `package-files.txt`, `gate-evidence.json`, `release-verification.json`, and `agent-cli-runtime-*.tgz`, and rejects missing, duplicate, or unknown files without exposing absolute local paths. The normalized directory is the input to `npm run release:verify -- --dir <normalized-artifact-dir>`.
+
 `npm run release:verify -- --dir <tmp-dir>` emits `schemaVersion: "agent-cli-runtime.releaseVerification.v1"` and must return `ok: true` with empty diagnostics before the candidate can proceed.
 
 `gate-evidence.json` must use `schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1"` and include:
@@ -84,7 +92,7 @@ The compatibility gate summary must include the verifier schema, verified matrix
 
 P8-4 release-strict compatibility closure uses `.release-evidence/p8-4-release-strict-compatibility.json` as the repo-only summary. It records the target SHA, matrix/verifier schemas, strict compatibility verifier result, local strict `release:candidate` and `release:verify` summary, remote workflow trigger state, downloaded-artifact verification state, and branch/main evidence decision. A target SHA that is not in `origin/main` remains branch/local evidence with `mainEvidence: false`; fresh `main` release-candidate evidence requires a workflow run whose `headSha` equals the target SHA and whose downloaded five artifacts pass `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>`.
 
-P8-5 main-scoped remote release-candidate closure uses `.release-evidence/p8-5-main-release-candidate.json` as the repo-only summary. It binds `releaseTargetSha` to `origin/main`, records local strict matrix verification and local strict release artifacts, then records a fresh `release-candidate.yml --ref main` run whose `headSha` equals `releaseTargetSha`. The downloaded artifact set must contain all five release-candidate artifacts and pass `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>`. Remote clean-checkout artifacts record real compatibility as `repo_only_not_run` / `not_refreshed_in_ci`; the compatibility conclusion comes from the local strict matrix verifier. P8-5 is not npm publish evidence and does not create a GitHub Release, npm token, trusted publishing configuration, or authenticated real run.
+P8-5 main-scoped remote release-candidate closure uses `.release-evidence/p8-5-main-release-candidate.json` as the repo-only summary. It is generated with `npm run release:main-candidate:evidence -- --release-target-sha <origin-main-sha> --local-release-dir <local-strict-dir> --remote-run-json <run.json> --artifacts-json <artifacts.json> --downloaded-dir <normalized-artifact-dir>`. It binds `releaseTargetSha` to `origin/main`, records local strict matrix verification and local strict release artifacts, then records a fresh `release-candidate.yml --ref main` run whose `event` is `workflow_dispatch`, `headBranch` is `main`, `status` is `completed`, `conclusion` is `success`, and `headSha` equals `releaseTargetSha`. The remote artifact metadata must contain exactly the five release-candidate artifact names, with no missing, duplicate, expired, unknown, or digest-less artifact. The downloaded artifact set must pass `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>` with `ok: true`. Remote clean-checkout artifacts record real compatibility as `repo_only_not_run` / `not_refreshed_in_ci`; the compatibility conclusion comes from the local strict matrix verifier. P8-5 is not npm publish evidence and does not create a GitHub Release, npm token, trusted publishing configuration, or authenticated real run.
 
 ## Package Boundary
 
@@ -109,6 +117,7 @@ The API and CLI schema inventory, versioning policy, root export boundary, and f
 
 - `agent-cli-runtime.releaseVerification.v1`
 - `agent-cli-runtime.releaseGateEvidence.v1`
+- `agent-cli-runtime.releaseArtifactNormalization.v1`
 - `agent-cli-runtime.realCompatibilityEvidenceVerification.v1`
 - `agent-cli-runtime.realCompatibilityMatrix.v1`
 - `agent-cli-runtime.realCompatibilityEvidence.v1`

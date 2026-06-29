@@ -8,6 +8,7 @@ const MATRIX_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityMatrix.v1";
 const VERIFIER_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityEvidenceVerification.v1";
 const RELEASE_VERIFICATION_SCHEMA_VERSION = "agent-cli-runtime.releaseVerification.v1";
 const RELEASE_GATE_EVIDENCE_SCHEMA_VERSION = "agent-cli-runtime.releaseGateEvidence.v1";
+const SELF_TEST_SCHEMA_VERSION = "agent-cli-runtime.p8MainReleaseCandidateEvidenceSelfTest.v1";
 const MATRIX_FILE = ".release-evidence/p8-2-real-cli-compatibility-matrix.json";
 const DEFAULT_OUTPUT = ".release-evidence/p8-5-main-release-candidate.json";
 const COMPAT_VERIFY_COMMAND = "npm run compat:real:evidence:verify -- --target-sha <releaseTargetSha> --max-age-hours 24 --release-strict";
@@ -31,6 +32,7 @@ function parseArgs(argv) {
     artifactsJson: null,
     downloadedDir: null,
     output: DEFAULT_OUTPUT,
+    selfTest: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -46,16 +48,22 @@ function parseArgs(argv) {
       options.downloadedDir = requireValue(argv, ++index, arg);
     } else if (arg === "--out" || arg === "--output") {
       options.output = requireValue(argv, ++index, arg);
+    } else if (arg === "--self-test") {
+      options.selfTest = true;
     } else if (arg === "--help" || arg === "-h") {
       process.stdout.write(`Usage: node scripts/create-main-release-candidate-evidence.mjs --release-target-sha <sha> --local-release-dir <dir> [--remote-run-json <file> --artifacts-json <file> --downloaded-dir <dir>] [--out <file>]
 
 Writes repo-only P8-5 main-scoped release-candidate evidence. It summarizes local strict matrix verification, local release artifacts, and optionally a fresh remote workflow run plus downloaded artifact verification.
+
+Self-test:
+  --self-test   Run local validator fixtures without reading git state or artifacts.
 `);
       process.exit(0);
     } else {
       throw new Error(`Unknown argument: ${redact(arg)}`);
     }
   }
+  if (options.selfTest) return options;
   if (!/^[0-9a-f]{40}$/u.test(options.releaseTargetSha ?? "")) {
     throw new Error("--release-target-sha must be a full lowercase 40-character commit SHA");
   }
@@ -105,7 +113,8 @@ function runText(command, args) {
   return result.stdout.trim();
 }
 
-function runJson(command, args) {
+function runJson(command, args, options = {}) {
+  const requireOk = options.requireOk !== false;
   const result = run(command, args);
   let parsed;
   try {
@@ -113,7 +122,7 @@ function runJson(command, args) {
   } catch {
     throw new Error(`command did not produce JSON: ${command} ${args.map(redact).join(" ")}`);
   }
-  if (result.status !== 0 || parsed?.ok !== true) {
+  if (requireOk && (result.status !== 0 || parsed?.ok !== true)) {
     throw new Error(`command failed JSON gate: ${command} ${args.map(redact).join(" ")}`);
   }
   return parsed;
@@ -121,6 +130,12 @@ function runJson(command, args) {
 
 function readJson(file) {
   return JSON.parse(readFileSync(file, "utf8"));
+}
+
+function evidenceError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
 }
 
 function gitIsAncestor(ancestorSha, ref) {
@@ -263,8 +278,8 @@ function summarizeRemoteRun(remoteRun, releaseTargetSha) {
   return {
     id: typeof remoteRun?.databaseId === "number" ? remoteRun.databaseId : typeof remoteRun?.id === "number" ? remoteRun.id : null,
     url: typeof remoteRun?.url === "string" ? remoteRun.url : null,
-    event: typeof remoteRun?.event === "string" ? remoteRun.event : "workflow_dispatch",
-    headBranch: typeof remoteRun?.headBranch === "string" ? remoteRun.headBranch : "main",
+    event: typeof remoteRun?.event === "string" ? remoteRun.event : null,
+    headBranch: typeof remoteRun?.headBranch === "string" ? remoteRun.headBranch : null,
     headSha: typeof remoteRun?.headSha === "string" ? remoteRun.headSha : null,
     status: typeof remoteRun?.status === "string" ? remoteRun.status : null,
     conclusion: typeof remoteRun?.conclusion === "string" ? remoteRun.conclusion : null,
@@ -287,14 +302,86 @@ function summarizeArtifacts(payload) {
     name: typeof artifact?.name === "string" ? artifact.name : null,
     id: typeof artifact?.id === "number" ? artifact.id : null,
     digest: typeof artifact?.digest === "string" ? artifact.digest : null,
+    expired: typeof artifact?.expired === "boolean" ? artifact.expired : null,
   })).filter((artifact) => artifact.name !== null);
+  const diagnostics = validateArtifacts(items);
   return {
     count: items.length,
     names: items.map((artifact) => artifact.name).sort(),
     items: items.sort((left, right) => String(left.name).localeCompare(String(right.name))),
     expectedNames: [...EXPECTED_ARTIFACTS].sort(),
     complete: EXPECTED_ARTIFACTS.every((name) => items.some((artifact) => artifact.name === name)),
+    valid: diagnostics.length === 0,
   };
+}
+
+function validateRemoteRun(remoteRun, releaseTargetSha) {
+  if (remoteRun?.event !== "workflow_dispatch") {
+    throw evidenceError("remote_run_event_not_workflow_dispatch", "remote workflow run must be workflow_dispatch");
+  }
+  if (remoteRun?.headBranch !== "main") {
+    throw evidenceError("remote_run_head_branch_not_main", "remote workflow run must target main");
+  }
+  if (remoteRun?.status !== "completed") {
+    throw evidenceError("remote_run_status_not_completed", "remote workflow run must be completed");
+  }
+  if (remoteRun?.conclusion !== "success") {
+    throw evidenceError("remote_run_conclusion_not_success", "remote workflow run conclusion must be success");
+  }
+  if (remoteRun?.headSha !== releaseTargetSha || remoteRun?.headShaMatchesReleaseTarget !== true) {
+    throw evidenceError("remote_run_head_sha_mismatch", "remote workflow run head SHA must equal release target SHA");
+  }
+}
+
+function validateArtifacts(items) {
+  const diagnostics = [];
+  const counts = new Map();
+  for (const item of items) {
+    counts.set(item.name, (counts.get(item.name) ?? 0) + 1);
+    if (!EXPECTED_ARTIFACTS.includes(item.name)) {
+      diagnostics.push({ code: "unknown_remote_artifact", artifact: item.name });
+    }
+    if (!/^sha256:[0-9a-f]{64}$/u.test(item.digest ?? "")) {
+      diagnostics.push({ code: "remote_artifact_digest_missing", artifact: item.name });
+    }
+    if (item.expired === true) {
+      diagnostics.push({ code: "remote_artifact_expired", artifact: item.name });
+    }
+  }
+  for (const expected of EXPECTED_ARTIFACTS) {
+    const count = counts.get(expected) ?? 0;
+    if (count === 0) diagnostics.push({ code: "missing_remote_artifact", artifact: expected });
+    if (count > 1) diagnostics.push({ code: "duplicate_remote_artifact", artifact: expected });
+  }
+  return diagnostics;
+}
+
+function validateRemoteArtifacts(summary) {
+  const diagnostics = validateArtifacts(summary.items ?? []);
+  if (summary.count !== EXPECTED_ARTIFACTS.length) {
+    diagnostics.push({ code: "remote_artifact_count_mismatch" });
+  }
+  if (diagnostics.length > 0) {
+    throw evidenceError(diagnostics[0].code, "remote workflow artifacts must exactly match the expected five release-candidate artifacts");
+  }
+}
+
+function validateDownloadedVerification(verification) {
+  if (verification?.ok !== true) {
+    throw evidenceError("downloaded_release_artifacts_not_ok", "downloaded release artifacts must verify with ok: true");
+  }
+}
+
+function validateMainMatrix(matrix, releaseTargetSha) {
+  if (matrix?.schemaVersion !== MATRIX_SCHEMA_VERSION) {
+    throw evidenceError("matrix_schema_invalid", "P8 matrix schema is unsupported");
+  }
+  if (matrix?.gitSha !== releaseTargetSha) {
+    throw evidenceError("matrix_target_sha_mismatch", "P8 matrix gitSha must equal release target SHA");
+  }
+  if (matrix?.gitInputDirty !== false) {
+    throw evidenceError("matrix_input_dirty", "P8 matrix input evidence must be clean for main evidence");
+  }
 }
 
 function assertSafeEvidence(text) {
@@ -331,8 +418,96 @@ function authEnvAssignmentPattern(flags = "iu") {
   );
 }
 
+function fixtureArtifacts(overrides = []) {
+  const digest = `sha256:${"a".repeat(64)}`;
+  const artifacts = EXPECTED_ARTIFACTS.map((name, index) => ({
+    name,
+    id: index + 1,
+    digest,
+    expired: false,
+  }));
+  return { artifacts: [...artifacts, ...overrides] };
+}
+
+function fixtureRemoteRun(overrides = {}) {
+  const releaseTargetSha = "0123456789abcdef0123456789abcdef01234567";
+  return {
+    databaseId: 1,
+    url: "https://github.com/iiwish/agent-cli-runtime/actions/runs/1",
+    event: "workflow_dispatch",
+    headBranch: "main",
+    headSha: releaseTargetSha,
+    status: "completed",
+    conclusion: "success",
+    createdAt: "2026-06-29T00:00:00Z",
+    updatedAt: "2026-06-29T00:01:00Z",
+    jobs: [{ name: "Build release candidate artifacts", status: "completed", conclusion: "success" }],
+    ...overrides,
+  };
+}
+
+function runSelfTest() {
+  const releaseTargetSha = "0123456789abcdef0123456789abcdef01234567";
+  const cases = [
+    {
+      name: "remote headSha mismatch is rejected",
+      expectedCode: "remote_run_head_sha_mismatch",
+      run() {
+        validateRemoteRun(summarizeRemoteRun(fixtureRemoteRun({ headSha: "abcdef0123456789abcdef0123456789abcdef01" }), releaseTargetSha), releaseTargetSha);
+      },
+    },
+    {
+      name: "failed remote conclusion is rejected",
+      expectedCode: "remote_run_conclusion_not_success",
+      run() {
+        validateRemoteRun(summarizeRemoteRun(fixtureRemoteRun({ conclusion: "failure" }), releaseTargetSha), releaseTargetSha);
+      },
+    },
+    {
+      name: "incomplete remote artifact set is rejected",
+      expectedCode: "missing_remote_artifact",
+      run() {
+        const artifacts = fixtureArtifacts().artifacts.filter((artifact) => artifact.name !== "agent-cli-runtime-release-verification");
+        validateRemoteArtifacts(summarizeArtifacts({ artifacts }));
+      },
+    },
+    {
+      name: "downloaded verification failure is rejected",
+      expectedCode: "downloaded_release_artifacts_not_ok",
+      run() {
+        validateDownloadedVerification({ schemaVersion: RELEASE_VERIFICATION_SCHEMA_VERSION, ok: false });
+      },
+    },
+  ].map((testCase) => {
+    try {
+      testCase.run();
+      return { name: testCase.name, ok: false, expectedCode: testCase.expectedCode, actualCode: null };
+    } catch (error) {
+      const actualCode = typeof error?.code === "string" ? error.code : "error";
+      return {
+        name: testCase.name,
+        ok: actualCode === testCase.expectedCode,
+        expectedCode: testCase.expectedCode,
+        actualCode,
+      };
+    }
+  });
+
+  const result = {
+    schemaVersion: SELF_TEST_SCHEMA_VERSION,
+    ok: cases.every((testCase) => testCase.ok),
+    cases,
+  };
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  if (!result.ok) process.exit(1);
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
+  if (options.selfTest) {
+    runSelfTest();
+    return;
+  }
   const releaseTargetSha = options.releaseTargetSha;
   const headSha = runText("git", ["rev-parse", "HEAD"]);
   const originMainSha = runText("git", ["rev-parse", "origin/main"]);
@@ -347,6 +522,7 @@ function main() {
   }
 
   const matrix = readJson(MATRIX_FILE);
+  validateMainMatrix(matrix, releaseTargetSha);
   const compatibilityVerification = runJson("npm", [
     "run",
     "--silent",
@@ -375,9 +551,14 @@ function main() {
     items: [],
     expectedNames: [...EXPECTED_ARTIFACTS].sort(),
     complete: false,
+    valid: false,
   };
+  const downloadedVerificationPayload = hasRemoteEvidence
+    ? runJson("npm", ["run", "--silent", "release:verify", "--", "--dir", options.downloadedDir], { requireOk: false })
+    : null;
+  if (hasRemoteEvidence) validateDownloadedVerification(downloadedVerificationPayload);
   const downloadedVerification = hasRemoteEvidence
-    ? summarizeReleaseVerification(runJson("npm", ["run", "--silent", "release:verify", "--", "--dir", options.downloadedDir]), DOWNLOADED_VERIFY_COMMAND)
+    ? summarizeReleaseVerification(downloadedVerificationPayload, DOWNLOADED_VERIFY_COMMAND)
     : {
       command: DOWNLOADED_VERIFY_COMMAND,
       schemaVersion: null,
@@ -451,11 +632,9 @@ function main() {
   };
 
   if (hasRemoteEvidence) {
-    if (remoteRun?.headShaMatchesReleaseTarget !== true || remoteRun?.conclusion !== "success") {
-      throw new Error("remote workflow run does not prove the release target");
-    }
-    if (remoteArtifacts.complete !== true) throw new Error("remote workflow artifacts are incomplete");
-    if (downloadedVerification.ok !== true) throw new Error("downloaded release artifacts did not verify");
+    validateRemoteRun(remoteRun, releaseTargetSha);
+    validateRemoteArtifacts(remoteArtifacts);
+    validateDownloadedVerification(downloadedVerification);
   }
 
   const text = `${JSON.stringify(summary, null, 2)}\n`;
@@ -484,6 +663,7 @@ try {
   process.stdout.write(`${JSON.stringify({
     ok: false,
     schemaVersion: SUMMARY_SCHEMA_VERSION,
+    code: typeof error?.code === "string" ? error.code : "error",
     error: redact(error instanceof Error ? error.message : String(error)),
   }, null, 2)}\n`);
   process.exit(1);

@@ -397,9 +397,22 @@ npm run release:candidate -- --out-dir release-candidate
 npm run release:verify -- --dir release-candidate
 ```
 
-`release:candidate` 会在输出目录写入 `npm-pack.json`、`package-files.txt`、`gate-evidence.json`、tarball 和 `release-verification.json`。`release:verify` 也可用于下载 GitHub Actions artifacts 后复核同一组文件，并确认候选包记录了 `daemon:verify`、`runtime:safety`，以及本地 strict 的 target SHA / freshness verifier 证据或远端 repo-only skipped 的明确状态。
+`release:candidate` 会在输出目录写入 `npm-pack.json`、`package-files.txt`、`gate-evidence.json`、tarball 和 `release-verification.json`。`gh run download` 会把五个 GitHub Actions artifacts 解包到按 artifact name 分开的子目录；复验前先归一化为单层目录：
 
-Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，易漂移的 P8-4 target-SHA evidence 保存在 `.release-evidence/p8-4-release-strict-compatibility.json`，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。Published package verification 是单独的手动 post-publish workflow，不是 publish workflow。
+```bash
+npm run release:artifacts:normalize -- --download-dir <gh-download-dir> --out-dir <normalized-artifact-dir>
+npm run release:verify -- --dir <normalized-artifact-dir>
+```
+
+`release:artifacts:normalize` 输出 `schemaVersion: "agent-cli-runtime.releaseArtifactNormalization.v1"`，只复制五个预期 release-candidate 文件，缺失、重复或未知文件都会失败，并且不会在 JSON 输出里打印本机绝对路径。`release:verify` 复核归一化后的文件，并确认候选包记录了 `daemon:verify`、`runtime:safety`，以及本地 strict 的 target SHA / freshness verifier 证据或远端 repo-only skipped 的明确状态。
+
+Main-scoped release-candidate evidence 通过以下命令生成：
+
+```bash
+npm run release:main-candidate:evidence -- --release-target-sha <origin-main-sha> --local-release-dir <local-strict-dir> --remote-run-json <run.json> --artifacts-json <artifacts.json> --downloaded-dir <normalized-artifact-dir>
+```
+
+Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，易漂移的 P8-4 target-SHA evidence 保存在 `.release-evidence/p8-4-release-strict-compatibility.json`，P8-5 main remote evidence 保存在 `.release-evidence/p8-5-main-release-candidate.json`，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。Published package verification 是单独的手动 post-publish workflow，不是 publish workflow。
 
 可运行示例见 [examples/library-run.js](./examples/library-run.js)、[examples/library-goal.js](./examples/library-goal.js) 和 [examples/cli-dogfood.md](./examples/cli-dogfood.md)。两个 JavaScript 示例会创建本地 fake CLI，不需要真实 provider secret。
 
