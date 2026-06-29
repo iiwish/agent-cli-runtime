@@ -53,6 +53,7 @@ const packagedDocsChecker = path.join(root, "scripts", "check-packaged-docs.mjs"
 const realCompatibilityEvidenceCreator = path.join(root, "scripts", "create-real-compatibility-evidence.mjs");
 const realCompatibilityEvidenceVerifier = path.join(root, "scripts", "verify-real-compatibility-evidence.mjs");
 const releaseStrictCompatibilityEvidenceCreator = path.join(root, "scripts", "create-release-strict-compatibility-evidence.mjs");
+const mainReleaseCandidateEvidenceCreator = path.join(root, "scripts", "create-main-release-candidate-evidence.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
@@ -4630,6 +4631,243 @@ setInterval(() => {}, 1000);
     expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
     expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|stdout|stderr|promptText|fullPrompt|resolvedExecutablePath|<resolved_executable>/u);
     expect(evidenceText).not.toMatch(/"id":\s*\d+|"url":\s*"https:\/\/github\.com\/iiwish\/agent-cli-runtime\/actions\/runs\//u);
+  });
+
+  it("records P8-5 main remote release-candidate closure as repo-only evidence", async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
+      files: string[];
+    };
+    const script = await readFile(mainReleaseCandidateEvidenceCreator, "utf8");
+    const evidenceText = await readFile(path.join(root, ".release-evidence", "p8-5-main-release-candidate.json"), "utf8");
+    const evidence = JSON.parse(evidenceText) as {
+      schemaVersion: string;
+      stage: string;
+      evidenceKind: string;
+      releaseTargetSha: string;
+      targetRef: string;
+      currentHeadSha: string;
+      originMainShaAtCheck: string;
+      p8_4TargetInOriginMain: boolean;
+      mainEvidence: boolean;
+      branchEvidence: boolean;
+      matrix: { gitSha: string; gitInputDirty: boolean; gitOutputDirty: boolean };
+      compatibilityVerification: {
+        ok: boolean;
+        evidenceSchemaVersion: string;
+        targetSha: { expected: string; actual: string; ok: boolean; status: string };
+        freshness: { maxAgeHours: number; ok: boolean; status: string };
+        dirtyPolicy: { policy: string; inputDirty: boolean; outputDirty: boolean; ok: boolean; status: string };
+        diagnosticSummary: { count: number; codes: string[] };
+      };
+      localReleaseCandidate: {
+        verification: {
+          ok: boolean;
+          schemaVersion: string;
+          artifactNames: string[];
+          gateEvidence: { schemaVersion: string; gates: Array<{ script: string; ok: boolean; evidenceSchemaVersion: string | null; diagnostics: { count: number | null; codes: string[] } }> };
+        };
+      };
+      remoteReleaseCandidate: {
+        workflow: string;
+        ref: string;
+        triggered: boolean;
+        run: {
+          id: number;
+          url: string;
+          event: string;
+          headBranch: string;
+          headSha: string;
+          status: string;
+          conclusion: string;
+          headShaMatchesReleaseTarget: boolean;
+          jobs: Array<{ name: string; status: string; conclusion: string }>;
+        };
+        artifacts: {
+          count: number;
+          names: string[];
+          expectedNames: string[];
+          complete: boolean;
+          items: Array<{ name: string; id: number; digest: string }>;
+        };
+      };
+      downloadedArtifacts: {
+        verified: boolean;
+        skippedReason: string | null;
+        verification: {
+          command: string;
+          schemaVersion: string;
+          ok: boolean;
+          diagnosticsCount: number;
+          artifactNames: string[];
+          gateEvidence: {
+            schemaVersion: string;
+            gates: Array<{
+              script: string;
+              command: string;
+              ok: boolean;
+              evidenceSchemaVersion: string | null;
+              targetSha: { expected: string; actual: string | null; ok: boolean | null; status: string | null };
+              freshness: { status: string | null };
+              dirtyPolicy: { policy: string | null; status: string | null };
+              diagnostics: { count: number | null; codes: string[] };
+              repoOnlyEvidence: { status: string; reason: string } | null;
+            }>;
+            noAuthenticatedRealRun: boolean;
+            noNpmPublish: boolean;
+            noNpmToken: boolean;
+          };
+        };
+      };
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+      boundary: Record<string, boolean>;
+    };
+
+    expect(manifest.files).not.toContain("scripts/create-main-release-candidate-evidence.mjs");
+    expect(script).toContain("agent-cli-runtime.p8MainReleaseCandidateEvidence.v1");
+    expect(script).toContain("releaseTargetSha");
+    expect(script).toContain("headShaMatchesReleaseTarget");
+    expect(script).toContain("release-candidate.yml");
+    expect(script).toContain("repo-only real compatibility evidence not refreshed in CI");
+    expect(script).not.toMatch(/\bnpm publish\b/u);
+    expect(script).not.toContain("--allow-real-run");
+    expect(script).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(evidence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.p8MainReleaseCandidateEvidence.v1",
+      stage: "P8-5",
+      evidenceKind: "main-scoped-remote-release-candidate",
+      targetRef: "main",
+      mainEvidence: true,
+      branchEvidence: false,
+      p8_4TargetInOriginMain: true,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+    expect(evidence.releaseTargetSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(evidence.currentHeadSha).toBe(evidence.releaseTargetSha);
+    expect(evidence.originMainShaAtCheck).toBe(evidence.releaseTargetSha);
+    expect(evidence.matrix.gitSha).toBe(evidence.releaseTargetSha);
+    expect(evidence.matrix.gitInputDirty).toBe(false);
+    expect(evidence.matrix.gitOutputDirty).toBe(true);
+    expect(evidence.compatibilityVerification).toMatchObject({
+      ok: true,
+      evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityMatrix.v1",
+      targetSha: { expected: evidence.releaseTargetSha, actual: evidence.releaseTargetSha, ok: true, status: "matched" },
+      freshness: { maxAgeHours: 24, ok: true, status: "fresh" },
+      dirtyPolicy: { policy: "release-strict", inputDirty: false, outputDirty: true, ok: true, status: "self_dirty_only" },
+      diagnosticSummary: { count: 0, codes: [] },
+    });
+    expect(evidence.localReleaseCandidate.verification).toMatchObject({
+      ok: true,
+      schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+    });
+    expect(evidence.localReleaseCandidate.verification.artifactNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.localReleaseCandidate.verification.gateEvidence.gates.map((gate) => gate.script).sort()).toEqual([
+      "compat:real:evidence:verify",
+      "daemon:verify",
+      "runtime:safety",
+    ]);
+
+    expect(evidence.remoteReleaseCandidate).toMatchObject({
+      workflow: ".github/workflows/release-candidate.yml",
+      ref: "main",
+      triggered: true,
+      run: {
+        event: "workflow_dispatch",
+        headBranch: "main",
+        headSha: evidence.releaseTargetSha,
+        status: "completed",
+        conclusion: "success",
+        headShaMatchesReleaseTarget: true,
+      },
+      artifacts: {
+        count: 5,
+        complete: true,
+      },
+    });
+    expect(evidence.remoteReleaseCandidate.run.id).toBeGreaterThan(0);
+    expect(evidence.remoteReleaseCandidate.run.url).toMatch(/^https:\/\/github\.com\/iiwish\/agent-cli-runtime\/actions\/runs\/\d+$/u);
+    expect(evidence.remoteReleaseCandidate.run.jobs).toEqual([
+      { name: "Build release candidate artifacts", status: "completed", conclusion: "success" },
+    ]);
+    expect(evidence.remoteReleaseCandidate.artifacts.names.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.remoteReleaseCandidate.artifacts.expectedNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.remoteReleaseCandidate.artifacts.items.map((artifact) => artifact.name).sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    for (const artifact of evidence.remoteReleaseCandidate.artifacts.items) {
+      expect(artifact.id).toBeGreaterThan(0);
+      expect(artifact.digest).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    }
+
+    expect(evidence.downloadedArtifacts).toMatchObject({
+      verified: true,
+      skippedReason: null,
+      verification: {
+        command: "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+        schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+        ok: true,
+        diagnosticsCount: 0,
+      },
+    });
+    expect(evidence.downloadedArtifacts.verification.artifactNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.downloadedArtifacts.verification.gateEvidence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.releaseGateEvidence.v1",
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+    const remoteCompatibilityGate = evidence.downloadedArtifacts.verification.gateEvidence.gates.find((gate) => gate.script === "compat:real:evidence:verify");
+    expect(remoteCompatibilityGate).toMatchObject({
+      command: "repo-only real compatibility evidence not refreshed in CI",
+      ok: true,
+      evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityMatrix.v1",
+      targetSha: { expected: evidence.releaseTargetSha, actual: null, ok: null, status: "repo_only_not_run" },
+      freshness: { status: "repo_only_not_run" },
+      dirtyPolicy: { policy: "repo-only-skipped", status: "repo_only_not_run" },
+      diagnostics: { count: 0, codes: [] },
+      repoOnlyEvidence: { status: "not_refreshed_in_ci", reason: "real_compatibility_matrix_is_repo_only" },
+    });
+    expect(evidence.boundary).toMatchObject({
+      repoOnlyEvidence: true,
+      noGithubRelease: true,
+      noTrustedPublishing: true,
+      noRawStdoutStderr: true,
+      noRawCliOutput: true,
+      noFullPrompt: true,
+      noPrivatePath: true,
+      noLocalTempPath: true,
+      noResolvedExecutablePath: true,
+      noWorkflowLogs: true,
+      noTokenValue: true,
+      noBearerValue: true,
+      noAuthEnvAssignment: true,
+    });
+
+    expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|"stdout"|"stderr"|promptText|fullPrompt|workflowLog|logs|resolvedExecutablePath|<resolved_executable>/u);
+
+    const packagedDocs = [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/compatibility.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/release-publish-runbook.md",
+      "docs/production-readiness.md",
+      "docs/ssot.md",
+    ];
+    for (const doc of packagedDocs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text, `${doc} must not include P8-5 run id`).not.toContain(String(evidence.remoteReleaseCandidate.run.id));
+      expect(text, `${doc} must not include P8-5 run URL`).not.toContain(evidence.remoteReleaseCandidate.run.url);
+      for (const artifact of evidence.remoteReleaseCandidate.artifacts.items) {
+        expect(text, `${doc} must not include P8-5 artifact id`).not.toContain(String(artifact.id));
+      }
+      expect(text, `${doc} must not include local artifact paths`).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\//u);
+    }
   });
 
   it("keeps alpha.3 corrective docs stable and package-safe", async () => {
