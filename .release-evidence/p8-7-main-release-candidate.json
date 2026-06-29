@@ -1,0 +1,471 @@
+{
+  "schemaVersion": "agent-cli-runtime.p8MainReleaseCandidateEvidence.v1",
+  "stage": "P8-7",
+  "evidenceKind": "main-scoped-remote-release-candidate",
+  "checkedAt": "2026-06-29T13:31:01.191Z",
+  "releaseTargetSha": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+  "targetRef": "main",
+  "currentHeadSha": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+  "originMainShaAtCheck": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+  "p8_4TargetSha": "fd3a7af6bc00f0b6308c47dfabfac8a3dd797fb5",
+  "p8_4TargetInOriginMain": true,
+  "mainEvidence": true,
+  "branchEvidence": false,
+  "schemas": {
+    "matrix": "agent-cli-runtime.realCompatibilityMatrix.v1",
+    "verifier": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+    "releaseVerification": "agent-cli-runtime.releaseVerification.v1",
+    "releaseGateEvidence": "agent-cli-runtime.releaseGateEvidence.v1"
+  },
+  "matrix": {
+    "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json",
+    "schemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
+    "checkedAt": "2026-06-29T13:25:42.408Z",
+    "packageVersion": "0.1.0-alpha.3",
+    "gitSha": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+    "gitInputDirty": false,
+    "gitOutputDirty": true,
+    "dirtySummary": {
+      "inputAfterWrite": {
+        "dirty": false,
+        "changedFilesCount": 0
+      },
+      "outputAfterWrite": {
+        "dirty": true,
+        "changedFilesCount": 1
+      }
+    },
+    "adapters": {
+      "codex": {
+        "version": "codex-cli 0.142.3",
+        "auth": "unknown",
+        "safePreflight": "real_run_skipped",
+        "optionalSmoke": "real_run_skipped",
+        "needsVerification": [
+          "session",
+          "authProbe"
+        ]
+      },
+      "claude": {
+        "version": "2.1.178 (Claude Code)",
+        "auth": "missing",
+        "safePreflight": "auth_missing",
+        "optionalSmoke": "real_run_skipped",
+        "needsVerification": [
+          "session.id",
+          "reasoning"
+        ]
+      },
+      "opencode": {
+        "version": "1.15.6",
+        "auth": "unknown",
+        "safePreflight": "real_run_skipped",
+        "optionalSmoke": "real_run_skipped",
+        "needsVerification": [
+          "extraAllowedDirs",
+          "session",
+          "permissionPolicy.read-only"
+        ]
+      }
+    }
+  },
+  "compatibilityVerification": {
+    "command": "npm run compat:real:evidence:verify -- --target-sha <releaseTargetSha> --max-age-hours 24 --release-strict",
+    "schemaVersion": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+    "ok": true,
+    "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
+    "targetSha": {
+      "expected": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+      "actual": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+      "ok": true,
+      "status": "matched"
+    },
+    "freshness": {
+      "maxAgeHours": 24,
+      "ageHours": 0.09,
+      "ok": true,
+      "status": "fresh"
+    },
+    "dirtyPolicy": {
+      "policy": "release-strict",
+      "allowDirty": false,
+      "gitDirty": false,
+      "inputDirty": false,
+      "outputDirty": true,
+      "ok": true,
+      "status": "self_dirty_only"
+    },
+    "diagnosticSummary": {
+      "count": 0,
+      "codes": []
+    }
+  },
+  "localReleaseCandidate": {
+    "mode": "local-strict",
+    "command": "npm run release:candidate -- --out-dir <tmp-local-strict>",
+    "releaseVerifyCommand": "npm run release:verify -- --dir <tmp-local-strict>",
+    "verification": {
+      "command": "npm run release:verify -- --dir <tmp-local-strict>",
+      "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+      "ok": true,
+      "diagnosticsCount": 0,
+      "artifactNames": [
+        "agent-cli-runtime-gate-evidence",
+        "agent-cli-runtime-pack-metadata",
+        "agent-cli-runtime-package-files",
+        "agent-cli-runtime-release-verification",
+        "agent-cli-runtime-tarball"
+      ],
+      "packageName": "agent-cli-runtime",
+      "version": "0.1.0-alpha.3",
+      "packageFiles": 151,
+      "tarball": {
+        "filename": "agent-cli-runtime-0.1.0-alpha.3.tgz",
+        "exists": true
+      },
+      "gateEvidence": {
+        "schemaVersion": "agent-cli-runtime.releaseGateEvidence.v1",
+        "gates": [
+          {
+            "script": "daemon:verify",
+            "command": "npm run daemon:verify",
+            "ok": true,
+            "outputSchemaVersion": "agent-runtime.daemonVerification.v1",
+            "packageSource": "installed-tarball",
+            "evidenceSchemaVersion": null,
+            "targetSha": {
+              "expected": null,
+              "actual": null,
+              "ok": null,
+              "status": null
+            },
+            "freshness": {
+              "maxAgeHours": null,
+              "ageHours": null,
+              "ok": null,
+              "status": null
+            },
+            "dirtyPolicy": {
+              "policy": null,
+              "allowDirty": null,
+              "gitDirty": null,
+              "inputDirty": null,
+              "outputDirty": null,
+              "ok": null,
+              "status": null
+            },
+            "diagnostics": {
+              "count": null,
+              "codes": []
+            },
+            "repoOnlyEvidence": null
+          },
+          {
+            "script": "runtime:safety",
+            "command": "npm run runtime:safety",
+            "ok": true,
+            "outputSchemaVersion": "agent-runtime.runtimeSafety.v1",
+            "packageSource": "installed-tarball",
+            "evidenceSchemaVersion": null,
+            "targetSha": {
+              "expected": null,
+              "actual": null,
+              "ok": null,
+              "status": null
+            },
+            "freshness": {
+              "maxAgeHours": null,
+              "ageHours": null,
+              "ok": null,
+              "status": null
+            },
+            "dirtyPolicy": {
+              "policy": null,
+              "allowDirty": null,
+              "gitDirty": null,
+              "inputDirty": null,
+              "outputDirty": null,
+              "ok": null,
+              "status": null
+            },
+            "diagnostics": {
+              "count": null,
+              "codes": []
+            },
+            "repoOnlyEvidence": null
+          },
+          {
+            "script": "compat:real:evidence:verify",
+            "command": "npm run compat:real:evidence:verify -- --target-sha <target_sha> --max-age-hours 24 --release-strict",
+            "ok": true,
+            "outputSchemaVersion": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+            "packageSource": null,
+            "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
+            "targetSha": {
+              "expected": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+              "actual": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+              "ok": true,
+              "status": "matched"
+            },
+            "freshness": {
+              "maxAgeHours": 24,
+              "ageHours": 0.01,
+              "ok": true,
+              "status": "fresh"
+            },
+            "dirtyPolicy": {
+              "policy": "release-strict",
+              "allowDirty": false,
+              "gitDirty": false,
+              "inputDirty": false,
+              "outputDirty": true,
+              "ok": true,
+              "status": "self_dirty_only"
+            },
+            "diagnostics": {
+              "count": 0,
+              "codes": []
+            },
+            "repoOnlyEvidence": null
+          }
+        ],
+        "noAuthenticatedRealRun": true,
+        "noNpmPublish": true,
+        "noNpmToken": true
+      }
+    }
+  },
+  "remoteReleaseCandidate": {
+    "workflow": ".github/workflows/release-candidate.yml",
+    "ref": "main",
+    "triggered": true,
+    "run": {
+      "id": 28375497415,
+      "url": "https://github.com/iiwish/agent-cli-runtime/actions/runs/28375497415",
+      "event": "workflow_dispatch",
+      "headBranch": "main",
+      "headSha": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+      "status": "completed",
+      "conclusion": "success",
+      "createdAt": "2026-06-29T13:26:58Z",
+      "updatedAt": "2026-06-29T13:28:24Z",
+      "headShaMatchesReleaseTarget": true,
+      "jobs": [
+        {
+          "name": "Build release candidate artifacts",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    "artifacts": {
+      "count": 5,
+      "names": [
+        "agent-cli-runtime-gate-evidence",
+        "agent-cli-runtime-pack-metadata",
+        "agent-cli-runtime-package-files",
+        "agent-cli-runtime-release-verification",
+        "agent-cli-runtime-tarball"
+      ],
+      "items": [
+        {
+          "name": "agent-cli-runtime-gate-evidence",
+          "id": 7953266806,
+          "digest": "sha256:79b5137d8cb3e9f2800626f026483a558484fa4f7a9863f37ec9835dcb1fc793",
+          "expired": false
+        },
+        {
+          "name": "agent-cli-runtime-pack-metadata",
+          "id": 7953265614,
+          "digest": "sha256:d8474a9a2bbdf3a00bec2ee350024c270609248a8a7bf11605f7aa86bcf893dc",
+          "expired": false
+        },
+        {
+          "name": "agent-cli-runtime-package-files",
+          "id": 7953266147,
+          "digest": "sha256:5fdc2fde262dd82d040a49c5fda5c35893be7556e18b3ac54ea424453c61b342",
+          "expired": false
+        },
+        {
+          "name": "agent-cli-runtime-release-verification",
+          "id": 7953267391,
+          "digest": "sha256:2a37d07eb1b89ba69b33d246c932273640e6e3e4e61a3ea8382b692c40e3c84b",
+          "expired": false
+        },
+        {
+          "name": "agent-cli-runtime-tarball",
+          "id": 7953265068,
+          "digest": "sha256:8eb5ad28e7ab649f7c03069728c2dbacc6af0fbbebbe525d1158668579680e4c",
+          "expired": false
+        }
+      ],
+      "expectedNames": [
+        "agent-cli-runtime-gate-evidence",
+        "agent-cli-runtime-pack-metadata",
+        "agent-cli-runtime-package-files",
+        "agent-cli-runtime-release-verification",
+        "agent-cli-runtime-tarball"
+      ],
+      "complete": true,
+      "valid": true
+    }
+  },
+  "downloadedArtifacts": {
+    "verified": true,
+    "skippedReason": null,
+    "verification": {
+      "command": "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+      "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+      "ok": true,
+      "diagnosticsCount": 0,
+      "artifactNames": [
+        "agent-cli-runtime-gate-evidence",
+        "agent-cli-runtime-pack-metadata",
+        "agent-cli-runtime-package-files",
+        "agent-cli-runtime-release-verification",
+        "agent-cli-runtime-tarball"
+      ],
+      "packageName": "agent-cli-runtime",
+      "version": "0.1.0-alpha.3",
+      "packageFiles": 151,
+      "tarball": {
+        "filename": "agent-cli-runtime-0.1.0-alpha.3.tgz",
+        "exists": true
+      },
+      "gateEvidence": {
+        "schemaVersion": "agent-cli-runtime.releaseGateEvidence.v1",
+        "gates": [
+          {
+            "script": "daemon:verify",
+            "command": "npm run daemon:verify",
+            "ok": true,
+            "outputSchemaVersion": "agent-runtime.daemonVerification.v1",
+            "packageSource": "installed-tarball",
+            "evidenceSchemaVersion": null,
+            "targetSha": {
+              "expected": null,
+              "actual": null,
+              "ok": null,
+              "status": null
+            },
+            "freshness": {
+              "maxAgeHours": null,
+              "ageHours": null,
+              "ok": null,
+              "status": null
+            },
+            "dirtyPolicy": {
+              "policy": null,
+              "allowDirty": null,
+              "gitDirty": null,
+              "inputDirty": null,
+              "outputDirty": null,
+              "ok": null,
+              "status": null
+            },
+            "diagnostics": {
+              "count": null,
+              "codes": []
+            },
+            "repoOnlyEvidence": null
+          },
+          {
+            "script": "runtime:safety",
+            "command": "npm run runtime:safety",
+            "ok": true,
+            "outputSchemaVersion": "agent-runtime.runtimeSafety.v1",
+            "packageSource": "installed-tarball",
+            "evidenceSchemaVersion": null,
+            "targetSha": {
+              "expected": null,
+              "actual": null,
+              "ok": null,
+              "status": null
+            },
+            "freshness": {
+              "maxAgeHours": null,
+              "ageHours": null,
+              "ok": null,
+              "status": null
+            },
+            "dirtyPolicy": {
+              "policy": null,
+              "allowDirty": null,
+              "gitDirty": null,
+              "inputDirty": null,
+              "outputDirty": null,
+              "ok": null,
+              "status": null
+            },
+            "diagnostics": {
+              "count": null,
+              "codes": []
+            },
+            "repoOnlyEvidence": null
+          },
+          {
+            "script": "compat:real:evidence:verify",
+            "command": "repo-only real compatibility evidence not refreshed in CI",
+            "ok": true,
+            "outputSchemaVersion": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+            "packageSource": null,
+            "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
+            "targetSha": {
+              "expected": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+              "actual": null,
+              "ok": null,
+              "status": "repo_only_not_run"
+            },
+            "freshness": {
+              "maxAgeHours": 24,
+              "ageHours": null,
+              "ok": null,
+              "status": "repo_only_not_run"
+            },
+            "dirtyPolicy": {
+              "policy": "repo-only-skipped",
+              "allowDirty": false,
+              "gitDirty": null,
+              "inputDirty": null,
+              "outputDirty": null,
+              "ok": null,
+              "status": "repo_only_not_run"
+            },
+            "diagnostics": {
+              "count": 0,
+              "codes": []
+            },
+            "repoOnlyEvidence": {
+              "status": "not_refreshed_in_ci",
+              "reason": "real_compatibility_matrix_is_repo_only"
+            }
+          }
+        ],
+        "noAuthenticatedRealRun": true,
+        "noNpmPublish": true,
+        "noNpmToken": true
+      }
+    }
+  },
+  "noAuthenticatedRealRun": true,
+  "noNpmPublish": true,
+  "noNpmToken": true,
+  "boundary": {
+    "repoOnlyEvidence": true,
+    "proofAppliesToReleaseTargetShaOnly": true,
+    "evidenceRecordingCommitMayDifferFromReleaseTargetSha": true,
+    "futureMergeCommitRequiresFreshMainEvidence": true,
+    "noGithubRelease": true,
+    "noTrustedPublishing": true,
+    "noRawStdoutStderr": true,
+    "noRawCliOutput": true,
+    "noFullPrompt": true,
+    "noPrivatePath": true,
+    "noLocalTempPath": true,
+    "noResolvedExecutablePath": true,
+    "noWorkflowLogs": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvAssignment": true
+  }
+}
