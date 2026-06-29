@@ -2,10 +2,10 @@
   "schemaVersion": "agent-cli-runtime.p8ReleaseStrictCompatibilityEvidence.v1",
   "stage": "P8-4",
   "evidenceKind": "branch-local-release-strict-compatibility",
-  "checkedAt": "2026-06-29T07:34:33.284Z",
-  "targetSha": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
+  "checkedAt": "2026-06-29T07:47:15.449Z",
+  "targetSha": "51671f9727f243f09d626bd536ade5e15666d80a",
   "targetRef": "codex/p8-4-release-strict-compatibility",
-  "currentHeadSha": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
+  "currentHeadSha": "51671f9727f243f09d626bd536ade5e15666d80a",
   "originMainShaAtCheck": "35fe12a0b16e9803a532d5b639ea9affca170656",
   "branchEvidence": true,
   "mainEvidence": false,
@@ -18,9 +18,9 @@
   "matrix": {
     "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json",
     "schemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
-    "checkedAt": "2026-06-29T07:32:40.421Z",
+    "checkedAt": "2026-06-29T07:46:34.243Z",
     "packageVersion": "0.1.0-alpha.3",
-    "gitSha": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
+    "gitSha": "51671f9727f243f09d626bd536ade5e15666d80a",
     "gitInputDirty": false,
     "gitOutputDirty": true,
     "dirtySummary": {
@@ -73,14 +73,14 @@
     "ok": true,
     "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
     "targetSha": {
-      "expected": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
-      "actual": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
+      "expected": "51671f9727f243f09d626bd536ade5e15666d80a",
+      "actual": "51671f9727f243f09d626bd536ade5e15666d80a",
       "ok": true,
       "status": "matched"
     },
     "freshness": {
       "maxAgeHours": 24,
-      "ageHours": 0.03,
+      "ageHours": 0.01,
       "ok": true,
       "status": "fresh"
     },
@@ -197,14 +197,14 @@
             "outputSchemaVersion": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
             "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
             "targetSha": {
-              "expected": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
-              "actual": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
+              "expected": "51671f9727f243f09d626bd536ade5e15666d80a",
+              "actual": "51671f9727f243f09d626bd536ade5e15666d80a",
               "ok": true,
               "status": "matched"
             },
             "freshness": {
               "maxAgeHours": 24,
-              "ageHours": 0.02,
+              "ageHours": 0.01,
               "ok": true,
               "status": "fresh"
             },
