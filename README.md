@@ -406,7 +406,7 @@ npm run release:artifacts:normalize -- --download-dir <gh-download-dir> --out-di
 npm run release:verify -- --dir <normalized-artifact-dir>
 ```
 
-`release:artifacts:normalize` emits `schemaVersion: "agent-cli-runtime.releaseArtifactNormalization.v1"`, copies only the expected five release-candidate files, and rejects missing, duplicate, or unknown files without printing absolute local paths. `release:verify` validates the normalized files, including proof that `daemon:verify`, `runtime:safety`, and either a local strict compatibility verifier summary or a remote repo-only skipped compatibility summary were recorded for the candidate.
+`release:artifacts:normalize` emits `schemaVersion: "agent-cli-runtime.releaseArtifactNormalization.v1"`, copies only the expected five release-candidate files from their matching GitHub artifact directories, and rejects missing, duplicate, unknown, or misplaced files without printing absolute local paths. `release:verify` validates the normalized files, including proof that `daemon:verify`, `runtime:safety`, and either a local strict compatibility verifier summary or a remote repo-only skipped compatibility summary were recorded for the candidate.
 
 Main-scoped release-candidate evidence is generated with:
 

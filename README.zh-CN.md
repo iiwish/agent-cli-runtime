@@ -404,7 +404,7 @@ npm run release:artifacts:normalize -- --download-dir <gh-download-dir> --out-di
 npm run release:verify -- --dir <normalized-artifact-dir>
 ```
 
-`release:artifacts:normalize` 输出 `schemaVersion: "agent-cli-runtime.releaseArtifactNormalization.v1"`，只复制五个预期 release-candidate 文件，缺失、重复或未知文件都会失败，并且不会在 JSON 输出里打印本机绝对路径。`release:verify` 复核归一化后的文件，并确认候选包记录了 `daemon:verify`、`runtime:safety`，以及本地 strict 的 target SHA / freshness verifier 证据或远端 repo-only skipped 的明确状态。
+`release:artifacts:normalize` 输出 `schemaVersion: "agent-cli-runtime.releaseArtifactNormalization.v1"`，只从匹配的 GitHub artifact 子目录复制五个预期 release-candidate 文件，缺失、重复、未知或目录不匹配的文件都会失败，并且不会在 JSON 输出里打印本机绝对路径。`release:verify` 复核归一化后的文件，并确认候选包记录了 `daemon:verify`、`runtime:safety`，以及本地 strict 的 target SHA / freshness verifier 证据或远端 repo-only skipped 的明确状态。
 
 Main-scoped release-candidate evidence 通过以下命令生成：
 

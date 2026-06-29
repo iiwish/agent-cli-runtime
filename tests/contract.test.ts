@@ -3243,6 +3243,28 @@ setInterval(() => {}, 1000);
       diagnostics: [],
     });
     expect(result.artifacts.map((artifact) => artifact.artifactName).sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(result.artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-pack-metadata",
+        source: "agent-cli-runtime-pack-metadata/npm-pack.json",
+      }),
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-package-files",
+        source: "agent-cli-runtime-package-files/package-files.txt",
+      }),
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-gate-evidence",
+        source: "agent-cli-runtime-gate-evidence/gate-evidence.json",
+      }),
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-release-verification",
+        source: "agent-cli-runtime-release-verification/release-verification.json",
+      }),
+      expect.objectContaining({
+        artifactName: "agent-cli-runtime-tarball",
+        source: `agent-cli-runtime-tarball/${tarball}`,
+      }),
+    ]));
     expect(result.artifacts.map((artifact) => artifact.output).sort()).toEqual([
       "gate-evidence.json",
       tarball,
@@ -3271,24 +3293,29 @@ setInterval(() => {}, 1000);
     expect(verification.diagnostics).toEqual([]);
   });
 
-  it("rejects downloaded release artifact directories with missing, duplicate, or unknown files", async () => {
+  it("rejects downloaded release artifact directories with missing, duplicate, unknown, or misplaced files", async () => {
     const missingDir = await tempDir("agent-runtime-release-download-missing-");
     const duplicateDir = await tempDir("agent-runtime-release-download-duplicate-");
     const unknownDir = await tempDir("agent-runtime-release-download-unknown-");
+    const misplacedDir = await tempDir("agent-runtime-release-download-misplaced-");
     const outDir = await tempDir("agent-runtime-release-normalized-fail-");
     await writeDownloadedReleaseArtifactFixture(missingDir);
     await writeDownloadedReleaseArtifactFixture(duplicateDir);
     await writeDownloadedReleaseArtifactFixture(unknownDir);
+    await writeDownloadedReleaseArtifactFixture(misplacedDir);
     await rm(path.join(missingDir, "agent-cli-runtime-release-verification", "release-verification.json"));
-    await mkdir(path.join(duplicateDir, "duplicate-pack"), { recursive: true });
-    await writeFile(path.join(duplicateDir, "duplicate-pack", "npm-pack.json"), "[]\n", "utf8");
+    await writeFile(path.join(duplicateDir, "agent-cli-runtime-tarball", "agent-cli-runtime-extra.tgz"), "fake duplicate tarball", "utf8");
     await mkdir(path.join(unknownDir, "agent-cli-runtime-pack-metadata"), { recursive: true });
     await writeFile(path.join(unknownDir, "agent-cli-runtime-pack-metadata", "extra.txt"), "extra\n", "utf8");
+    await rm(path.join(misplacedDir, "agent-cli-runtime-pack-metadata", "npm-pack.json"));
+    await mkdir(path.join(misplacedDir, "bad-pack"), { recursive: true });
+    await writeFile(path.join(misplacedDir, "bad-pack", "npm-pack.json"), "[]\n", "utf8");
 
     for (const [dir, code] of [
       [missingDir, "missing_artifact_file"],
       [duplicateDir, "duplicate_artifact_file"],
       [unknownDir, "unknown_artifact_file"],
+      [misplacedDir, "unexpected_artifact_path"],
     ] as Array<[string, string]>) {
       const failure = await execCliFailureViaNode([
         releaseArtifactNormalizer,
@@ -3300,13 +3327,20 @@ setInterval(() => {}, 1000);
       const result = JSON.parse(failure.stdout) as {
         schemaVersion: string;
         ok: boolean;
-        diagnostics: Array<{ code: string; file?: string; files?: string[] }>;
+        diagnostics: Array<{ code: string; file?: string; files?: string[]; actual?: string; expected?: string }>;
       };
 
       expect(failure.code).toBe(1);
       expect(result.schemaVersion).toBe("agent-cli-runtime.releaseArtifactNormalization.v1");
       expect(result.ok).toBe(false);
       expect(result.diagnostics).toContainEqual(expect.objectContaining({ code }));
+      if (code === "unexpected_artifact_path") {
+        expect(result.diagnostics).toContainEqual(expect.objectContaining({
+          code,
+          actual: "bad-pack/npm-pack.json",
+          expected: "agent-cli-runtime-pack-metadata/npm-pack.json",
+        }));
+      }
       expect(failure.stdout).not.toContain(dir);
       expect(failure.stdout).not.toContain(outDir);
       expectNoLocalOrSecretLeak(failure.stdout);
@@ -4864,7 +4898,7 @@ setInterval(() => {}, 1000);
           names: string[];
           expectedNames: string[];
           complete: boolean;
-          items: Array<{ name: string; id: number; digest: string }>;
+          items: Array<{ name: string; id: number; digest: string; expired: boolean }>;
         };
       };
       downloadedArtifacts: {
@@ -4913,6 +4947,7 @@ setInterval(() => {}, 1000);
     expect(script).toContain("remote_run_head_sha_mismatch");
     expect(script).toContain("remote_run_conclusion_not_success");
     expect(script).toContain("missing_remote_artifact");
+    expect(script).toContain("remote_artifact_expiration_unverified");
     expect(script).toContain("downloaded_release_artifacts_not_ok");
     expect(script).toContain("release-candidate.yml");
     expect(script).toContain("repo-only real compatibility evidence not refreshed in CI");
@@ -4927,6 +4962,7 @@ setInterval(() => {}, 1000);
     expect(selfTest.cases.map((testCase) => testCase.expectedCode).sort()).toEqual([
       "downloaded_release_artifacts_not_ok",
       "missing_remote_artifact",
+      "remote_artifact_expiration_unverified",
       "remote_run_conclusion_not_success",
       "remote_run_head_sha_mismatch",
     ].sort());
@@ -4997,6 +5033,7 @@ setInterval(() => {}, 1000);
     for (const artifact of evidence.remoteReleaseCandidate.artifacts.items) {
       expect(artifact.id).toBeGreaterThan(0);
       expect(artifact.digest).toMatch(/^sha256:[0-9a-f]{64}$/u);
+      expect(artifact.expired).toBe(false);
     }
 
     expect(evidence.downloadedArtifacts).toMatchObject({

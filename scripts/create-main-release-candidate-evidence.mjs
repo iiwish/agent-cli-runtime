@@ -346,6 +346,8 @@ function validateArtifacts(items) {
     }
     if (item.expired === true) {
       diagnostics.push({ code: "remote_artifact_expired", artifact: item.name });
+    } else if (item.expired !== false) {
+      diagnostics.push({ code: "remote_artifact_expiration_unverified", artifact: item.name });
     }
   }
   for (const expected of EXPECTED_ARTIFACTS) {
@@ -468,6 +470,21 @@ function runSelfTest() {
       expectedCode: "missing_remote_artifact",
       run() {
         const artifacts = fixtureArtifacts().artifacts.filter((artifact) => artifact.name !== "agent-cli-runtime-release-verification");
+        validateRemoteArtifacts(summarizeArtifacts({ artifacts }));
+      },
+    },
+    {
+      name: "artifact without explicit non-expired state is rejected",
+      expectedCode: "remote_artifact_expiration_unverified",
+      run() {
+        const artifacts = fixtureArtifacts().artifacts.map((artifact) => {
+          if (artifact.name !== "agent-cli-runtime-tarball") return artifact;
+          return {
+            name: artifact.name,
+            id: artifact.id,
+            digest: artifact.digest,
+          };
+        });
         validateRemoteArtifacts(summarizeArtifacts({ artifacts }));
       },
     },

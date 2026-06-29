@@ -158,12 +158,26 @@ function walkFiles(dir, diagnostics) {
 function classifyFiles(downloadDir, files, diagnostics) {
   const matches = new Map(EXPECTED_FILES.map((expected) => [expected.label, []]));
   const unknownFiles = [];
+  const unexpectedPaths = [];
 
   for (const file of files) {
+    const relative = relativeTo(downloadDir, file);
+    const artifactPath = relative.split("/");
+    const artifactDir = artifactPath[0] ?? "";
+    const artifactFile = artifactPath.slice(1).join("/");
     const basename = path.basename(file);
-    const expected = EXPECTED_FILES.find((candidate) => candidate.matches(basename));
+    const expectedByFile = EXPECTED_FILES.find((candidate) => candidate.matches(basename));
+    const expected = EXPECTED_FILES.find((candidate) => candidate.artifactName === artifactDir && candidate.matches(artifactFile));
     if (!expected) {
-      unknownFiles.push(file);
+      if (expectedByFile) {
+        unexpectedPaths.push({
+          file,
+          expectedArtifactName: expectedByFile.artifactName,
+          expectedFile: expectedByFile.label,
+        });
+      } else {
+        unknownFiles.push(file);
+      }
       continue;
     }
     matches.get(expected.label).push(file);
@@ -194,6 +208,17 @@ function classifyFiles(downloadDir, files, diagnostics) {
       code: "unknown_artifact_file",
       message: "Unknown release artifact file.",
       file: relativeTo(downloadDir, file),
+    });
+  }
+
+  for (const item of unexpectedPaths) {
+    diagnostics.push({
+      code: "unexpected_artifact_path",
+      message: "Release artifact file is not under the expected downloaded artifact directory.",
+      artifactName: item.expectedArtifactName,
+      file: item.expectedFile,
+      actual: relativeTo(downloadDir, item.file),
+      expected: `${item.expectedArtifactName}/${item.expectedFile}`,
     });
   }
 
