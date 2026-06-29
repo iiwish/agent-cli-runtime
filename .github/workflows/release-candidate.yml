@@ -31,7 +31,7 @@ jobs:
         id: pack
         run: |
           set -euo pipefail
-          npm run release:candidate -- --out-dir release-candidate
+          npm run release:candidate -- --out-dir release-candidate --real-compatibility-mode repo-only-skipped
           node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync('release-candidate/npm-pack.json', 'utf8')); process.stdout.write('tarball=' + data[0].filename + '\n');" >> "$GITHUB_OUTPUT"
 
       - name: Upload tarball

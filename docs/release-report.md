@@ -64,7 +64,7 @@ npm run published:verify:evidence -- --dir published-verification
 
 ## Release-Candidate Artifacts
 
-`npm run release:candidate -- --out-dir <tmp-dir>` writes five review artifacts:
+`npm run release:candidate -- --out-dir <tmp-dir>` writes local strict review artifacts. Remote clean-checkout workflows use `npm run release:candidate -- --out-dir release-candidate --real-compatibility-mode repo-only-skipped`. Both modes write five review artifacts:
 
 - `agent-cli-runtime-tarball`
 - `agent-cli-runtime-pack-metadata`
@@ -80,7 +80,7 @@ npm run published:verify:evidence -- --dir published-verification
 - `runtime:safety`
 - `compat:real:evidence:verify`
 
-The gate evidence must keep `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` true.
+The compatibility gate summary must include the verifier schema, verified matrix schema, target SHA status, freshness status, dirty policy status, and diagnostic count/codes. Local strict mode records matched/fresh release evidence and distinguishes clean input evidence, `self_dirty_only` matrix output-file writes, and explicitly allowed dirty input evidence. Remote repo-only skipped mode records `targetSha.status`, `freshness.status`, and `dirtyPolicy.status` as `repo_only_not_run` plus the fixed `repoOnlyEvidence.status: "not_refreshed_in_ci"` reason. It must not include the raw `.release-evidence/` matrix, raw stdout/stderr, prompt text, private paths, tokens, Bearer values, or auth environment values. The gate evidence must keep `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` true.
 
 ## Package Boundary
 
@@ -106,6 +106,7 @@ The API and CLI schema inventory, versioning policy, root export boundary, and f
 - `agent-cli-runtime.releaseVerification.v1`
 - `agent-cli-runtime.releaseGateEvidence.v1`
 - `agent-cli-runtime.realCompatibilityEvidenceVerification.v1`
+- `agent-cli-runtime.realCompatibilityMatrix.v1`
 - `agent-cli-runtime.realCompatibilityEvidence.v1`
 - `agent-cli-runtime.packagedDocsVerification.v1`
 - `agent-cli-runtime.publishedVerification.v1`

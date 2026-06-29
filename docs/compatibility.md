@@ -1,27 +1,27 @@
 # Agent CLI Compatibility Matrix
 
-Status: P6 offline compatibility gate integrated; `0.1.0-alpha.3` is the corrective pre-alpha release
-Last updated: 2026-06-26
+Status: P8-3 release-bound real CLI compatibility matrix verification; `0.1.0-alpha.3` is the corrective pre-alpha release
+Last updated: 2026-06-29
 
 This matrix records the CLI versions and behaviors that have been verified with the current runtime. Real agent CLIs change quickly; treat this file as dated compatibility evidence, not a permanent guarantee. P3-6 added a reviewable opt-in real smoke evidence path while keeping default release gates on detection/profile certification only. P3-7 freezes the API / CLI schema inventory and versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md). P6 integrates the offline real compatibility evidence verifier into prepublish and release-candidate evidence; it does not refresh real CLI evidence during normal release gates. P7-5 marks `0.1.0-alpha.3` as the corrective pre-alpha release after the published `0.1.0-alpha.2` tarball shipped stale package docs from the pre-publish state. npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags. Raw CLI output, tokens, full prompts, auth env values, private paths, local temporary paths, artifact ids, and artifact digests are not committed to packaged docs.
 
 ## Evidence policy
 
-Current status is P6 offline compatibility gate integration carried into the alpha.3 corrective path. P6-1 keeps the P3-6 real-smoke safety boundary, adds repo-only summarized evidence under `.release-evidence/p6-1-real-cli-compatibility.json`, and audits every built-in adapter `needsVerification` item against current local CLI preflight and opt-in smoke results. P6-2 adds `npm run compat:real:evidence:verify` as an offline drift gate for that file; it does not launch real CLI runs. P6-3 wires that verifier into `prepublish:check` and `release:candidate` evidence without running `npm run compat:real:evidence` or passing `--allow-real-run`. P6 remote run and artifact details are recorded under `.release-evidence/`, outside npm package contents. P7-5 adds packaged-docs verification so local packed tarball docs and npm registry tarball docs are checked directly. The release gate confirms `compat:real:evidence:verify` emits `agent-cli-runtime.realCompatibilityEvidenceVerification.v1`, verifies `agent-cli-runtime.realCompatibilityEvidence.v1`, and keeps diagnostics summarized as count/codes only.
+Current status is P8-3 release-bound verification for the P8-2 real CLI compatibility matrix. `npm run compat:real:evidence` writes `.release-evidence/p8-2-real-cli-compatibility-matrix.json` with `schemaVersion: "agent-cli-runtime.realCompatibilityMatrix.v1"`. The matrix records package version, `gitSha`, input dirty state (`gitDirty` / `gitInputDirty`), output-file dirty state (`gitOutputDirty`), `dirtySummary`, and per-adapter executable resolution, version, auth, model source, capabilities, argv profile, parser mode, prompt transport, safe preflight, optional smoke, redacted diagnostics, and `needsVerification`. `npm run compat:real:evidence:verify` is the offline drift gate for the current matrix and still accepts legacy P6 evidence when passed through `--file`. It emits `agent-cli-runtime.realCompatibilityEvidenceVerification.v1`, does not launch real CLI runs, and rejects unsafe content, missing dirty-state metadata, skip/auth/unavailable states claimed as success, incomplete authenticated success evidence, missing adapter fields, missing required `needsVerification` items, and invalid repo-only package-boundary claims. Release review uses `--target-sha <sha> --max-age-hours 24 --release-strict` so a matrix can only support a local release conclusion when the evidence target SHA matches the release target SHA, the evidence is fresh, and the dirty policy is explicit. Remote clean-checkout release-candidate artifacts record `repo-only-skipped` when CI does not refresh or verify the local matrix.
 
 - Current behavior is what is validated by `npm test` / typecheck / lint / build plus the current `npm pack`, package boundary, CLI JSON contract, and single-Node TypeScript consumer install-smoke checks.
 - CI behavior is matrixed for Node.js 20/22/24 except dogfood, which runs once on Node.js 22 to avoid duplicating the slower install smoke.
 - `npm test` uses Vitest's verbose reporter for contract coverage; slower installed-package gates and install smokes stay out of the Node.js matrix and run through single-Node release gates or explicit opt-in checks.
-- `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, `daemon:verify`, `runtime:safety`, offline real compatibility evidence verification, dogfood, production audit, package boundary checks, packaged-docs verification, and pack dry-run.
-- `npm run release:candidate` creates local release-candidate artifacts including `gate-evidence.json`, and `npm run release:verify -- --dir <path>` validates local or downloaded artifacts with stable redacted JSON. `gate-evidence.json` records the compatibility verification gate as a redacted summary only: command, ok, verifier schema, verified evidence schema, and diagnostic count/codes.
+- `npm run prepublish:check` is the local guard that combines typecheck, lint, tests, build, `daemon:verify`, `runtime:safety`, offline P8-2 real compatibility matrix verification, dogfood, production audit, package boundary checks, packaged-docs verification, and pack dry-run.
+- `npm run release:candidate` creates local release-candidate artifacts including `gate-evidence.json`, and `npm run release:verify -- --dir <path>` validates local or downloaded artifacts with stable redacted JSON. Local `release:candidate` defaults to `--real-compatibility-mode local-strict`; GitHub Actions passes `--real-compatibility-mode repo-only-skipped`. `gate-evidence.json` records the compatibility gate as a redacted summary only: command, ok, verifier schema, verified evidence schema, target SHA status, freshness status, dirty policy status, diagnostic count/codes, and the fixed repo-only skip reason when CI did not refresh the matrix.
 - `npm publish --dry-run --ignore-scripts --tag alpha` is a documented manual local dry-run check; it is not a remote CI gate.
 - `docs/release-publish-runbook.md` documents the future human alpha publish path, dist-tag verification, rollback/deprecation/unpublish boundary, 2FA, trusted publishing, provenance, and token strategy; no real publish is performed in P2-13.
 - `docs/daemon-ready-contract.md` documents embedding semantics for daemon/product shell callers without adding a hosted daemon surface.
 - `npm run dogfood` installs the tarball into a temporary consumer project, runs `tsc --noEmit`, then executes fake-CLI library run/goal/replay/diagnostics smoke through the installed package.
 - `npm run published:adapters:verify` installs the already published npm package from the npm registry into a temporary consumer and verifies built-in Codex, Claude, and OpenCode adapter detection, argv shape, stdin prompt transport, parser behavior, redaction, and per-adapter failure isolation with fake CLIs only.
 - `npm run published:verify` generates post-publish evidence, and `npm run published:verify:evidence -- --dir <dir>` only verifies an existing local output or downloaded `agent-cli-runtime-published-verification` artifact. A bare verifier run without `published-verification/published-verification.json` is an expected redacted JSON guard failure.
-- CI runs `daemon:verify`, `runtime:safety`, and dogfood once in a single Node.js 22 release-gates job; the Node.js 20/22/24 matrix does not repeat installed-package gates. CI does not run `compat:real:evidence:verify` because that verifier depends on repo-only `.release-evidence/`, while dogfood remains an installed-package consumer gate.
-- Remote GitHub Actions release-candidate evidence is commit-specific and recorded outside the package under `.release-evidence/`; historical runs only prove their own `headSha` and must not be reused for alpha.3 corrective release evidence.
+- CI runs `daemon:verify`, `runtime:safety`, and dogfood once in a single Node.js 22 release-gates job; the Node.js 20/22/24 matrix does not repeat installed-package gates. CI does not run `compat:real:evidence:verify` because that verifier depends on repo-only `.release-evidence/`; remote release-candidate artifacts use the explicit `repo-only-skipped` gate summary, while dogfood remains an installed-package consumer gate.
+- Remote GitHub Actions release-candidate evidence is commit-specific and recorded outside the package under `.release-evidence/`; historical runs only prove their own workflow head SHA and must not be reused for a different target SHA.
 - Evidence modes are intentionally separate:
   - `fixtures`: offline parser contract fixtures; no real or fake CLI process is launched.
   - `fake`: temporary local fake CLIs through the real adapter argv/stdin/parser path; no network or real account is used.
@@ -31,7 +31,43 @@ Current status is P6 offline compatibility gate integration carried into the alp
 - When using this file as runtime contract input, prioritize the `Status` section, explicit "Runtime notes" in each adapter, and the most recent command evidence.
 - For changed behavior, add a new evidence row at the top of the section rather than keeping the old row as authoritative.
 
-## P6-1 Current Real CLI Evidence
+## P8-2 Current Real CLI Compatibility Matrix
+
+P8-2 local evidence is generated with:
+
+```bash
+npm run compat:real:evidence
+```
+
+Authenticated smoke evidence is optional and must be explicitly authorized with all safety gates:
+
+```bash
+npm run compat:real:evidence -- --allow-real-run \
+  --agent codex --expect-text "agent-runtime codex smoke ok" \
+  --timeout-ms 120000
+```
+
+The current repo-only file is `.release-evidence/p8-2-real-cli-compatibility-matrix.json` with `schemaVersion: "agent-cli-runtime.realCompatibilityMatrix.v1"`. It stores redacted summaries only: no raw stdout/stderr, no prompt text, no full observed text tail, no private paths, no local temp paths, no token values, no Bearer values, and no auth environment assignment values. The file is outside the npm package boundary.
+
+Current P8-2 matrix:
+
+| Adapter | CLI version | Auth/model source | Safe preflight | Optional smoke | Current `needsVerification` decision |
+| --- | --- | --- | --- | --- | --- |
+| Codex CLI | `codex-cli 0.142.3` | auth `unknown`; models `live` | `real_run_skipped`; no authenticated run without `--allow-real-run` | `real_run_skipped`; no authenticated run attempted in the checked-in matrix | Keep `session` and `authProbe` unpromoted. Safe preflight verifies detection/profile only. |
+| Claude Code | `2.1.178 (Claude Code)` | auth `missing`; models `fallback` | `auth_missing` | `real_run_skipped`; no authenticated run attempted | Keep `session.id` and `reasoning` unpromoted. Local auth is missing; provider-dependent reasoning behavior is still not a stable mapped flag. |
+| OpenCode | `1.15.6` | auth `unknown`; models `live` | `real_run_skipped`; no authenticated run without `--allow-real-run` | `real_run_skipped`; no authenticated run attempted in P8-2 | Keep `extraAllowedDirs`, `session`, and `permissionPolicy.read-only` unpromoted. Safe preflight verifies detection/profile only. |
+
+P8-2 verifier:
+
+```bash
+npm run compat:real:evidence:verify
+npm run compat:real:evidence:verify -- --self-test
+npm run compat:real:evidence:verify -- --target-sha <target-sha> --max-age-hours 24 --release-strict
+```
+
+The default verifier accepts structurally valid dirty repo-only evidence and reports `dirtyPolicy.status` rather than treating it as clean release evidence. The release-strict verifier requires a matching target SHA and a fresh `checkedAt` within the configured max age. Dirty changes limited to the matrix output file are reported as `self_dirty_only` and pass; dirty non-evidence inputs fail unless `--allow-dirty` is explicitly supplied. The verifier accepts `auth_missing`, `unavailable_executable`, `real_run_skipped`, and `needs_verification` as valid evidence states, but those states must not be counted as success. A successful optional smoke must include expected-text evidence and cwd-mutation evidence. Drift remains explicit: unsupported flags stay `unsupported_flag`, unproven fields stay in `needsVerification`, and unknown CLI changes are not guessed into argv.
+
+## P6-1 Historical Real CLI Evidence
 
 P6-1 local evidence was generated on 2026-06-23 with:
 
@@ -41,7 +77,7 @@ npm run compat:real:evidence -- --allow-real-run \
   --agent opencode --expect-text "agent-runtime opencode smoke ok"
 ```
 
-The generated repo-only file is `.release-evidence/p6-1-real-cli-compatibility.json` with `schemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1"`. It stores redacted summaries only: no raw stdout/stderr, no prompt text, no full observed text tail, no private paths, no token values, no Bearer values, and no auth environment assignment values. It records `gitHeadSha` plus `gitDirty` and before/after dirty summaries so a dirty-tree evidence file is not mistaken for clean-commit evidence. The command runs safe preflight by default; authenticated real runs are added only when `--allow-real-run`, `--agent <id>`, and `--expect-text <text>` are all explicit.
+The historical repo-only file is `.release-evidence/p6-1-real-cli-compatibility.json` with `schemaVersion: "agent-cli-runtime.realCompatibilityEvidence.v1"`. It stores redacted summaries only: no raw stdout/stderr, no prompt text, no full observed text tail, no private paths, no token values, no Bearer values, and no auth environment assignment values. It records legacy `gitHeadSha` plus `gitDirty` and before/after dirty summaries so a dirty-tree evidence file is not mistaken for clean-commit evidence. The command runs safe preflight by default; authenticated real runs are added only when `--allow-real-run`, `--agent <id>`, and `--expect-text <text>` are all explicit.
 
 P6-2 verifies the same repo-only evidence with:
 
@@ -54,7 +90,7 @@ The verifier emits `schemaVersion: "agent-cli-runtime.realCompatibilityEvidenceV
 
 P6-3 does not regenerate this evidence. It only requires the existing repo-only evidence to pass the offline verifier before local prepublish and while creating release-candidate artifacts. `dogfood` does not run the verifier, so installed-package consumers never depend on `.release-evidence/`.
 
-Current safe preflight command results:
+P6-1 safe preflight command results:
 
 | Command | Result | Notes |
 | --- | --- | --- |
@@ -65,20 +101,20 @@ Current safe preflight command results:
 | `node ./dist/cli/main.js smoke --mode real --agent claude --json` | `auth_missing` | Local Claude Code auth missing; no run launched. |
 | `node ./dist/cli/main.js smoke --mode real --agent opencode --json` | `real_run_skipped` | Safe preflight only; `skippedReason: "real_run_not_allowed"`. |
 
-Current adapter evidence:
+P6-1 adapter evidence:
 
-| Adapter | CLI version | Auth/model source | Safe runClassification | Authenticated smoke | Current `needsVerification` decision |
+| Adapter | CLI version | Auth/model source | Safe runClassification | Authenticated smoke | Historical `needsVerification` decision |
 | --- | --- | --- | --- | --- | --- |
 | Codex CLI | `codex-cli 0.142.0` | auth `unknown`; models `live` | `real_run_skipped` | `success`; expected text matched; cwd not mutated | Keep `session` and `authProbe` unpromoted. The successful run verifies the current prompt/stdin/parser/cwd-mutation path, not a stable session/resume or non-mutating auth probe. |
 | Claude Code | `2.1.178 (Claude Code)` | auth `missing`; models `fallback` | `auth_missing` | not attempted | Keep `session.id` and `reasoning` unpromoted. Local auth is missing, and provider-dependent reasoning behavior is still not a stable mapped flag. |
 | OpenCode | `1.15.6` | auth `unknown`; models `live` | `real_run_skipped` | `success`; expected text matched; cwd not mutated | Keep `extraAllowedDirs`, `session`, and `permissionPolicy.read-only` unpromoted. The successful run verifies stdin/parser/cwd-mutation behavior, not explicit extra-dir/session/read-only/workspace-write flags. |
 
-Drift analysis:
+P6-1 drift analysis:
 
-- Codex version changed from the previous documented `codex-cli 0.142.0-alpha.6` to `codex-cli 0.142.0`; current model probe still returns live models and no unsupported flag diagnostic.
+- Codex version changed from the previous documented `codex-cli 0.142.0-alpha.6` to `codex-cli 0.142.0`; that model probe returned live models and no unsupported flag diagnostic.
 - Claude Code remains executable at `2.1.178`, but auth is still `missing`; `auth_missing` is evidence, not success.
-- OpenCode remains `1.15.6`; live model probe still works and no unsupported flag diagnostic appeared.
-- No `unsupported_flag` or `needs_verification` diagnostic was produced by current safe preflight. Existing `needsVerification` entries remain because they are unproven capabilities, not because current CLI preflight failed.
+- OpenCode remains `1.15.6`; live model probe worked and no unsupported flag diagnostic appeared.
+- No `unsupported_flag` or `needs_verification` diagnostic was produced by the P6-1 safe preflight. Existing `needsVerification` entries remain because they are unproven capabilities, not because that CLI preflight failed.
 
 ## P3-6 Real CLI Opt-In Smoke Evidence
 
@@ -239,9 +275,9 @@ Historical local real-CLI detection/preflight evidence from `node ./dist/cli/mai
 
 | Adapter | CLI path | CLI version tested | Detection | Run smoke | Goal smoke | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Codex CLI | redacted local app path | `codex-cli 0.142.0` | Pass | P6-1 opt-in smoke passed; safe preflight reports `real_run_skipped` without `--allow-real-run`. | Not run in P6-1 | Uses `codex exec --json --skip-git-repo-check` with stdin prompt and `-C <cwd>`. Live model probe passed. Session and auth probe remain `needsVerification`. |
-| Claude Code | redacted local app path | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P6-1 | `claude auth status` returned auth missing in the local P6-1 certification. Conformance skips before launching Claude. |
-| OpenCode | redacted local app path | `1.15.6` | Pass | P6-1 opt-in smoke passed; safe preflight reports `real_run_skipped` without `--allow-real-run`. | Not run in P6-1 | Live model source is available. Explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
+| Codex CLI | redacted local app path | `codex-cli 0.142.3` | Pass | Safe preflight reports `real_run_skipped` without `--allow-real-run`; optional authenticated smoke is not present in the checked-in matrix. | Not run in P8-2 | Uses `codex exec --json --skip-git-repo-check` with stdin prompt and `-C <cwd>`. Live model probe passed. Session and auth probe remain `needsVerification`. |
+| Claude Code | redacted local app path | `2.1.178 (Claude Code)` | Pass with `auth_missing` diagnostic | Blocked by local auth | Not run in P8-2 | `claude auth status` returned auth missing in the local P8-2 certification. Conformance skips before launching Claude. |
+| OpenCode | redacted local app path | `1.15.6` | Pass | Safe preflight reports `real_run_skipped` without `--allow-real-run`; optional authenticated smoke not run in P8-2. | Not run in P8-2 | Live model source is available. Explicit read-only/workspace-write flags, extra dirs, and session remain unverified. |
 
 P5-2 published adapter evidence uses fake CLIs only. It verifies that the published package's built-in adapter invocation profiles still match the documented shapes and that prompts stay on stdin, but it is not authenticated real CLI compatibility success evidence.
 
@@ -264,8 +300,8 @@ Runtime notes:
 - auth probe: no stable non-mutating auth probe is enabled; auth status is `unknown`
 - model probe: `codex debug models`; parser keeps only model `slug`/`display_name` and ignores hidden models
 - parser note: transient `Reconnecting... n/5` structured error frames are normalized to `status: reconnecting`; they are not fatal if the run later emits text/usage and exits `0`
-- 2026-06-23 P6-1 local certification: executable/version/model preflight passed for `codex-cli 0.142.0`; safe preflight reports `real_run_skipped` without `--allow-real-run`.
-- 2026-06-23 P6-1 opt-in Codex real smoke passed with expected text matched and no isolated-cwd mutation. This verifies the current prompt/stdin/parser/cwd-mutation path only; session/resume and auth probe remain `needsVerification`.
+- 2026-06-27 P8-2 local certification: executable/version/model preflight passed for `codex-cli 0.142.3`; safe preflight reports `real_run_skipped` without `--allow-real-run`.
+- The checked-in P8-2 matrix does not include an authenticated Codex smoke. Safe preflight verifies current executable/version/model/profile behavior only; session/resume and auth probe remain `needsVerification`.
 
 ### Claude Code
 
@@ -282,7 +318,7 @@ Runtime notes:
 - capability probe: `claude -p --help`; current local output includes the tracked capability flags and produced no capability diagnostics
 - model probe: no live model probe; fallback aliases are `default`, `sonnet`, `opus`, `haiku`
 - `--resume` is the verified resume path in fixtures; `--session-id` is represented in the profile as `needsVerification` and is not emitted by `buildArgs()`
-- 2026-06-23 P6-1 local certification: executable/version/auth preflight passed for `2.1.178 (Claude Code)`, but auth was `missing`; no authenticated real run was launched.
+- 2026-06-27 P8-2 local certification: executable/version/auth preflight passed for `2.1.178 (Claude Code)`, but auth was `missing`; no authenticated real run was launched.
 - DeepSeek or another Anthropic-compatible provider can be supplied through environment variables. Keep this as names and placeholders only; do not commit real token values, account-specific URLs, or private model aliases:
 
 ```bash
@@ -312,8 +348,8 @@ Runtime notes:
 - model probe: `opencode models`
 - read-only and workspace-write are left to OpenCode defaults until stable permission flags are verified
 - extra dirs and session/resume are not mapped; profile marks them as `needsVerification`
-- 2026-06-23 P6-1 local certification: executable/version/model preflight passed for `opencode` 1.15.6; safe preflight reports `real_run_skipped` without `--allow-real-run`.
-- 2026-06-23 P6-1 opt-in OpenCode real smoke passed with expected text matched and no isolated-cwd mutation. Keep prompt out of argv; do not switch to positional argv prompt. The runtime requested read-only behavior, but OpenCode explicit read-only/workspace-write flags, extra dirs, and session remain unverified.
+- 2026-06-27 P8-2 local certification: executable/version/model preflight passed for `opencode` 1.15.6; safe preflight reports `real_run_skipped` without `--allow-real-run`.
+- P8-2 does not include an authenticated OpenCode smoke. Keep prompt out of argv; do not switch to positional argv prompt. OpenCode explicit read-only/workspace-write flags, extra dirs, and session remain unverified.
 
 ## Smoke Commands
 
@@ -880,6 +916,6 @@ claude auth status
 
 Observed results:
 
-- Codex: latest run timed out after 30s with `parsedEventCount: 2` (`thread.started`, `turn.started`), sanitized argv `["exec","--json","--skip-git-repo-check","--sandbox","read-only","-C","<cwd>"]`, and startup diagnostics rather than a prompt transport mismatch. A preceding run emitted the expected final text and usage but was previously misclassified because transient reconnect frames were treated as fatal; this is fixed by the parser fixture.
+- Codex: latest run timed out after 30s with `parsedEventCount: 2` (`thread.started`, `turn.started`), sanitized argv `["exec","--json","--skip-git-repo-check","--sandbox","read-only","-C","<cwd>"]`, and startup diagnostics rather than a prompt transport mismatch. Parser fixtures cover transient reconnect frames so they are not treated as fatal.
 - OpenCode: timed out after 30s with `parsedEventCount: 0`, sanitized argv `["run","--format","json","--dir","<cwd>"]`, exitCode `0` after timeout, and hints for interactive/model/auth wait or unsupported stdin profile.
 - Claude Code: `claude auth status` returned `loggedIn:false`, `authMethod:none`, `apiProvider:firstParty`; run smoke remains auth-blocked.

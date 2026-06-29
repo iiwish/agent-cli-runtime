@@ -11,8 +11,25 @@ const DEFAULT_ARTIFACT_NAMES = [
   "agent-cli-runtime-release-verification",
 ];
 const GATE_EVIDENCE_SCHEMA_VERSION = "agent-cli-runtime.releaseGateEvidence.v1";
-const REAL_COMPATIBILITY_EVIDENCE_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityEvidence.v1";
+const REAL_COMPATIBILITY_EVIDENCE_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityMatrix.v1";
 const REAL_COMPATIBILITY_VERIFICATION_SCHEMA_VERSION = "agent-cli-runtime.realCompatibilityEvidenceVerification.v1";
+const REAL_COMPATIBILITY_MAX_AGE_HOURS = 24;
+const REAL_COMPATIBILITY_GATE_COMMAND = `npm run compat:real:evidence:verify -- --target-sha <target_sha> --max-age-hours ${REAL_COMPATIBILITY_MAX_AGE_HOURS} --release-strict`;
+const REAL_COMPATIBILITY_REPO_ONLY_SKIPPED_COMMAND = "repo-only real compatibility evidence not refreshed in CI";
+const REAL_COMPATIBILITY_REPO_ONLY_STATUS = "repo_only_not_run";
+const COMPATIBILITY_GATE_ALLOWED_KEYS = new Set([
+  "name",
+  "script",
+  "command",
+  "ok",
+  "outputSchemaVersion",
+  "evidenceSchemaVersion",
+  "targetSha",
+  "freshness",
+  "dirtyPolicy",
+  "diagnostics",
+  "repoOnlyEvidence",
+]);
 const REQUIRED_GATE_EVIDENCE = [
   {
     name: "daemon-ready",
@@ -31,7 +48,7 @@ const REQUIRED_GATE_EVIDENCE = [
   {
     name: "real-compatibility-evidence",
     script: "compat:real:evidence:verify",
-    command: "npm run compat:real:evidence:verify",
+    command: [REAL_COMPATIBILITY_GATE_COMMAND, REAL_COMPATIBILITY_REPO_ONLY_SKIPPED_COMMAND],
     outputSchemaVersion: REAL_COMPATIBILITY_VERIFICATION_SCHEMA_VERSION,
     evidenceSchemaVersion: REAL_COMPATIBILITY_EVIDENCE_SCHEMA_VERSION,
   },
@@ -292,9 +309,10 @@ function validateGateEvidence(gateEvidenceText, baseDir, gateEvidencePath, diagn
         actual: typeof gate.name === "string" ? gate.name : null,
       });
     }
-    if (gate.command !== required.command) {
+    const expectedCommands = Array.isArray(required.command) ? required.command : [required.command];
+    if (!expectedCommands.includes(gate.command)) {
       addDiagnostic(diagnostics, "invalid_gate_evidence", `Unexpected command for ${required.script}.`, {
-        expected: required.command,
+        expected: expectedCommands.join(" | "),
         actual: typeof gate.command === "string" ? gate.command : null,
       });
     }
@@ -332,7 +350,11 @@ function validateGateEvidence(gateEvidenceText, baseDir, gateEvidencePath, diagn
       outputSchemaVersion: typeof gate?.outputSchemaVersion === "string" ? redact(gate.outputSchemaVersion) : null,
       packageSource: typeof gate?.packageSource === "string" ? redact(gate.packageSource) : null,
       evidenceSchemaVersion: typeof gate?.evidenceSchemaVersion === "string" ? redact(gate.evidenceSchemaVersion) : null,
+      targetSha: summarizeGateTargetSha(gate?.targetSha, diagnostics),
+      freshness: summarizeGateFreshness(gate?.freshness, diagnostics),
+      dirtyPolicy: summarizeGateDirtyPolicy(gate?.dirtyPolicy, diagnostics),
       diagnostics: summarizeGateDiagnostics(gate?.diagnostics, diagnostics),
+      repoOnlyEvidence: summarizeGateRepoOnlyEvidence(gate?.repoOnlyEvidence, diagnostics),
     })),
     commands: gates.map((gate) => typeof gate?.command === "string" ? redact(gate.command) : null).filter(Boolean),
     noAuthenticatedRealRun: evidence.noAuthenticatedRealRun === true,
@@ -342,13 +364,61 @@ function validateGateEvidence(gateEvidenceText, baseDir, gateEvidencePath, diagn
 }
 
 function validateCompatibilityGate(gate, required, diagnostics) {
+  const extraKeys = Object.keys(gate ?? {}).filter((key) => !COMPATIBILITY_GATE_ALLOWED_KEYS.has(key));
+  if (extraKeys.length > 0) {
+    addDiagnostic(diagnostics, "unsafe_gate_evidence", `Compatibility verification gate includes fields outside the redacted summary allowlist.`, {
+      script: required.script,
+    });
+  }
   if (gate.evidenceSchemaVersion !== required.evidenceSchemaVersion) {
     addDiagnostic(diagnostics, "invalid_gate_evidence", `Unexpected verified evidence schema for ${required.script}.`, {
       expected: required.evidenceSchemaVersion,
       actual: typeof gate.evidenceSchemaVersion === "string" ? gate.evidenceSchemaVersion : null,
     });
   }
-  const summary = gate.diagnostics;
+  if (gate.command === REAL_COMPATIBILITY_REPO_ONLY_SKIPPED_COMMAND) {
+    validateCompatibilityRepoOnlySkipGate(gate, required, diagnostics);
+    return;
+  }
+  if (gate.command !== REAL_COMPATIBILITY_GATE_COMMAND) return;
+  if ("repoOnlyEvidence" in gate) {
+    addDiagnostic(diagnostics, "unsafe_gate_evidence", `Strict compatibility verification gate must not include repo-only skip fields.`, {
+      script: required.script,
+    });
+  }
+  validateCompatibilityTargetSha(gate.targetSha, required, diagnostics);
+  validateCompatibilityFreshness(gate.freshness, required, diagnostics);
+  validateCompatibilityDirtyPolicy(gate.dirtyPolicy, required, diagnostics);
+  validateCompatibilityDiagnosticSummary(gate.diagnostics, required, diagnostics);
+}
+
+function validateCompatibilityRepoOnlySkipGate(gate, required, diagnostics) {
+  validateCompatibilityRepoOnlyTargetSha(gate.targetSha, required, diagnostics);
+  validateCompatibilityRepoOnlyFreshness(gate.freshness, required, diagnostics);
+  validateCompatibilityRepoOnlyDirtyPolicy(gate.dirtyPolicy, required, diagnostics);
+  validateCompatibilityDiagnosticSummary(gate.diagnostics, required, diagnostics);
+  if (gate.diagnostics?.count !== 0 || !Array.isArray(gate.diagnostics?.codes) || gate.diagnostics.codes.length !== 0) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Repo-only compatibility skip diagnostics for ${required.script} must be empty.`, {
+      script: required.script,
+    });
+  }
+  const summary = gate.repoOnlyEvidence;
+  const summaryKeys = Object.keys(summary ?? {});
+  if (
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    summary.status !== "not_refreshed_in_ci" ||
+    summary.reason !== "real_compatibility_matrix_is_repo_only" ||
+    summaryKeys.some((key) => !["status", "reason"].includes(key))
+  ) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Repo-only compatibility evidence summary for ${required.script} must record the fixed CI skip reason.`, {
+      script: required.script,
+    });
+  }
+}
+
+function validateCompatibilityDiagnosticSummary(summary, required, diagnostics) {
   const summaryKeys = Object.keys(summary ?? {});
   if (
     !summary ||
@@ -378,6 +448,143 @@ function validateCompatibilityGate(gate, required, diagnostics) {
   }
 }
 
+function validateCompatibilityRepoOnlyTargetSha(summary, required, diagnostics) {
+  const keys = Object.keys(summary ?? {});
+  if (
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    typeof summary.expected !== "string" ||
+    summary.actual !== null ||
+    summary.ok !== null ||
+    summary.status !== REAL_COMPATIBILITY_REPO_ONLY_STATUS ||
+    keys.some((key) => !["expected", "actual", "ok", "status"].includes(key))
+  ) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Repo-only compatibility target SHA summary for ${required.script} must record the workflow head SHA as expected and mark verifier not run.`, {
+      script: required.script,
+    });
+    return;
+  }
+  if (!/^[0-9a-f]{40}$/u.test(summary.expected)) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Repo-only compatibility target SHA summary for ${required.script} must use a full target SHA.`, {
+      script: required.script,
+    });
+  }
+}
+
+function validateCompatibilityRepoOnlyFreshness(summary, required, diagnostics) {
+  const keys = Object.keys(summary ?? {});
+  if (
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    summary.maxAgeHours !== REAL_COMPATIBILITY_MAX_AGE_HOURS ||
+    summary.ageHours !== null ||
+    summary.ok !== null ||
+    summary.status !== REAL_COMPATIBILITY_REPO_ONLY_STATUS ||
+    keys.some((key) => !["maxAgeHours", "ageHours", "ok", "status"].includes(key))
+  ) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Repo-only compatibility freshness summary for ${required.script} must mark verifier not run in CI.`, {
+      script: required.script,
+    });
+  }
+}
+
+function validateCompatibilityRepoOnlyDirtyPolicy(summary, required, diagnostics) {
+  const keys = Object.keys(summary ?? {});
+  if (
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    summary.policy !== "repo-only-skipped" ||
+    summary.allowDirty !== false ||
+    summary.gitDirty !== null ||
+    summary.inputDirty !== null ||
+    summary.outputDirty !== null ||
+    summary.ok !== null ||
+    summary.status !== REAL_COMPATIBILITY_REPO_ONLY_STATUS ||
+    keys.some((key) => !["policy", "allowDirty", "gitDirty", "inputDirty", "outputDirty", "ok", "status"].includes(key))
+  ) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Repo-only compatibility dirty-policy summary for ${required.script} must mark verifier not run in CI.`, {
+      script: required.script,
+    });
+  }
+}
+
+function validateCompatibilityTargetSha(summary, required, diagnostics) {
+  const keys = Object.keys(summary ?? {});
+  if (
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    typeof summary.expected !== "string" ||
+    typeof summary.actual !== "string" ||
+    summary.ok !== true ||
+    summary.status !== "matched" ||
+    keys.some((key) => !["expected", "actual", "ok", "status"].includes(key))
+  ) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Compatibility verification target SHA summary for ${required.script} must record a matched target SHA only.`, {
+      script: required.script,
+    });
+    return;
+  }
+  if (!/^[0-9a-f]{40}$/u.test(summary.expected) || !/^[0-9a-f]{40}$/u.test(summary.actual) || summary.expected !== summary.actual) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Compatibility verification target SHA summary for ${required.script} is not a full matching SHA.`, {
+      script: required.script,
+    });
+  }
+}
+
+function validateCompatibilityFreshness(summary, required, diagnostics) {
+  const keys = Object.keys(summary ?? {});
+  if (
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    summary.maxAgeHours !== REAL_COMPATIBILITY_MAX_AGE_HOURS ||
+    typeof summary.ageHours !== "number" ||
+    summary.ok !== true ||
+    summary.status !== "fresh" ||
+    keys.some((key) => !["maxAgeHours", "ageHours", "ok", "status"].includes(key))
+  ) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Compatibility verification freshness summary for ${required.script} must record fresh max-age status.`, {
+      script: required.script,
+    });
+  }
+}
+
+function validateCompatibilityDirtyPolicy(summary, required, diagnostics) {
+  const keys = Object.keys(summary ?? {});
+  if (
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    summary.policy !== "release-strict" ||
+    typeof summary.allowDirty !== "boolean" ||
+    typeof summary.gitDirty !== "boolean" ||
+    typeof summary.inputDirty !== "boolean" ||
+    typeof summary.outputDirty !== "boolean" ||
+    summary.ok !== true ||
+    (summary.status !== "clean" && summary.status !== "self_dirty_only" && summary.status !== "dirty_allowed") ||
+    keys.some((key) => !["policy", "allowDirty", "gitDirty", "inputDirty", "outputDirty", "ok", "status"].includes(key))
+  ) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Compatibility verification dirty-policy summary for ${required.script} must record release-strict clean, self-output-only dirty, or explicitly allowed dirty evidence.`, {
+      script: required.script,
+    });
+    return;
+  }
+  if (summary.status === "self_dirty_only" && (summary.inputDirty !== false || summary.outputDirty !== true || summary.gitDirty !== false)) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Compatibility verification dirty-policy summary for ${required.script} has self_dirty_only without clean input evidence.`, {
+      script: required.script,
+    });
+  }
+  if (summary.status === "dirty_allowed" && summary.allowDirty !== true) {
+    addDiagnostic(diagnostics, "invalid_gate_evidence", `Compatibility verification dirty-policy summary for ${required.script} has dirty_allowed without allowDirty.`, {
+      script: required.script,
+    });
+  }
+}
+
 function summarizeGateDiagnostics(summary, diagnostics) {
   if (!summary || typeof summary !== "object" || Array.isArray(summary)) return null;
   const result = {
@@ -385,6 +592,55 @@ function summarizeGateDiagnostics(summary, diagnostics) {
     codes: Array.isArray(summary.codes) ? summary.codes.filter((code) => typeof code === "string").map(redact) : [],
   };
   inspectString(JSON.stringify(result), diagnostics, "release gate diagnostics summary");
+  return result;
+}
+
+function summarizeGateTargetSha(summary, diagnostics) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) return null;
+  const result = {
+    expected: typeof summary.expected === "string" ? redact(summary.expected) : null,
+    actual: typeof summary.actual === "string" ? redact(summary.actual) : null,
+    ok: typeof summary.ok === "boolean" ? summary.ok : null,
+    status: typeof summary.status === "string" ? redact(summary.status) : null,
+  };
+  inspectString(JSON.stringify(result), diagnostics, "release gate target SHA summary");
+  return result;
+}
+
+function summarizeGateFreshness(summary, diagnostics) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) return null;
+  const result = {
+    maxAgeHours: typeof summary.maxAgeHours === "number" ? summary.maxAgeHours : null,
+    ageHours: typeof summary.ageHours === "number" ? summary.ageHours : null,
+    ok: typeof summary.ok === "boolean" ? summary.ok : null,
+    status: typeof summary.status === "string" ? redact(summary.status) : null,
+  };
+  inspectString(JSON.stringify(result), diagnostics, "release gate freshness summary");
+  return result;
+}
+
+function summarizeGateDirtyPolicy(summary, diagnostics) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) return null;
+  const result = {
+    policy: typeof summary.policy === "string" ? redact(summary.policy) : null,
+    allowDirty: typeof summary.allowDirty === "boolean" ? summary.allowDirty : null,
+    gitDirty: typeof summary.gitDirty === "boolean" ? summary.gitDirty : null,
+    inputDirty: typeof summary.inputDirty === "boolean" ? summary.inputDirty : null,
+    outputDirty: typeof summary.outputDirty === "boolean" ? summary.outputDirty : null,
+    ok: typeof summary.ok === "boolean" ? summary.ok : null,
+    status: typeof summary.status === "string" ? redact(summary.status) : null,
+  };
+  inspectString(JSON.stringify(result), diagnostics, "release gate dirty-policy summary");
+  return result;
+}
+
+function summarizeGateRepoOnlyEvidence(summary, diagnostics) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) return null;
+  const result = {
+    status: typeof summary.status === "string" ? redact(summary.status) : null,
+    reason: typeof summary.reason === "string" ? redact(summary.reason) : null,
+  };
+  inspectString(JSON.stringify(result), diagnostics, "release gate repo-only evidence summary");
   return result;
 }
 

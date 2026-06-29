@@ -1,0 +1,1838 @@
+{
+  "schemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
+  "checkedAt": "2026-06-29T02:38:51.894Z",
+  "gitSha": "bbef29eef5aec9664a774729381003123e0f3aff",
+  "gitHeadSha": "bbef29eef5aec9664a774729381003123e0f3aff",
+  "gitShaMeaning": "HEAD commit only; see gitInputDirty/gitOutputDirty and dirtySummary for uncommitted input evidence versus evidence-output self writes.",
+  "gitDirty": true,
+  "gitInputDirty": true,
+  "gitOutputDirty": true,
+  "gitStatusBeforeWrite": {
+    "headSha": "bbef29eef5aec9664a774729381003123e0f3aff",
+    "dirty": true,
+    "changedFilesCount": 15,
+    "changedFiles": [
+      {
+        "status": "M",
+        "path": ".github/workflows/release-candidate.yml"
+      },
+      {
+        "status": "M",
+        "path": ".release-evidence/README.md"
+      },
+      {
+        "status": "M",
+        "path": "README.md"
+      },
+      {
+        "status": "M",
+        "path": "README.zh-CN.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/compatibility.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/production-readiness.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/release-report.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/ssot.md"
+      },
+      {
+        "status": "M",
+        "path": "scripts/create-real-compatibility-evidence.mjs"
+      },
+      {
+        "status": "M",
+        "path": "scripts/create-release-candidate.mjs"
+      },
+      {
+        "status": "M",
+        "path": "scripts/verify-real-compatibility-evidence.mjs"
+      },
+      {
+        "status": "M",
+        "path": "scripts/verify-release-artifacts.mjs"
+      },
+      {
+        "status": "M",
+        "path": "tests/contract.test.ts"
+      },
+      {
+        "status": "??",
+        "path": ".npmrc"
+      },
+      {
+        "status": "??",
+        "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
+      }
+    ],
+    "truncated": false
+  },
+  "dirtySummary": {
+    "outputPath": ".release-evidence/p8-2-real-cli-compatibility-matrix.json",
+    "beforeWrite": {
+      "dirty": true,
+      "changedFilesCount": 15,
+      "changedFiles": [
+        {
+          "status": "M",
+          "path": ".github/workflows/release-candidate.yml"
+        },
+        {
+          "status": "M",
+          "path": ".release-evidence/README.md"
+        },
+        {
+          "status": "M",
+          "path": "README.md"
+        },
+        {
+          "status": "M",
+          "path": "README.zh-CN.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/compatibility.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/production-readiness.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/release-report.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/ssot.md"
+        },
+        {
+          "status": "M",
+          "path": "scripts/create-real-compatibility-evidence.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/create-release-candidate.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/verify-real-compatibility-evidence.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/verify-release-artifacts.mjs"
+        },
+        {
+          "status": "M",
+          "path": "tests/contract.test.ts"
+        },
+        {
+          "status": "??",
+          "path": ".npmrc"
+        },
+        {
+          "status": "??",
+          "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
+        }
+      ],
+      "truncated": false
+    },
+    "inputBeforeWrite": {
+      "dirty": true,
+      "changedFilesCount": 14,
+      "changedFiles": [
+        {
+          "status": "M",
+          "path": ".github/workflows/release-candidate.yml"
+        },
+        {
+          "status": "M",
+          "path": ".release-evidence/README.md"
+        },
+        {
+          "status": "M",
+          "path": "README.md"
+        },
+        {
+          "status": "M",
+          "path": "README.zh-CN.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/compatibility.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/production-readiness.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/release-report.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/ssot.md"
+        },
+        {
+          "status": "M",
+          "path": "scripts/create-real-compatibility-evidence.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/create-release-candidate.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/verify-real-compatibility-evidence.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/verify-release-artifacts.mjs"
+        },
+        {
+          "status": "M",
+          "path": "tests/contract.test.ts"
+        },
+        {
+          "status": "??",
+          "path": ".npmrc"
+        }
+      ],
+      "truncated": false
+    },
+    "outputBeforeWrite": {
+      "dirty": true,
+      "changedFilesCount": 1,
+      "changedFiles": [
+        {
+          "status": "??",
+          "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
+        }
+      ],
+      "truncated": false
+    },
+    "afterWrite": {
+      "dirty": true,
+      "changedFilesCount": 15,
+      "changedFiles": [
+        {
+          "status": "M",
+          "path": ".github/workflows/release-candidate.yml"
+        },
+        {
+          "status": "M",
+          "path": ".release-evidence/README.md"
+        },
+        {
+          "status": "M",
+          "path": "README.md"
+        },
+        {
+          "status": "M",
+          "path": "README.zh-CN.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/compatibility.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/production-readiness.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/release-report.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/ssot.md"
+        },
+        {
+          "status": "M",
+          "path": "scripts/create-real-compatibility-evidence.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/create-release-candidate.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/verify-real-compatibility-evidence.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/verify-release-artifacts.mjs"
+        },
+        {
+          "status": "M",
+          "path": "tests/contract.test.ts"
+        },
+        {
+          "status": "??",
+          "path": ".npmrc"
+        },
+        {
+          "status": "??",
+          "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
+        }
+      ],
+      "truncated": false
+    },
+    "inputAfterWrite": {
+      "dirty": true,
+      "changedFilesCount": 14,
+      "changedFiles": [
+        {
+          "status": "M",
+          "path": ".github/workflows/release-candidate.yml"
+        },
+        {
+          "status": "M",
+          "path": ".release-evidence/README.md"
+        },
+        {
+          "status": "M",
+          "path": "README.md"
+        },
+        {
+          "status": "M",
+          "path": "README.zh-CN.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/compatibility.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/production-readiness.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/release-report.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/ssot.md"
+        },
+        {
+          "status": "M",
+          "path": "scripts/create-real-compatibility-evidence.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/create-release-candidate.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/verify-real-compatibility-evidence.mjs"
+        },
+        {
+          "status": "M",
+          "path": "scripts/verify-release-artifacts.mjs"
+        },
+        {
+          "status": "M",
+          "path": "tests/contract.test.ts"
+        },
+        {
+          "status": "??",
+          "path": ".npmrc"
+        }
+      ],
+      "truncated": false
+    },
+    "outputAfterWrite": {
+      "dirty": true,
+      "changedFilesCount": 1,
+      "changedFiles": [
+        {
+          "status": "??",
+          "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "nodeVersion": "v24.15.0",
+  "packageVersion": "0.1.0-alpha.3",
+  "safePreflightOnly": true,
+  "noAuthenticatedRealRunByDefault": true,
+  "noRawStdoutStderr": true,
+  "noPromptText": true,
+  "noTokenOrAuthEnv": true,
+  "commands": [
+    {
+      "command": "node ./dist/cli/main.js agents --json",
+      "exitCode": 0,
+      "schemaVersion": null,
+      "ok": null,
+      "summary": {
+        "agents": [
+          {
+            "id": "codex",
+            "displayName": "Codex CLI",
+            "available": true,
+            "version": "codex-cli 0.142.3",
+            "authStatus": "unknown",
+            "modelsSource": "live",
+            "modelCount": 6,
+            "capabilities": {
+              "streaming": true,
+              "tools": true,
+              "models": true,
+              "authProbe": false,
+              "prompt": [
+                "stdin"
+              ]
+            },
+            "diagnostics": []
+          },
+          {
+            "id": "claude",
+            "displayName": "Claude Code",
+            "available": true,
+            "version": "2.1.178 (Claude Code)",
+            "authStatus": "missing",
+            "modelsSource": "fallback",
+            "modelCount": 4,
+            "capabilities": {
+              "streaming": true,
+              "tools": true,
+              "models": false,
+              "authProbe": true,
+              "prompt": [
+                "stdin"
+              ]
+            },
+            "diagnostics": [
+              {
+                "code": "auth_missing",
+                "message": "Auth is missing or expired for this CLI",
+                "probe": "auth"
+              }
+            ]
+          },
+          {
+            "id": "opencode",
+            "displayName": "OpenCode",
+            "available": true,
+            "version": "1.15.6",
+            "authStatus": "unknown",
+            "modelsSource": "live",
+            "modelCount": 16,
+            "capabilities": {
+              "streaming": true,
+              "tools": true,
+              "models": true,
+              "authProbe": false,
+              "prompt": [
+                "stdin"
+              ]
+            },
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    {
+      "command": "node ./dist/cli/main.js doctor --json",
+      "exitCode": 0,
+      "schemaVersion": null,
+      "ok": true,
+      "summary": {
+        "agents": [
+          {
+            "id": "codex",
+            "displayName": "Codex CLI",
+            "available": true,
+            "version": "codex-cli 0.142.3",
+            "authStatus": "unknown",
+            "modelsSource": "live",
+            "modelCount": 6,
+            "capabilities": {
+              "streaming": true,
+              "tools": true,
+              "models": true,
+              "authProbe": false,
+              "prompt": [
+                "stdin"
+              ]
+            },
+            "diagnostics": []
+          },
+          {
+            "id": "claude",
+            "displayName": "Claude Code",
+            "available": true,
+            "version": "2.1.178 (Claude Code)",
+            "authStatus": "missing",
+            "modelsSource": "fallback",
+            "modelCount": 4,
+            "capabilities": {
+              "streaming": true,
+              "tools": true,
+              "models": false,
+              "authProbe": true,
+              "prompt": [
+                "stdin"
+              ]
+            },
+            "diagnostics": [
+              {
+                "code": "auth_missing",
+                "message": "Auth is missing or expired for this CLI",
+                "probe": "auth"
+              }
+            ]
+          },
+          {
+            "id": "opencode",
+            "displayName": "OpenCode",
+            "available": true,
+            "version": "1.15.6",
+            "authStatus": "unknown",
+            "modelsSource": "live",
+            "modelCount": 16,
+            "capabilities": {
+              "streaming": true,
+              "tools": true,
+              "models": true,
+              "authProbe": false,
+              "prompt": [
+                "stdin"
+              ]
+            },
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    {
+      "command": "node ./dist/cli/main.js conformance --mode real --agent all --json",
+      "exitCode": 0,
+      "schemaVersion": "agent-runtime.conformance.v1",
+      "ok": true,
+      "summary": {
+        "schemaVersion": "agent-runtime.conformance.v1",
+        "ok": true,
+        "mode": "real",
+        "agents": [
+          {
+            "adapter": "codex",
+            "version": "codex-cli 0.142.3",
+            "auth": "unknown",
+            "modelsSource": "live",
+            "runClassification": "real_run_skipped",
+            "expectedTextMatched": null,
+            "cwdMutationChecked": false,
+            "cwdMutated": null,
+            "skippedReason": "real_run_not_allowed",
+            "failureReason": null,
+            "diagnosticsCount": 0,
+            "diagnostics": [],
+            "argvProfile": {
+              "defaultArgs": [
+                "exec",
+                "--json",
+                "--skip-git-repo-check",
+                "-C",
+                "<cwd>"
+              ],
+              "knownFlags": [
+                {
+                  "flag": "--json",
+                  "mapsTo": "streamFormat",
+                  "status": "known"
+                },
+                {
+                  "flag": "-C",
+                  "mapsTo": "cwd",
+                  "status": "known"
+                },
+                {
+                  "flag": "--sandbox",
+                  "mapsTo": "permissionPolicy",
+                  "status": "known"
+                },
+                {
+                  "flag": "--add-dir",
+                  "mapsTo": "extraAllowedDirs",
+                  "status": "known"
+                },
+                {
+                  "flag": "--model",
+                  "mapsTo": "model",
+                  "status": "known"
+                },
+                {
+                  "flag": "-c model_reasoning_effort",
+                  "mapsTo": "reasoning",
+                  "status": "known"
+                },
+                {
+                  "flag": "--skip-git-repo-check",
+                  "mapsTo": "defaultArgs",
+                  "status": "known"
+                }
+              ],
+              "needsVerification": [
+                {
+                  "mapsTo": "session",
+                  "notes": "No stable Codex session/resume flag is used by this adapter yet; session input is intentionally not mapped."
+                },
+                {
+                  "mapsTo": "authProbe",
+                  "notes": "Codex authentication remains CLI-managed because a stable non-mutating auth status probe has not been verified."
+                }
+              ]
+            },
+            "promptTransport": "stdin:text",
+            "parserMode": "codex-json"
+          },
+          {
+            "adapter": "claude",
+            "version": "2.1.178 (Claude Code)",
+            "auth": "missing",
+            "modelsSource": "fallback",
+            "runClassification": "auth_missing",
+            "expectedTextMatched": null,
+            "cwdMutationChecked": false,
+            "cwdMutated": null,
+            "skippedReason": "auth_missing",
+            "failureReason": null,
+            "diagnosticsCount": 1,
+            "diagnostics": [
+              {
+                "code": "auth_missing",
+                "message": "Auth is missing or expired for this CLI",
+                "probe": "auth"
+              }
+            ],
+            "argvProfile": {
+              "defaultArgs": [
+                "-p",
+                "--input-format",
+                "stream-json",
+                "--output-format",
+                "stream-json",
+                "--verbose"
+              ],
+              "knownFlags": [
+                {
+                  "flag": "-p",
+                  "mapsTo": "printMode",
+                  "status": "known"
+                },
+                {
+                  "flag": "--input-format stream-json",
+                  "mapsTo": "promptTransport",
+                  "status": "known"
+                },
+                {
+                  "flag": "--output-format stream-json",
+                  "mapsTo": "streamFormat",
+                  "status": "known"
+                },
+                {
+                  "flag": "--verbose",
+                  "mapsTo": "requiredForStreamJson",
+                  "status": "known"
+                },
+                {
+                  "flag": "--model",
+                  "mapsTo": "model",
+                  "status": "known"
+                },
+                {
+                  "flag": "--add-dir",
+                  "mapsTo": "extraAllowedDirs",
+                  "status": "known"
+                },
+                {
+                  "flag": "--resume",
+                  "mapsTo": "session.resumeId",
+                  "status": "known"
+                },
+                {
+                  "flag": "--session-id",
+                  "mapsTo": "session.id",
+                  "status": "needs_verification"
+                },
+                {
+                  "flag": "--permission-mode bypassPermissions",
+                  "mapsTo": "headless-auto",
+                  "status": "known"
+                },
+                {
+                  "flag": "--permission-mode plan",
+                  "mapsTo": "read-only",
+                  "status": "known"
+                }
+              ],
+              "needsVerification": [
+                {
+                  "mapsTo": "session.id",
+                  "flags": [
+                    "--session-id"
+                  ],
+                  "notes": "Claude Code resume is mapped through --resume; fresh session id injection is not passed until verified against current CLI behavior."
+                },
+                {
+                  "mapsTo": "reasoning",
+                  "notes": "Reasoning effort is provider/config dependent and has no verified stable CLI flag in this profile."
+                }
+              ]
+            },
+            "promptTransport": "stdin:jsonl",
+            "parserMode": "claude-stream-json"
+          },
+          {
+            "adapter": "opencode",
+            "version": "1.15.6",
+            "auth": "unknown",
+            "modelsSource": "live",
+            "runClassification": "real_run_skipped",
+            "expectedTextMatched": null,
+            "cwdMutationChecked": false,
+            "cwdMutated": null,
+            "skippedReason": "real_run_not_allowed",
+            "failureReason": null,
+            "diagnosticsCount": 0,
+            "diagnostics": [],
+            "argvProfile": {
+              "defaultArgs": [
+                "run",
+                "--format",
+                "json",
+                "--dir",
+                "<cwd>"
+              ],
+              "knownFlags": [
+                {
+                  "flag": "run",
+                  "mapsTo": "runMode",
+                  "status": "known"
+                },
+                {
+                  "flag": "--format json",
+                  "mapsTo": "streamFormat",
+                  "status": "known"
+                },
+                {
+                  "flag": "--dir",
+                  "mapsTo": "cwd",
+                  "status": "known"
+                },
+                {
+                  "flag": "-m",
+                  "mapsTo": "model",
+                  "status": "known"
+                },
+                {
+                  "flag": "--dangerously-skip-permissions",
+                  "mapsTo": "headless-auto",
+                  "status": "known"
+                }
+              ],
+              "needsVerification": [
+                {
+                  "mapsTo": "extraAllowedDirs",
+                  "notes": "No stable extra-readable-directory flag is mapped for OpenCode in this profile."
+                },
+                {
+                  "mapsTo": "session",
+                  "notes": "No stable OpenCode session/resume flag is mapped by this adapter."
+                },
+                {
+                  "mapsTo": "permissionPolicy.read-only",
+                  "notes": "Read-only/workspace-write flags are left to OpenCode defaults until verified; only explicit headless bypass is mapped."
+                }
+              ]
+            },
+            "promptTransport": "stdin:text",
+            "parserMode": "opencode-json"
+          }
+        ]
+      }
+    },
+    {
+      "command": "node ./dist/cli/main.js smoke --mode real --agent codex --json",
+      "exitCode": 0,
+      "schemaVersion": "agent-runtime.realSmoke.v1",
+      "ok": false,
+      "summary": {
+        "schemaVersion": "agent-runtime.realSmoke.v1",
+        "ok": false,
+        "adapter": "codex",
+        "version": "codex-cli 0.142.3",
+        "auth": "unknown",
+        "modelsSource": "live",
+        "runClassification": "real_run_skipped",
+        "expectedTextRequired": true,
+        "expectedTextMatched": null,
+        "observedTextDeltaCount": 0,
+        "observedTextTailSha256": null,
+        "cwdMutationChecked": false,
+        "cwdMutated": null,
+        "cwdMutationCount": null,
+        "diagnosticsCount": 0,
+        "diagnostics": [],
+        "skippedReason": "real_run_not_allowed",
+        "failureReason": null
+      }
+    },
+    {
+      "command": "node ./dist/cli/main.js smoke --mode real --agent claude --json",
+      "exitCode": 0,
+      "schemaVersion": "agent-runtime.realSmoke.v1",
+      "ok": false,
+      "summary": {
+        "schemaVersion": "agent-runtime.realSmoke.v1",
+        "ok": false,
+        "adapter": "claude",
+        "version": "2.1.178 (Claude Code)",
+        "auth": "missing",
+        "modelsSource": "fallback",
+        "runClassification": "auth_missing",
+        "expectedTextRequired": true,
+        "expectedTextMatched": null,
+        "observedTextDeltaCount": 0,
+        "observedTextTailSha256": null,
+        "cwdMutationChecked": false,
+        "cwdMutated": null,
+        "cwdMutationCount": null,
+        "diagnosticsCount": 1,
+        "diagnostics": [
+          {
+            "code": "auth_missing",
+            "message": "Auth is missing or expired for this CLI",
+            "probe": "auth"
+          }
+        ],
+        "skippedReason": "auth_missing",
+        "failureReason": null
+      }
+    },
+    {
+      "command": "node ./dist/cli/main.js smoke --mode real --agent opencode --json",
+      "exitCode": 0,
+      "schemaVersion": "agent-runtime.realSmoke.v1",
+      "ok": false,
+      "summary": {
+        "schemaVersion": "agent-runtime.realSmoke.v1",
+        "ok": false,
+        "adapter": "opencode",
+        "version": "1.15.6",
+        "auth": "unknown",
+        "modelsSource": "live",
+        "runClassification": "real_run_skipped",
+        "expectedTextRequired": true,
+        "expectedTextMatched": null,
+        "observedTextDeltaCount": 0,
+        "observedTextTailSha256": null,
+        "cwdMutationChecked": false,
+        "cwdMutated": null,
+        "cwdMutationCount": null,
+        "diagnosticsCount": 0,
+        "diagnostics": [],
+        "skippedReason": "real_run_not_allowed",
+        "failureReason": null
+      }
+    }
+  ],
+  "adapters": {
+    "codex": {
+      "executable": {
+        "status": "resolved",
+        "path": "<resolved_executable>",
+        "unavailableReason": null
+      },
+      "version": "codex-cli 0.142.3",
+      "auth": {
+        "status": "unknown",
+        "diagnosticCodes": []
+      },
+      "modelsSource": {
+        "source": "live",
+        "modelCount": 6
+      },
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "models": true,
+        "authProbe": false,
+        "prompt": [
+          "stdin"
+        ]
+      },
+      "argvProfile": {
+        "defaultArgs": [
+          "exec",
+          "--json",
+          "--skip-git-repo-check",
+          "-C",
+          "<cwd>"
+        ],
+        "knownFlags": [
+          {
+            "flag": "--json",
+            "mapsTo": "streamFormat",
+            "status": "known"
+          },
+          {
+            "flag": "-C",
+            "mapsTo": "cwd",
+            "status": "known"
+          },
+          {
+            "flag": "--sandbox",
+            "mapsTo": "permissionPolicy",
+            "status": "known"
+          },
+          {
+            "flag": "--add-dir",
+            "mapsTo": "extraAllowedDirs",
+            "status": "known"
+          },
+          {
+            "flag": "--model",
+            "mapsTo": "model",
+            "status": "known"
+          },
+          {
+            "flag": "-c model_reasoning_effort",
+            "mapsTo": "reasoning",
+            "status": "known"
+          },
+          {
+            "flag": "--skip-git-repo-check",
+            "mapsTo": "defaultArgs",
+            "status": "known"
+          }
+        ],
+        "needsVerification": [
+          {
+            "mapsTo": "session",
+            "notes": "No stable Codex session/resume flag is used by this adapter yet; session input is intentionally not mapped."
+          },
+          {
+            "mapsTo": "authProbe",
+            "notes": "Codex authentication remains CLI-managed because a stable non-mutating auth status probe has not been verified."
+          }
+        ]
+      },
+      "parserMode": "codex-json",
+      "promptTransport": "stdin:text",
+      "safePreflight": {
+        "command": "node ./dist/cli/main.js conformance --mode real --agent all --json",
+        "ok": false,
+        "runClassification": "real_run_skipped",
+        "expectedTextMatched": null,
+        "cwdMutationChecked": false,
+        "cwdMutated": null,
+        "skippedReason": "real_run_not_allowed",
+        "failureReason": null
+      },
+      "optionalSmoke": {
+        "status": "real_run_skipped",
+        "reason": "not_requested",
+        "ok": false
+      },
+      "diagnostics": [],
+      "needsVerification": [
+        {
+          "mapsTo": "session",
+          "notes": "No stable Codex session/resume flag is used by this adapter yet; session input is intentionally not mapped."
+        },
+        {
+          "mapsTo": "authProbe",
+          "notes": "Codex authentication remains CLI-managed because a stable non-mutating auth status probe has not been verified."
+        }
+      ]
+    },
+    "claude": {
+      "executable": {
+        "status": "resolved",
+        "path": "<resolved_executable>",
+        "unavailableReason": null
+      },
+      "version": "2.1.178 (Claude Code)",
+      "auth": {
+        "status": "missing",
+        "diagnosticCodes": [
+          "auth_missing"
+        ]
+      },
+      "modelsSource": {
+        "source": "fallback",
+        "modelCount": 4
+      },
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "models": false,
+        "authProbe": true,
+        "prompt": [
+          "stdin"
+        ]
+      },
+      "argvProfile": {
+        "defaultArgs": [
+          "-p",
+          "--input-format",
+          "stream-json",
+          "--output-format",
+          "stream-json",
+          "--verbose"
+        ],
+        "knownFlags": [
+          {
+            "flag": "-p",
+            "mapsTo": "printMode",
+            "status": "known"
+          },
+          {
+            "flag": "--input-format stream-json",
+            "mapsTo": "promptTransport",
+            "status": "known"
+          },
+          {
+            "flag": "--output-format stream-json",
+            "mapsTo": "streamFormat",
+            "status": "known"
+          },
+          {
+            "flag": "--verbose",
+            "mapsTo": "requiredForStreamJson",
+            "status": "known"
+          },
+          {
+            "flag": "--model",
+            "mapsTo": "model",
+            "status": "known"
+          },
+          {
+            "flag": "--add-dir",
+            "mapsTo": "extraAllowedDirs",
+            "status": "known"
+          },
+          {
+            "flag": "--resume",
+            "mapsTo": "session.resumeId",
+            "status": "known"
+          },
+          {
+            "flag": "--session-id",
+            "mapsTo": "session.id",
+            "status": "needs_verification"
+          },
+          {
+            "flag": "--permission-mode bypassPermissions",
+            "mapsTo": "headless-auto",
+            "status": "known"
+          },
+          {
+            "flag": "--permission-mode plan",
+            "mapsTo": "read-only",
+            "status": "known"
+          }
+        ],
+        "needsVerification": [
+          {
+            "mapsTo": "session.id",
+            "flags": [
+              "--session-id"
+            ],
+            "notes": "Claude Code resume is mapped through --resume; fresh session id injection is not passed until verified against current CLI behavior."
+          },
+          {
+            "mapsTo": "reasoning",
+            "notes": "Reasoning effort is provider/config dependent and has no verified stable CLI flag in this profile."
+          }
+        ]
+      },
+      "parserMode": "claude-stream-json",
+      "promptTransport": "stdin:jsonl",
+      "safePreflight": {
+        "command": "node ./dist/cli/main.js conformance --mode real --agent all --json",
+        "ok": false,
+        "runClassification": "auth_missing",
+        "expectedTextMatched": null,
+        "cwdMutationChecked": false,
+        "cwdMutated": null,
+        "skippedReason": "auth_missing",
+        "failureReason": null
+      },
+      "optionalSmoke": {
+        "status": "real_run_skipped",
+        "reason": "not_requested",
+        "ok": false
+      },
+      "diagnostics": [
+        {
+          "code": "auth_missing",
+          "message": "Auth is missing or expired for this CLI",
+          "probe": "auth"
+        },
+        {
+          "code": "auth_missing",
+          "message": "Auth is missing or expired for this CLI",
+          "probe": "auth"
+        },
+        {
+          "code": "auth_missing",
+          "message": "Auth is missing or expired for this CLI",
+          "probe": "auth"
+        },
+        {
+          "code": "auth_missing",
+          "message": "Auth is missing or expired for this CLI",
+          "probe": "auth"
+        }
+      ],
+      "needsVerification": [
+        {
+          "mapsTo": "session.id",
+          "flags": [
+            "--session-id"
+          ],
+          "notes": "Claude Code resume is mapped through --resume; fresh session id injection is not passed until verified against current CLI behavior."
+        },
+        {
+          "mapsTo": "reasoning",
+          "notes": "Reasoning effort is provider/config dependent and has no verified stable CLI flag in this profile."
+        }
+      ]
+    },
+    "opencode": {
+      "executable": {
+        "status": "resolved",
+        "path": "<resolved_executable>",
+        "unavailableReason": null
+      },
+      "version": "1.15.6",
+      "auth": {
+        "status": "unknown",
+        "diagnosticCodes": []
+      },
+      "modelsSource": {
+        "source": "live",
+        "modelCount": 16
+      },
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "models": true,
+        "authProbe": false,
+        "prompt": [
+          "stdin"
+        ]
+      },
+      "argvProfile": {
+        "defaultArgs": [
+          "run",
+          "--format",
+          "json",
+          "--dir",
+          "<cwd>"
+        ],
+        "knownFlags": [
+          {
+            "flag": "run",
+            "mapsTo": "runMode",
+            "status": "known"
+          },
+          {
+            "flag": "--format json",
+            "mapsTo": "streamFormat",
+            "status": "known"
+          },
+          {
+            "flag": "--dir",
+            "mapsTo": "cwd",
+            "status": "known"
+          },
+          {
+            "flag": "-m",
+            "mapsTo": "model",
+            "status": "known"
+          },
+          {
+            "flag": "--dangerously-skip-permissions",
+            "mapsTo": "headless-auto",
+            "status": "known"
+          }
+        ],
+        "needsVerification": [
+          {
+            "mapsTo": "extraAllowedDirs",
+            "notes": "No stable extra-readable-directory flag is mapped for OpenCode in this profile."
+          },
+          {
+            "mapsTo": "session",
+            "notes": "No stable OpenCode session/resume flag is mapped by this adapter."
+          },
+          {
+            "mapsTo": "permissionPolicy.read-only",
+            "notes": "Read-only/workspace-write flags are left to OpenCode defaults until verified; only explicit headless bypass is mapped."
+          }
+        ]
+      },
+      "parserMode": "opencode-json",
+      "promptTransport": "stdin:text",
+      "safePreflight": {
+        "command": "node ./dist/cli/main.js conformance --mode real --agent all --json",
+        "ok": false,
+        "runClassification": "real_run_skipped",
+        "expectedTextMatched": null,
+        "cwdMutationChecked": false,
+        "cwdMutated": null,
+        "skippedReason": "real_run_not_allowed",
+        "failureReason": null
+      },
+      "optionalSmoke": {
+        "status": "real_run_skipped",
+        "reason": "not_requested",
+        "ok": false
+      },
+      "diagnostics": [],
+      "needsVerification": [
+        {
+          "mapsTo": "extraAllowedDirs",
+          "notes": "No stable extra-readable-directory flag is mapped for OpenCode in this profile."
+        },
+        {
+          "mapsTo": "session",
+          "notes": "No stable OpenCode session/resume flag is mapped by this adapter."
+        },
+        {
+          "mapsTo": "permissionPolicy.read-only",
+          "notes": "Read-only/workspace-write flags are left to OpenCode defaults until verified; only explicit headless bypass is mapped."
+        }
+      ]
+    }
+  },
+  "agents": [
+    {
+      "id": "codex",
+      "displayName": "Codex CLI",
+      "available": true,
+      "version": "codex-cli 0.142.3",
+      "authStatus": "unknown",
+      "modelsSource": "live",
+      "modelCount": 6,
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "models": true,
+        "authProbe": false,
+        "prompt": [
+          "stdin"
+        ]
+      },
+      "diagnostics": []
+    },
+    {
+      "id": "claude",
+      "displayName": "Claude Code",
+      "available": true,
+      "version": "2.1.178 (Claude Code)",
+      "authStatus": "missing",
+      "modelsSource": "fallback",
+      "modelCount": 4,
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "models": false,
+        "authProbe": true,
+        "prompt": [
+          "stdin"
+        ]
+      },
+      "diagnostics": [
+        {
+          "code": "auth_missing",
+          "message": "Auth is missing or expired for this CLI",
+          "probe": "auth"
+        }
+      ]
+    },
+    {
+      "id": "opencode",
+      "displayName": "OpenCode",
+      "available": true,
+      "version": "1.15.6",
+      "authStatus": "unknown",
+      "modelsSource": "live",
+      "modelCount": 16,
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "models": true,
+        "authProbe": false,
+        "prompt": [
+          "stdin"
+        ]
+      },
+      "diagnostics": []
+    }
+  ],
+  "doctor": {
+    "ok": true,
+    "agents": [
+      {
+        "id": "codex",
+        "displayName": "Codex CLI",
+        "available": true,
+        "version": "codex-cli 0.142.3",
+        "authStatus": "unknown",
+        "modelsSource": "live",
+        "modelCount": 6,
+        "capabilities": {
+          "streaming": true,
+          "tools": true,
+          "models": true,
+          "authProbe": false,
+          "prompt": [
+            "stdin"
+          ]
+        },
+        "diagnostics": []
+      },
+      {
+        "id": "claude",
+        "displayName": "Claude Code",
+        "available": true,
+        "version": "2.1.178 (Claude Code)",
+        "authStatus": "missing",
+        "modelsSource": "fallback",
+        "modelCount": 4,
+        "capabilities": {
+          "streaming": true,
+          "tools": true,
+          "models": false,
+          "authProbe": true,
+          "prompt": [
+            "stdin"
+          ]
+        },
+        "diagnostics": [
+          {
+            "code": "auth_missing",
+            "message": "Auth is missing or expired for this CLI",
+            "probe": "auth"
+          }
+        ]
+      },
+      {
+        "id": "opencode",
+        "displayName": "OpenCode",
+        "available": true,
+        "version": "1.15.6",
+        "authStatus": "unknown",
+        "modelsSource": "live",
+        "modelCount": 16,
+        "capabilities": {
+          "streaming": true,
+          "tools": true,
+          "models": true,
+          "authProbe": false,
+          "prompt": [
+            "stdin"
+          ]
+        },
+        "diagnostics": []
+      }
+    ]
+  },
+  "realConformance": {
+    "schemaVersion": "agent-runtime.conformance.v1",
+    "ok": true,
+    "mode": "real",
+    "agents": [
+      {
+        "adapter": "codex",
+        "version": "codex-cli 0.142.3",
+        "auth": "unknown",
+        "modelsSource": "live",
+        "runClassification": "real_run_skipped",
+        "expectedTextMatched": null,
+        "cwdMutationChecked": false,
+        "cwdMutated": null,
+        "skippedReason": "real_run_not_allowed",
+        "failureReason": null,
+        "diagnosticsCount": 0,
+        "diagnostics": [],
+        "argvProfile": {
+          "defaultArgs": [
+            "exec",
+            "--json",
+            "--skip-git-repo-check",
+            "-C",
+            "<cwd>"
+          ],
+          "knownFlags": [
+            {
+              "flag": "--json",
+              "mapsTo": "streamFormat",
+              "status": "known"
+            },
+            {
+              "flag": "-C",
+              "mapsTo": "cwd",
+              "status": "known"
+            },
+            {
+              "flag": "--sandbox",
+              "mapsTo": "permissionPolicy",
+              "status": "known"
+            },
+            {
+              "flag": "--add-dir",
+              "mapsTo": "extraAllowedDirs",
+              "status": "known"
+            },
+            {
+              "flag": "--model",
+              "mapsTo": "model",
+              "status": "known"
+            },
+            {
+              "flag": "-c model_reasoning_effort",
+              "mapsTo": "reasoning",
+              "status": "known"
+            },
+            {
+              "flag": "--skip-git-repo-check",
+              "mapsTo": "defaultArgs",
+              "status": "known"
+            }
+          ],
+          "needsVerification": [
+            {
+              "mapsTo": "session",
+              "notes": "No stable Codex session/resume flag is used by this adapter yet; session input is intentionally not mapped."
+            },
+            {
+              "mapsTo": "authProbe",
+              "notes": "Codex authentication remains CLI-managed because a stable non-mutating auth status probe has not been verified."
+            }
+          ]
+        },
+        "promptTransport": "stdin:text",
+        "parserMode": "codex-json"
+      },
+      {
+        "adapter": "claude",
+        "version": "2.1.178 (Claude Code)",
+        "auth": "missing",
+        "modelsSource": "fallback",
+        "runClassification": "auth_missing",
+        "expectedTextMatched": null,
+        "cwdMutationChecked": false,
+        "cwdMutated": null,
+        "skippedReason": "auth_missing",
+        "failureReason": null,
+        "diagnosticsCount": 1,
+        "diagnostics": [
+          {
+            "code": "auth_missing",
+            "message": "Auth is missing or expired for this CLI",
+            "probe": "auth"
+          }
+        ],
+        "argvProfile": {
+          "defaultArgs": [
+            "-p",
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
+            "--verbose"
+          ],
+          "knownFlags": [
+            {
+              "flag": "-p",
+              "mapsTo": "printMode",
+              "status": "known"
+            },
+            {
+              "flag": "--input-format stream-json",
+              "mapsTo": "promptTransport",
+              "status": "known"
+            },
+            {
+              "flag": "--output-format stream-json",
+              "mapsTo": "streamFormat",
+              "status": "known"
+            },
+            {
+              "flag": "--verbose",
+              "mapsTo": "requiredForStreamJson",
+              "status": "known"
+            },
+            {
+              "flag": "--model",
+              "mapsTo": "model",
+              "status": "known"
+            },
+            {
+              "flag": "--add-dir",
+              "mapsTo": "extraAllowedDirs",
+              "status": "known"
+            },
+            {
+              "flag": "--resume",
+              "mapsTo": "session.resumeId",
+              "status": "known"
+            },
+            {
+              "flag": "--session-id",
+              "mapsTo": "session.id",
+              "status": "needs_verification"
+            },
+            {
+              "flag": "--permission-mode bypassPermissions",
+              "mapsTo": "headless-auto",
+              "status": "known"
+            },
+            {
+              "flag": "--permission-mode plan",
+              "mapsTo": "read-only",
+              "status": "known"
+            }
+          ],
+          "needsVerification": [
+            {
+              "mapsTo": "session.id",
+              "flags": [
+                "--session-id"
+              ],
+              "notes": "Claude Code resume is mapped through --resume; fresh session id injection is not passed until verified against current CLI behavior."
+            },
+            {
+              "mapsTo": "reasoning",
+              "notes": "Reasoning effort is provider/config dependent and has no verified stable CLI flag in this profile."
+            }
+          ]
+        },
+        "promptTransport": "stdin:jsonl",
+        "parserMode": "claude-stream-json"
+      },
+      {
+        "adapter": "opencode",
+        "version": "1.15.6",
+        "auth": "unknown",
+        "modelsSource": "live",
+        "runClassification": "real_run_skipped",
+        "expectedTextMatched": null,
+        "cwdMutationChecked": false,
+        "cwdMutated": null,
+        "skippedReason": "real_run_not_allowed",
+        "failureReason": null,
+        "diagnosticsCount": 0,
+        "diagnostics": [],
+        "argvProfile": {
+          "defaultArgs": [
+            "run",
+            "--format",
+            "json",
+            "--dir",
+            "<cwd>"
+          ],
+          "knownFlags": [
+            {
+              "flag": "run",
+              "mapsTo": "runMode",
+              "status": "known"
+            },
+            {
+              "flag": "--format json",
+              "mapsTo": "streamFormat",
+              "status": "known"
+            },
+            {
+              "flag": "--dir",
+              "mapsTo": "cwd",
+              "status": "known"
+            },
+            {
+              "flag": "-m",
+              "mapsTo": "model",
+              "status": "known"
+            },
+            {
+              "flag": "--dangerously-skip-permissions",
+              "mapsTo": "headless-auto",
+              "status": "known"
+            }
+          ],
+          "needsVerification": [
+            {
+              "mapsTo": "extraAllowedDirs",
+              "notes": "No stable extra-readable-directory flag is mapped for OpenCode in this profile."
+            },
+            {
+              "mapsTo": "session",
+              "notes": "No stable OpenCode session/resume flag is mapped by this adapter."
+            },
+            {
+              "mapsTo": "permissionPolicy.read-only",
+              "notes": "Read-only/workspace-write flags are left to OpenCode defaults until verified; only explicit headless bypass is mapped."
+            }
+          ]
+        },
+        "promptTransport": "stdin:text",
+        "parserMode": "opencode-json"
+      }
+    ]
+  },
+  "safeRealSmokes": {
+    "codex": {
+      "schemaVersion": "agent-runtime.realSmoke.v1",
+      "ok": false,
+      "adapter": "codex",
+      "version": "codex-cli 0.142.3",
+      "auth": "unknown",
+      "modelsSource": "live",
+      "runClassification": "real_run_skipped",
+      "expectedTextRequired": true,
+      "expectedTextMatched": null,
+      "observedTextDeltaCount": 0,
+      "observedTextTailSha256": null,
+      "cwdMutationChecked": false,
+      "cwdMutated": null,
+      "cwdMutationCount": null,
+      "diagnosticsCount": 0,
+      "diagnostics": [],
+      "skippedReason": "real_run_not_allowed",
+      "failureReason": null
+    },
+    "claude": {
+      "schemaVersion": "agent-runtime.realSmoke.v1",
+      "ok": false,
+      "adapter": "claude",
+      "version": "2.1.178 (Claude Code)",
+      "auth": "missing",
+      "modelsSource": "fallback",
+      "runClassification": "auth_missing",
+      "expectedTextRequired": true,
+      "expectedTextMatched": null,
+      "observedTextDeltaCount": 0,
+      "observedTextTailSha256": null,
+      "cwdMutationChecked": false,
+      "cwdMutated": null,
+      "cwdMutationCount": null,
+      "diagnosticsCount": 1,
+      "diagnostics": [
+        {
+          "code": "auth_missing",
+          "message": "Auth is missing or expired for this CLI",
+          "probe": "auth"
+        }
+      ],
+      "skippedReason": "auth_missing",
+      "failureReason": null
+    },
+    "opencode": {
+      "schemaVersion": "agent-runtime.realSmoke.v1",
+      "ok": false,
+      "adapter": "opencode",
+      "version": "1.15.6",
+      "auth": "unknown",
+      "modelsSource": "live",
+      "runClassification": "real_run_skipped",
+      "expectedTextRequired": true,
+      "expectedTextMatched": null,
+      "observedTextDeltaCount": 0,
+      "observedTextTailSha256": null,
+      "cwdMutationChecked": false,
+      "cwdMutated": null,
+      "cwdMutationCount": null,
+      "diagnosticsCount": 0,
+      "diagnostics": [],
+      "skippedReason": "real_run_not_allowed",
+      "failureReason": null
+    }
+  },
+  "authenticatedRealSmokes": [],
+  "needsVerificationAudit": [
+    {
+      "adapter": "codex",
+      "items": [
+        {
+          "mapsTo": "session",
+          "notes": "No stable Codex session/resume flag is used by this adapter yet; session input is intentionally not mapped."
+        },
+        {
+          "mapsTo": "authProbe",
+          "notes": "Codex authentication remains CLI-managed because a stable non-mutating auth status probe has not been verified."
+        }
+      ],
+      "knownFlagsMarkedNeedsVerification": []
+    },
+    {
+      "adapter": "claude",
+      "items": [
+        {
+          "mapsTo": "session.id",
+          "flags": [
+            "--session-id"
+          ],
+          "notes": "Claude Code resume is mapped through --resume; fresh session id injection is not passed until verified against current CLI behavior."
+        },
+        {
+          "mapsTo": "reasoning",
+          "notes": "Reasoning effort is provider/config dependent and has no verified stable CLI flag in this profile."
+        }
+      ],
+      "knownFlagsMarkedNeedsVerification": [
+        {
+          "flag": "--session-id",
+          "mapsTo": "session.id"
+        }
+      ]
+    },
+    {
+      "adapter": "opencode",
+      "items": [
+        {
+          "mapsTo": "extraAllowedDirs",
+          "notes": "No stable extra-readable-directory flag is mapped for OpenCode in this profile."
+        },
+        {
+          "mapsTo": "session",
+          "notes": "No stable OpenCode session/resume flag is mapped by this adapter."
+        },
+        {
+          "mapsTo": "permissionPolicy.read-only",
+          "notes": "Read-only/workspace-write flags are left to OpenCode defaults until verified; only explicit headless bypass is mapped."
+        }
+      ],
+      "knownFlagsMarkedNeedsVerification": []
+    }
+  ],
+  "driftAnalysis": [
+    {
+      "adapter": "codex",
+      "version": "codex-cli 0.142.3",
+      "auth": "unknown",
+      "modelsSource": "live",
+      "classifications": [
+        "real_run_skipped",
+        "real_run_skipped"
+      ],
+      "hasUnsupportedFlag": false,
+      "hasNeedsVerificationDiagnostic": false,
+      "authenticatedRunEvidence": null,
+      "conclusion": "real_run_skipped is recorded as evidence, not success"
+    },
+    {
+      "adapter": "claude",
+      "version": "2.1.178 (Claude Code)",
+      "auth": "missing",
+      "modelsSource": "fallback",
+      "classifications": [
+        "auth_missing",
+        "auth_missing"
+      ],
+      "hasUnsupportedFlag": false,
+      "hasNeedsVerificationDiagnostic": false,
+      "authenticatedRunEvidence": null,
+      "conclusion": "auth missing; no authenticated real run attempted"
+    },
+    {
+      "adapter": "opencode",
+      "version": "1.15.6",
+      "auth": "unknown",
+      "modelsSource": "live",
+      "classifications": [
+        "real_run_skipped",
+        "real_run_skipped"
+      ],
+      "hasUnsupportedFlag": false,
+      "hasNeedsVerificationDiagnostic": false,
+      "authenticatedRunEvidence": null,
+      "conclusion": "real_run_skipped is recorded as evidence, not success"
+    }
+  ],
+  "packageBoundary": {
+    "releaseEvidenceIsRepoOnly": true,
+    "expectedExcludedPath": ".release-evidence/"
+  },
+  "gitStatusAfterWrite": {
+    "headSha": "bbef29eef5aec9664a774729381003123e0f3aff",
+    "dirty": true,
+    "changedFilesCount": 15,
+    "changedFiles": [
+      {
+        "status": "M",
+        "path": ".github/workflows/release-candidate.yml"
+      },
+      {
+        "status": "M",
+        "path": ".release-evidence/README.md"
+      },
+      {
+        "status": "M",
+        "path": "README.md"
+      },
+      {
+        "status": "M",
+        "path": "README.zh-CN.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/compatibility.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/production-readiness.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/release-report.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/ssot.md"
+      },
+      {
+        "status": "M",
+        "path": "scripts/create-real-compatibility-evidence.mjs"
+      },
+      {
+        "status": "M",
+        "path": "scripts/create-release-candidate.mjs"
+      },
+      {
+        "status": "M",
+        "path": "scripts/verify-real-compatibility-evidence.mjs"
+      },
+      {
+        "status": "M",
+        "path": "scripts/verify-release-artifacts.mjs"
+      },
+      {
+        "status": "M",
+        "path": "tests/contract.test.ts"
+      },
+      {
+        "status": "??",
+        "path": ".npmrc"
+      },
+      {
+        "status": "??",
+        "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
+      }
+    ],
+    "truncated": false
+  }
+}
