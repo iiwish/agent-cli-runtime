@@ -48,4 +48,12 @@ For release review, run `npm run compat:real:evidence:verify -- --target-sha <ta
 
 `prepublish:check` runs the default offline verifier. Local `release:candidate` defaults to `--real-compatibility-mode local-strict` and runs the target-SHA/freshness-bound verifier against existing repo-only compatibility evidence; it does not run `npm run compat:real:evidence`, does not pass `--allow-real-run`, and does not refresh authenticated real CLI evidence. Remote clean-checkout workflows pass `--real-compatibility-mode repo-only-skipped` and record that repo-only real compatibility evidence was not refreshed in CI. Release-candidate `gate-evidence.json` stores only the compatibility gate command, ok flag, verifier schema, verified evidence schema, target SHA status, freshness status, dirty policy status, diagnostic count/codes, and fixed repo-only skip reason when applicable. Do not copy the raw `.release-evidence/p8-2-real-cli-compatibility-matrix.json` file, raw stdout/stderr, diagnostic messages, full prompts, private paths, tokens, Bearer values, or auth env values into release artifacts.
 
+P8-4 uses `.release-evidence/p8-4-release-strict-compatibility.json` for release-strict compatibility closure. Generate it after the target commit exists and after local strict release-candidate artifacts have been created:
+
+```bash
+npm run release:strict-compatibility:evidence -- --target-sha <target-sha> --local-release-dir <tmp-local-strict>
+```
+
+The summary records `stage`, `targetSha`, `checkedAt`, matrix/verifier schemas, strict compatibility verifier result, local strict release-candidate verification, remote workflow trigger state, downloaded-artifact verification state, `noAuthenticatedRealRun`, `noNpmPublish`, `noNpmToken`, and branch/main evidence scope. If the target SHA is not in `origin/main`, record only branch/local evidence with `branchEvidence: true`, `mainEvidence: false`, `remoteReleaseCandidate.triggered: false`, and `downloadedArtifacts.verified: false`. Do not trigger a main-scoped workflow, and do not describe the result as current `main` release evidence. If the target SHA is in `origin/main`, fresh main evidence still requires a new `.github/workflows/release-candidate.yml --ref main` run whose `headSha` equals the target SHA, all five artifacts are present, and `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>` passes.
+
 Do not put `.reference/`, temporary download directories, private user paths, CI tokens, npm tokens, or real provider tokens in this directory.

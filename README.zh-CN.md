@@ -365,6 +365,8 @@ CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、product
 
 本地 release-candidate 置信门禁使用 `npm run prepublish:check`，并从 matrix 适用于当前 target SHA 的 worktree 运行 `npm run release:candidate -- --out-dir release-candidate`。GitHub Actions 的 `Release Candidate` workflow 通过 `workflow_dispatch` 手动触发，执行 `npm ci`、`npm run ci`、`npm run dogfood` 和 `npm run release:candidate -- --out-dir release-candidate --real-compatibility-mode repo-only-skipped`；生成并上传 `agent-cli-runtime-tarball`、`agent-cli-runtime-pack-metadata`、`agent-cli-runtime-package-files`、`agent-cli-runtime-gate-evidence` 和 `agent-cli-runtime-release-verification`。Compatibility gate summary 只记录 verifier schema、已验证 matrix schema、target SHA status、freshness status、dirty policy status、diagnostic count/codes，以及远端 repo-only skipped artifact 中固定的 `not_refreshed_in_ci` 原因。
 
+`npm run release:strict-compatibility:evidence -- --target-sha <target-sha> --local-release-dir <tmp-local-strict>` 会把 P8-4 repo-only summary 写入 `.release-evidence/p8-4-release-strict-compatibility.json`。Summary 记录 P8-2 matrix schema、strict verifier schema、本地 strict `release:candidate` / `release:verify` 结果、远端 workflow 触发状态、下载 artifact 复验状态、`noAuthenticatedRealRun`、`noNpmPublish`、`noNpmToken`，以及明确的 branch/main evidence 判定。如果 target SHA 不在 `origin/main`，summary 只能是 branch/local evidence，`mainEvidence: false`；它不是当前 `main` release evidence。
+
 `0.1.0-alpha.1` 已发布到 npm，并有 GitHub pre-release `v0.1.0-alpha.1`。`0.1.0-alpha.2` 已发布到 npm，使用 `alpha` dist-tag，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 tarball 内含过期的发布前 package docs。`0.1.0-alpha.3` 是面向 package consumer 的 corrective pre-alpha release。`0.1.0-alpha.0` 已 deprecate，原因是该不可变 tarball 内含过期的发布前状态说明。可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。由于 release docs 会进入 npm package，易漂移的 target-SHA evidence 必须留在包外的 `.release-evidence/` 或 GitHub Release assets 中。
 
 post-alpha 验证：
@@ -397,7 +399,7 @@ npm run release:verify -- --dir release-candidate
 
 `release:candidate` 会在输出目录写入 `npm-pack.json`、`package-files.txt`、`gate-evidence.json`、tarball 和 `release-verification.json`。`release:verify` 也可用于下载 GitHub Actions artifacts 后复核同一组文件，并确认候选包记录了 `daemon:verify`、`runtime:safety`，以及本地 strict 的 target SHA / freshness verifier 证据或远端 repo-only skipped 的明确状态。
 
-Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。Published package verification 是单独的手动 post-publish workflow，不是 publish workflow。
+Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，易漂移的 P8-4 target-SHA evidence 保存在 `.release-evidence/p8-4-release-strict-compatibility.json`，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。Published package verification 是单独的手动 post-publish workflow，不是 publish workflow。
 
 可运行示例见 [examples/library-run.js](./examples/library-run.js)、[examples/library-goal.js](./examples/library-goal.js) 和 [examples/cli-dogfood.md](./examples/cli-dogfood.md)。两个 JavaScript 示例会创建本地 fake CLI，不需要真实 provider secret。
 

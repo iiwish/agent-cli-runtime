@@ -1,351 +1,54 @@
 {
   "schemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
-  "checkedAt": "2026-06-29T02:38:51.894Z",
-  "gitSha": "bbef29eef5aec9664a774729381003123e0f3aff",
-  "gitHeadSha": "bbef29eef5aec9664a774729381003123e0f3aff",
+  "checkedAt": "2026-06-29T07:32:40.421Z",
+  "gitSha": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
+  "gitHeadSha": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
   "gitShaMeaning": "HEAD commit only; see gitInputDirty/gitOutputDirty and dirtySummary for uncommitted input evidence versus evidence-output self writes.",
-  "gitDirty": true,
-  "gitInputDirty": true,
+  "gitDirty": false,
+  "gitInputDirty": false,
   "gitOutputDirty": true,
   "gitStatusBeforeWrite": {
-    "headSha": "bbef29eef5aec9664a774729381003123e0f3aff",
-    "dirty": true,
-    "changedFilesCount": 15,
-    "changedFiles": [
-      {
-        "status": "M",
-        "path": ".github/workflows/release-candidate.yml"
-      },
-      {
-        "status": "M",
-        "path": ".release-evidence/README.md"
-      },
-      {
-        "status": "M",
-        "path": "README.md"
-      },
-      {
-        "status": "M",
-        "path": "README.zh-CN.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/compatibility.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/production-readiness.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/release-report.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/ssot.md"
-      },
-      {
-        "status": "M",
-        "path": "scripts/create-real-compatibility-evidence.mjs"
-      },
-      {
-        "status": "M",
-        "path": "scripts/create-release-candidate.mjs"
-      },
-      {
-        "status": "M",
-        "path": "scripts/verify-real-compatibility-evidence.mjs"
-      },
-      {
-        "status": "M",
-        "path": "scripts/verify-release-artifacts.mjs"
-      },
-      {
-        "status": "M",
-        "path": "tests/contract.test.ts"
-      },
-      {
-        "status": "??",
-        "path": ".npmrc"
-      },
-      {
-        "status": "??",
-        "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
-      }
-    ],
+    "headSha": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
+    "dirty": false,
+    "changedFilesCount": 0,
+    "changedFiles": [],
     "truncated": false
   },
   "dirtySummary": {
     "outputPath": ".release-evidence/p8-2-real-cli-compatibility-matrix.json",
     "beforeWrite": {
-      "dirty": true,
-      "changedFilesCount": 15,
-      "changedFiles": [
-        {
-          "status": "M",
-          "path": ".github/workflows/release-candidate.yml"
-        },
-        {
-          "status": "M",
-          "path": ".release-evidence/README.md"
-        },
-        {
-          "status": "M",
-          "path": "README.md"
-        },
-        {
-          "status": "M",
-          "path": "README.zh-CN.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/compatibility.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/production-readiness.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/release-report.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/ssot.md"
-        },
-        {
-          "status": "M",
-          "path": "scripts/create-real-compatibility-evidence.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/create-release-candidate.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/verify-real-compatibility-evidence.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/verify-release-artifacts.mjs"
-        },
-        {
-          "status": "M",
-          "path": "tests/contract.test.ts"
-        },
-        {
-          "status": "??",
-          "path": ".npmrc"
-        },
-        {
-          "status": "??",
-          "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
-        }
-      ],
+      "dirty": false,
+      "changedFilesCount": 0,
+      "changedFiles": [],
       "truncated": false
     },
     "inputBeforeWrite": {
-      "dirty": true,
-      "changedFilesCount": 14,
-      "changedFiles": [
-        {
-          "status": "M",
-          "path": ".github/workflows/release-candidate.yml"
-        },
-        {
-          "status": "M",
-          "path": ".release-evidence/README.md"
-        },
-        {
-          "status": "M",
-          "path": "README.md"
-        },
-        {
-          "status": "M",
-          "path": "README.zh-CN.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/compatibility.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/production-readiness.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/release-report.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/ssot.md"
-        },
-        {
-          "status": "M",
-          "path": "scripts/create-real-compatibility-evidence.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/create-release-candidate.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/verify-real-compatibility-evidence.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/verify-release-artifacts.mjs"
-        },
-        {
-          "status": "M",
-          "path": "tests/contract.test.ts"
-        },
-        {
-          "status": "??",
-          "path": ".npmrc"
-        }
-      ],
+      "dirty": false,
+      "changedFilesCount": 0,
+      "changedFiles": [],
       "truncated": false
     },
     "outputBeforeWrite": {
-      "dirty": true,
-      "changedFilesCount": 1,
-      "changedFiles": [
-        {
-          "status": "??",
-          "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
-        }
-      ],
+      "dirty": false,
+      "changedFilesCount": 0,
+      "changedFiles": [],
       "truncated": false
     },
     "afterWrite": {
       "dirty": true,
-      "changedFilesCount": 15,
+      "changedFilesCount": 1,
       "changedFiles": [
         {
           "status": "M",
-          "path": ".github/workflows/release-candidate.yml"
-        },
-        {
-          "status": "M",
-          "path": ".release-evidence/README.md"
-        },
-        {
-          "status": "M",
-          "path": "README.md"
-        },
-        {
-          "status": "M",
-          "path": "README.zh-CN.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/compatibility.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/production-readiness.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/release-report.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/ssot.md"
-        },
-        {
-          "status": "M",
-          "path": "scripts/create-real-compatibility-evidence.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/create-release-candidate.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/verify-real-compatibility-evidence.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/verify-release-artifacts.mjs"
-        },
-        {
-          "status": "M",
-          "path": "tests/contract.test.ts"
-        },
-        {
-          "status": "??",
-          "path": ".npmrc"
-        },
-        {
-          "status": "??",
           "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
         }
       ],
       "truncated": false
     },
     "inputAfterWrite": {
-      "dirty": true,
-      "changedFilesCount": 14,
-      "changedFiles": [
-        {
-          "status": "M",
-          "path": ".github/workflows/release-candidate.yml"
-        },
-        {
-          "status": "M",
-          "path": ".release-evidence/README.md"
-        },
-        {
-          "status": "M",
-          "path": "README.md"
-        },
-        {
-          "status": "M",
-          "path": "README.zh-CN.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/compatibility.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/production-readiness.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/release-report.md"
-        },
-        {
-          "status": "M",
-          "path": "docs/ssot.md"
-        },
-        {
-          "status": "M",
-          "path": "scripts/create-real-compatibility-evidence.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/create-release-candidate.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/verify-real-compatibility-evidence.mjs"
-        },
-        {
-          "status": "M",
-          "path": "scripts/verify-release-artifacts.mjs"
-        },
-        {
-          "status": "M",
-          "path": "tests/contract.test.ts"
-        },
-        {
-          "status": "??",
-          "path": ".npmrc"
-        }
-      ],
+      "dirty": false,
+      "changedFilesCount": 0,
+      "changedFiles": [],
       "truncated": false
     },
     "outputAfterWrite": {
@@ -353,7 +56,7 @@
       "changedFilesCount": 1,
       "changedFiles": [
         {
-          "status": "??",
+          "status": "M",
           "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
         }
       ],
@@ -426,7 +129,7 @@
             "version": "1.15.6",
             "authStatus": "unknown",
             "modelsSource": "live",
-            "modelCount": 16,
+            "modelCount": 24,
             "capabilities": {
               "streaming": true,
               "tools": true,
@@ -499,7 +202,7 @@
             "version": "1.15.6",
             "authStatus": "unknown",
             "modelsSource": "live",
-            "modelCount": 16,
+            "modelCount": 24,
             "capabilities": {
               "streaming": true,
               "tools": true,
@@ -1124,7 +827,7 @@
       },
       "modelsSource": {
         "source": "live",
-        "modelCount": 16
+        "modelCount": 24
       },
       "capabilities": {
         "streaming": true,
@@ -1271,7 +974,7 @@
       "version": "1.15.6",
       "authStatus": "unknown",
       "modelsSource": "live",
-      "modelCount": 16,
+      "modelCount": 24,
       "capabilities": {
         "streaming": true,
         "tools": true,
@@ -1338,7 +1041,7 @@
         "version": "1.15.6",
         "authStatus": "unknown",
         "modelsSource": "live",
-        "modelCount": 16,
+        "modelCount": 24,
         "capabilities": {
           "streaming": true,
           "tools": true,
@@ -1768,68 +1471,12 @@
     "expectedExcludedPath": ".release-evidence/"
   },
   "gitStatusAfterWrite": {
-    "headSha": "bbef29eef5aec9664a774729381003123e0f3aff",
+    "headSha": "cc336a08abf4cc16da3eb6044af125abf49f1e9d",
     "dirty": true,
-    "changedFilesCount": 15,
+    "changedFilesCount": 1,
     "changedFiles": [
       {
         "status": "M",
-        "path": ".github/workflows/release-candidate.yml"
-      },
-      {
-        "status": "M",
-        "path": ".release-evidence/README.md"
-      },
-      {
-        "status": "M",
-        "path": "README.md"
-      },
-      {
-        "status": "M",
-        "path": "README.zh-CN.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/compatibility.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/production-readiness.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/release-report.md"
-      },
-      {
-        "status": "M",
-        "path": "docs/ssot.md"
-      },
-      {
-        "status": "M",
-        "path": "scripts/create-real-compatibility-evidence.mjs"
-      },
-      {
-        "status": "M",
-        "path": "scripts/create-release-candidate.mjs"
-      },
-      {
-        "status": "M",
-        "path": "scripts/verify-real-compatibility-evidence.mjs"
-      },
-      {
-        "status": "M",
-        "path": "scripts/verify-release-artifacts.mjs"
-      },
-      {
-        "status": "M",
-        "path": "tests/contract.test.ts"
-      },
-      {
-        "status": "??",
-        "path": ".npmrc"
-      },
-      {
-        "status": "??",
         "path": ".release-evidence/p8-2-real-cli-compatibility-matrix.json"
       }
     ],

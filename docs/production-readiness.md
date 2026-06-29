@@ -1,7 +1,7 @@
 # Production Readiness
 
 Status: `0.1.0-alpha.3` corrective pre-alpha release
-Last updated: 2026-06-28
+Last updated: 2026-06-29
 
 This project is still **pre-alpha / developer preview**. Version `0.1.0-alpha.3` is the corrective pre-alpha release for package consumers.
 
@@ -34,6 +34,7 @@ For this repository, "production-ready local runtime" means:
 - `npm run compat:real:evidence:verify` is the offline P8 matrix gate for `.release-evidence/p8-2-real-cli-compatibility-matrix.json`; it does not launch authenticated real runs and rejects unsafe content, evidence drift, skip/auth/unavailable-as-success claims, incomplete authenticated success evidence, missing adapter fields, missing `needsVerification` audits, and invalid repo-only package-boundary claims; release review passes `--target-sha <target-sha> --max-age-hours 24 --release-strict`, accepts matrix-output-only dirty state as `self_dirty_only`, and requires explicit `--allow-dirty` for dirty non-evidence inputs;
 - real smoke evidence uses `schemaVersion: "agent-runtime.realSmoke.v1"`, requires expected text for success, checks cwd mutation, and omits prompts, raw stdout/stderr, private cwd, tokens, and final run records;
 - release artifact verification uses `agent-cli-runtime.releaseVerification.v1`, release gate evidence uses `agent-cli-runtime.releaseGateEvidence.v1`, and both are covered by the schema versioning policy in [docs/api-schema-contract.md](./api-schema-contract.md); release gate evidence records compatibility verification with command, ok, verifier schema, verified evidence schema, target SHA status, freshness status, dirty policy status, diagnostic count/codes, and the fixed repo-only skip reason when CI did not refresh the matrix;
+- `npm run release:strict-compatibility:evidence -- --target-sha <target-sha> --local-release-dir <tmp-local-strict>` writes `.release-evidence/p8-4-release-strict-compatibility.json` as the repo-only release-strict compatibility closure summary; it records matrix/verifier schemas, local strict release-candidate artifact verification, remote workflow trigger/download status, `noAuthenticatedRealRun`, `noNpmPublish`, `noNpmToken`, and branch/main evidence scope without raw stdout/stderr, prompts, private paths, local temp paths, resolved executable paths, tokens, or auth environment values;
 - `npm run dogfood` is the default release-candidate gate and does not launch authenticated real agent runs;
 - `npm run dogfood` also installs the packed tarball into a temporary TypeScript consumer, runs `tsc --noEmit`, and executes fake-CLI library run/goal/replay/diagnostics smoke;
 - `npm run prepublish:check` is the local prepublish guard, includes `npm run daemon:verify`, `npm run runtime:safety`, and `npm run compat:real:evidence:verify`, and also avoids authenticated real agent runs;

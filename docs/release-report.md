@@ -1,7 +1,7 @@
 # Release Report: 0.1.0-alpha.3 Corrective Release
 
 Status: `0.1.0-alpha.3` corrective pre-alpha release
-Last updated: 2026-06-26
+Last updated: 2026-06-29
 
 This report is the packaged, stable release-state summary. Volatile release evidence such as current workflow run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, command transcripts, raw logs, raw CLI output, prompt text, and token-looking values belongs outside the npm package under `.release-evidence/` or durable GitHub Release assets.
 
@@ -81,6 +81,8 @@ npm run published:verify:evidence -- --dir published-verification
 - `compat:real:evidence:verify`
 
 The compatibility gate summary must include the verifier schema, verified matrix schema, target SHA status, freshness status, dirty policy status, and diagnostic count/codes. Local strict mode records matched/fresh release evidence and distinguishes clean input evidence, `self_dirty_only` matrix output-file writes, and explicitly allowed dirty input evidence. Remote repo-only skipped mode records `targetSha.status`, `freshness.status`, and `dirtyPolicy.status` as `repo_only_not_run` plus the fixed `repoOnlyEvidence.status: "not_refreshed_in_ci"` reason. It must not include the raw `.release-evidence/` matrix, raw stdout/stderr, prompt text, private paths, tokens, Bearer values, or auth environment values. The gate evidence must keep `noAuthenticatedRealRun`, `noNpmPublish`, and `noNpmToken` true.
+
+P8-4 release-strict compatibility closure uses `.release-evidence/p8-4-release-strict-compatibility.json` as the repo-only summary. It records the target SHA, matrix/verifier schemas, strict compatibility verifier result, local strict `release:candidate` and `release:verify` summary, remote workflow trigger state, downloaded-artifact verification state, and branch/main evidence decision. A target SHA that is not in `origin/main` remains branch/local evidence with `mainEvidence: false`; fresh `main` release-candidate evidence requires a workflow run whose `headSha` equals the target SHA and whose downloaded five artifacts pass `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>`.
 
 ## Package Boundary
 
