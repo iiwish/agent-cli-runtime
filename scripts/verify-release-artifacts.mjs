@@ -64,6 +64,7 @@ const disallowedPathPatterns = [
   { code: "raw_corrupt_samples", pattern: /(?:^|\/)raw-corrupt-samples(?:\/|$)/u },
   { code: "raw_real_cli_output", pattern: /(?:^|\/)raw-real-cli-output(?:\/|$)/u },
   { code: "repo_only_real_compatibility_script", pattern: /^scripts\/(?:create-real-compatibility-evidence|verify-real-compatibility-evidence)\.mjs$/u },
+  { code: "repo_only_package_content_script", pattern: /^scripts\/verify-package-content-equivalence\.mjs$/u },
 ];
 
 const secretPatterns = [

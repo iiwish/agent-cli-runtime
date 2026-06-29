@@ -56,6 +56,7 @@ const releaseStrictCompatibilityEvidenceCreator = path.join(root, "scripts", "cr
 const mainReleaseCandidateEvidenceCreator = path.join(root, "scripts", "create-main-release-candidate-evidence.mjs");
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const releaseArtifactNormalizer = path.join(root, "scripts", "normalize-release-artifacts.mjs");
+const packageContentEquivalenceVerifier = path.join(root, "scripts", "verify-package-content-equivalence.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
 const runInstalledPackageContractTests = process.env.AGENT_RUNTIME_RUN_INSTALLED_PACKAGE_TESTS === "1";
@@ -493,6 +494,7 @@ describe("public contract", () => {
     const publishedVerificationVerifierScript = await readFile(publishedVerificationVerifier, "utf8");
     const realCompatibilityEvidenceScript = await readFile(realCompatibilityEvidenceCreator, "utf8");
     const realCompatibilityEvidenceVerifierScript = await readFile(realCompatibilityEvidenceVerifier, "utf8");
+    const packageContentEquivalenceScript = await readFile(packageContentEquivalenceVerifier, "utf8");
 
     expect(manifest.scripts.test).not.toContain("daemon:verify");
     expect(manifest.scripts.test).not.toContain("runtime:safety");
@@ -627,6 +629,18 @@ describe("public contract", () => {
     expect(realCompatibilityEvidenceVerifierScript).not.toMatch(/\bnpm publish\b/u);
     expect(realCompatibilityEvidenceVerifierScript).not.toContain("NODE_AUTH_TOKEN");
     expect(realCompatibilityEvidenceVerifierScript).not.toContain("--allow-real-run");
+
+    expect(manifest.scripts["release:package-content:verify"]).toBe("node ./scripts/verify-package-content-equivalence.mjs");
+    expect(manifest.files).not.toContain("scripts/verify-package-content-equivalence.mjs");
+    expect(packageContentEquivalenceScript).toContain("agent-cli-runtime.packageContentEquivalence.v1");
+    expect(packageContentEquivalenceScript).toContain("--base-ref");
+    expect(packageContentEquivalenceScript).toContain("--head-ref");
+    expect(packageContentEquivalenceScript).toContain("worktree");
+    expect(packageContentEquivalenceScript).toContain("freshReleaseCandidateRequired");
+    expect(packageContentEquivalenceScript).toContain("evidenceOnlyDrift");
+    expect(packageContentEquivalenceScript).not.toMatch(/\bnpm publish\b/u);
+    expect(packageContentEquivalenceScript).not.toContain("NODE_AUTH_TOKEN=secret");
+    expect(packageContentEquivalenceScript).not.toContain("--allow-real-run");
   });
 
   it("keeps published verification evidence verifier strict, redacted, and offline testable", async () => {
@@ -1148,6 +1162,95 @@ describe("public contract", () => {
       diagnostics: [],
     });
   });
+
+  it("keeps package content equivalence verification repo-only, redacted, and offline testable", async () => {
+    const { stdout } = await execFileP(process.execPath, [packageContentEquivalenceVerifier, "--self-test"]);
+    const selfTest = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageContentEqual: boolean;
+      freshReleaseCandidateRequired: boolean;
+      selfTest: { cases: Array<{ name: string; ok: boolean }> };
+      boundary: Record<string, boolean>;
+    };
+    expect(selfTest).toMatchObject({
+      schemaVersion: "agent-cli-runtime.packageContentEquivalence.v1",
+      ok: true,
+      packageContentEqual: true,
+      freshReleaseCandidateRequired: false,
+      boundary: {
+        repoOnlyEvidence: true,
+        comparedNpmPackageContentOnly: true,
+        noAuthenticatedRealRun: true,
+        noNpmPublish: true,
+        noNpmToken: true,
+      },
+    });
+    expect(selfTest.selfTest.cases.map((testCase) => testCase.name).sort()).toEqual([
+      "README fixture reports package-content drift",
+      "docs fixture reports package-content drift",
+      "package.json fixture reports package-content drift",
+      "redaction removes local paths and credentials",
+      "release evidence only fixture is package-content equal",
+      "same ref package content is equal",
+    ].sort());
+    expect(selfTest.selfTest.cases.every((testCase) => testCase.ok)).toBe(true);
+    expectNoLocalOrSecretLeak(stdout);
+
+    const sameRef = JSON.parse((await execFileP(process.execPath, [
+      packageContentEquivalenceVerifier,
+      "--base-ref",
+      "HEAD",
+      "--head-ref",
+      "HEAD",
+    ], { timeout: 60_000 })).stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageContentEqual: boolean;
+      basePackageDigest: string;
+      headPackageDigest: string;
+      baseFileCount: number;
+      headFileCount: number;
+      changedPackageFiles: unknown[];
+      evidenceOnlyDrift: boolean;
+      freshReleaseCandidateRequired: boolean;
+      boundary: Record<string, boolean>;
+    };
+    expect(sameRef).toMatchObject({
+      schemaVersion: "agent-cli-runtime.packageContentEquivalence.v1",
+      ok: true,
+      packageContentEqual: true,
+      changedPackageFiles: [],
+      evidenceOnlyDrift: false,
+      freshReleaseCandidateRequired: false,
+      boundary: {
+        comparedNpmPackageContentOnly: true,
+        noTarballGzipDigestDecision: true,
+      },
+    });
+    expect(sameRef.basePackageDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    expect(sameRef.headPackageDigest).toBe(sameRef.basePackageDigest);
+    expect(sameRef.baseFileCount).toBeGreaterThan(0);
+    expect(sameRef.headFileCount).toBe(sameRef.baseFileCount);
+
+    const invalid = await execCliFailureViaNode([
+      packageContentEquivalenceVerifier,
+      "--base-ref",
+      `/tmp/leak/sk-${"A".repeat(24)}`,
+      "--head-ref",
+      "HEAD",
+    ]);
+    const invalidPayload = JSON.parse(invalid.stdout) as {
+      ok: boolean;
+      diagnostics: Array<{ code: string; message: string }>;
+    };
+    expect(invalid.code).toBe(1);
+    expect(invalidPayload.ok).toBe(false);
+    expect(invalidPayload.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "invalid_git_ref" }),
+    ]));
+    expectNoLocalOrSecretLeak(invalid.stdout + invalid.stderr);
+  }, 90_000);
 
   it("keeps published verification creator stdout from leaking external temp paths on usage errors", async () => {
     const externalOutDir = path.join(await tempDir("agent-runtime-published-verification-out-"), "evidence");
@@ -2976,6 +3079,7 @@ setInterval(() => {}, 1000);
     expect(files).not.toContain("scripts/create-real-compatibility-evidence.mjs");
     expect(files).not.toContain("scripts/verify-real-compatibility-evidence.mjs");
     expect(files).not.toContain("scripts/create-release-strict-compatibility-evidence.mjs");
+    expect(files).not.toContain("scripts/verify-package-content-equivalence.mjs");
     expect(stdout).not.toContain(`sk${"A".repeat(20)}`);
   });
 
@@ -3766,6 +3870,7 @@ setInterval(() => {}, 1000);
       "docs/raw-real-cli-output/capture.json",
       "scripts/create-real-compatibility-evidence.mjs",
       "scripts/verify-real-compatibility-evidence.mjs",
+      "scripts/verify-package-content-equivalence.mjs",
       fakePrivatePath,
       `docs/token-${fakeSecret}.txt`,
       `docs/header-Bearer ${"B".repeat(20)}.txt`,
@@ -3794,6 +3899,7 @@ setInterval(() => {}, 1000);
       "volatile_release_evidence",
       "raw_real_cli_output",
       "repo_only_real_compatibility_script",
+      "repo_only_package_content_script",
       "unsafe_package_path",
       "private_user_path",
       "openai_style_secret",
@@ -4588,6 +4694,7 @@ setInterval(() => {}, 1000);
     expect(manifest.files).not.toContain(".release-evidence");
     expect(manifest.files).not.toContain("scripts/create-real-compatibility-evidence.mjs");
     expect(manifest.files).not.toContain("scripts/verify-real-compatibility-evidence.mjs");
+    expect(manifest.files).not.toContain("scripts/verify-package-content-equivalence.mjs");
     expect(verifierOutput).toMatchObject({
       schemaVersion: "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
       ok: true,
@@ -5346,6 +5453,75 @@ setInterval(() => {}, 1000);
       }
       expect(text, `${doc} must not include local artifact paths`).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\//u);
     }
+  });
+
+  it("records P8-8 package content equivalence evidence without over-claiming fresh main evidence", async () => {
+    const evidenceText = await readFile(path.join(root, ".release-evidence", "p8-8-package-content-equivalence.json"), "utf8");
+    const evidence = JSON.parse(evidenceText) as {
+      schemaVersion: string;
+      ok: boolean;
+      baseRef: string;
+      headRef: string;
+      baseSha: string;
+      headSha: string;
+      packageName: string;
+      packageVersion: string;
+      packageContentEqual: boolean;
+      basePackageDigest: string;
+      headPackageDigest: string;
+      baseFileCount: number;
+      headFileCount: number;
+      changedPackageFiles: Array<{ path: string; status: string; baseSha256: string | null; headSha256: string | null }>;
+      evidenceOnlyDrift: boolean;
+      freshReleaseCandidateRequired: boolean;
+      diagnostics: Array<{ code: string; severity: string; message: string }>;
+      boundary: Record<string, boolean>;
+    };
+
+    expect(evidence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.packageContentEquivalence.v1",
+      ok: true,
+      headRef: "origin/main",
+      packageName: "agent-cli-runtime",
+      packageVersion: "0.1.0-alpha.3",
+      packageContentEqual: false,
+      evidenceOnlyDrift: false,
+      freshReleaseCandidateRequired: true,
+      boundary: {
+        repoOnlyEvidence: true,
+        comparedNpmPackageContentOnly: true,
+        noAuthenticatedRealRun: true,
+        noNpmPublish: true,
+        noNpmToken: true,
+        noGithubRelease: true,
+        noTarballGzipDigestDecision: true,
+        noRawStdoutStderr: true,
+        noPrivatePath: true,
+        noLocalTempPath: true,
+      },
+    });
+    expect(evidence.baseRef).toMatch(/^[0-9a-f]{40}$/u);
+    expect(evidence.baseSha).toBe(evidence.baseRef);
+    expect(evidence.headSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(evidence.basePackageDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    expect(evidence.headPackageDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    expect(evidence.basePackageDigest).not.toBe(evidence.headPackageDigest);
+    expect(evidence.baseFileCount).toBeGreaterThan(0);
+    expect(evidence.headFileCount).toBe(evidence.baseFileCount);
+    expect(evidence.changedPackageFiles.map((file) => file.path).sort()).toEqual([
+      "README.md",
+      "README.zh-CN.md",
+      "docs/production-readiness.md",
+      "docs/release-report.md",
+      "docs/ssot.md",
+    ].sort());
+    expect(evidence.changedPackageFiles.every((file) => file.status === "modified")).toBe(true);
+    expect(evidence.changedPackageFiles.every((file) => file.baseSha256?.startsWith("sha256:") && file.headSha256?.startsWith("sha256:"))).toBe(true);
+    expect(evidence.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "package_content_drift", severity: "decision" }),
+    ]));
+    expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|"stdout"|"stderr"|promptText|fullPrompt|workflowLog|logs|resolvedExecutablePath|<resolved_executable>|worktree/u);
   });
 
   it("keeps alpha.3 corrective docs stable and package-safe", async () => {

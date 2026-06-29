@@ -64,6 +64,7 @@
     "release:artifacts:normalize": "node ./scripts/normalize-release-artifacts.mjs",
     "release:candidate": "node ./scripts/create-release-candidate.mjs",
     "release:main-candidate:evidence": "node ./scripts/create-main-release-candidate-evidence.mjs",
+    "release:package-content:verify": "node ./scripts/verify-package-content-equivalence.mjs",
     "release:post-alpha:verify": "node ./scripts/verify-post-alpha-release.mjs",
     "release:strict-compatibility:evidence": "node ./scripts/create-release-strict-compatibility-evidence.mjs",
     "release:verify": "node ./scripts/verify-release-artifacts.mjs",
