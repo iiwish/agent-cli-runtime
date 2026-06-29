@@ -4172,6 +4172,7 @@ setInterval(() => {}, 1000);
     expect(evidenceReadme).toContain("p7-4-alpha-2-final-publish-lock.json");
     expect(evidenceReadme).toContain("p7-4-alpha-2-real-publish-attempt-blocked.json");
     expect(evidenceReadme).toContain("p7-4-alpha-2-post-publish.json");
+    expect(evidenceReadme).toContain("p8-7-main-release-candidate.json");
     expect(evidenceIgnore).toContain("*.local.json");
     expect(evidenceIgnore).toContain("*.local.md");
     expect(p5Evidence.stage).toBe("P5-4");
@@ -4848,7 +4849,7 @@ setInterval(() => {}, 1000);
     const selfTest = JSON.parse((await execFileP(process.execPath, [mainReleaseCandidateEvidenceCreator, "--self-test"])).stdout) as {
       schemaVersion: string;
       ok: boolean;
-      cases: Array<{ name: string; ok: boolean; expectedCode: string; actualCode: string }>;
+      cases: Array<{ name: string; ok: boolean; expectedCode: string | null; actualCode: string | null }>;
     };
     const evidence = JSON.parse(evidenceText) as {
       schemaVersion: string;
@@ -4959,12 +4960,24 @@ setInterval(() => {}, 1000);
       schemaVersion: "agent-cli-runtime.p8MainReleaseCandidateEvidenceSelfTest.v1",
       ok: true,
     });
-    expect(selfTest.cases.map((testCase) => testCase.expectedCode).sort()).toEqual([
+    expect(selfTest.cases.map((testCase) => testCase.name).sort()).toEqual([
+      "P8-7 stage derives reusable output",
+      "artifact without explicit non-expired state is rejected",
+      "downloaded verification failure is rejected",
+      "explicit output is preserved for non-P8-5 stage",
+      "failed remote conclusion is rejected",
+      "incomplete remote artifact set is rejected",
+      "invalid stage is rejected",
+      "missing stage keeps P8-5 default output",
+      "remote headSha mismatch is rejected",
+    ].sort());
+    expect(selfTest.cases.filter((testCase) => testCase.expectedCode !== null).map((testCase) => testCase.expectedCode).sort()).toEqual([
       "downloaded_release_artifacts_not_ok",
       "missing_remote_artifact",
       "remote_artifact_expiration_unverified",
       "remote_run_conclusion_not_success",
       "remote_run_head_sha_mismatch",
+      "stage_invalid",
     ].sort());
     expect(selfTest.cases.every((testCase) => testCase.ok && testCase.actualCode === testCase.expectedCode)).toBe(true);
 
@@ -5100,6 +5113,233 @@ setInterval(() => {}, 1000);
       expect(text, `${doc} must not include P8-5 run URL`).not.toContain(evidence.remoteReleaseCandidate.run.url);
       for (const artifact of evidence.remoteReleaseCandidate.artifacts.items) {
         expect(text, `${doc} must not include P8-5 artifact id`).not.toContain(String(artifact.id));
+      }
+      expect(text, `${doc} must not include local artifact paths`).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\//u);
+    }
+  });
+
+  it("records P8-7 fresh main release-candidate evidence with reusable generator output", async () => {
+    const script = await readFile(mainReleaseCandidateEvidenceCreator, "utf8");
+    const evidenceText = await readFile(path.join(root, ".release-evidence", "p8-7-main-release-candidate.json"), "utf8");
+    const evidence = JSON.parse(evidenceText) as {
+      schemaVersion: string;
+      stage: string;
+      evidenceKind: string;
+      releaseTargetSha: string;
+      targetRef: string;
+      currentHeadSha: string;
+      originMainShaAtCheck: string;
+      mainEvidence: boolean;
+      branchEvidence: boolean;
+      matrix: { gitSha: string; gitInputDirty: boolean; gitOutputDirty: boolean };
+      compatibilityVerification: {
+        ok: boolean;
+        evidenceSchemaVersion: string;
+        targetSha: { expected: string; actual: string; ok: boolean; status: string };
+        freshness: { maxAgeHours: number; ok: boolean; status: string };
+        dirtyPolicy: { policy: string; inputDirty: boolean; outputDirty: boolean; ok: boolean; status: string };
+        diagnosticSummary: { count: number; codes: string[] };
+      };
+      localReleaseCandidate: {
+        verification: {
+          ok: boolean;
+          schemaVersion: string;
+          diagnosticsCount: number;
+          artifactNames: string[];
+          gateEvidence: { schemaVersion: string; gates: Array<{ script: string; ok: boolean; evidenceSchemaVersion: string | null; diagnostics: { count: number | null; codes: string[] } }> };
+        };
+      };
+      remoteReleaseCandidate: {
+        workflow: string;
+        ref: string;
+        triggered: boolean;
+        run: {
+          id: number;
+          url: string;
+          event: string;
+          headBranch: string;
+          headSha: string;
+          status: string;
+          conclusion: string;
+          headShaMatchesReleaseTarget: boolean;
+          jobs: Array<{ name: string; status: string; conclusion: string }>;
+        };
+        artifacts: {
+          count: number;
+          names: string[];
+          expectedNames: string[];
+          complete: boolean;
+          valid: boolean;
+          items: Array<{ name: string; id: number; digest: string; expired: boolean }>;
+        };
+      };
+      downloadedArtifacts: {
+        verified: boolean;
+        skippedReason: string | null;
+        verification: {
+          command: string;
+          schemaVersion: string;
+          ok: boolean;
+          diagnosticsCount: number;
+          artifactNames: string[];
+          gateEvidence: {
+            schemaVersion: string;
+            gates: Array<{
+              script: string;
+              command: string;
+              ok: boolean;
+              evidenceSchemaVersion: string | null;
+              targetSha: { expected: string; actual: string | null; ok: boolean | null; status: string | null };
+              freshness: { status: string | null };
+              dirtyPolicy: { policy: string | null; status: string | null };
+              diagnostics: { count: number | null; codes: string[] };
+              repoOnlyEvidence: { status: string; reason: string } | null;
+            }>;
+            noAuthenticatedRealRun: boolean;
+            noNpmPublish: boolean;
+            noNpmToken: boolean;
+          };
+        };
+      };
+      noAuthenticatedRealRun: boolean;
+      noNpmPublish: boolean;
+      noNpmToken: boolean;
+      boundary: Record<string, boolean>;
+    };
+
+    expect(script).toContain("--stage <stage>");
+    expect(script).toContain("P8-7");
+    expect(script).toContain("stage_invalid");
+    expect(script).toContain("defaultOutputForStage");
+    expect(script).not.toMatch(/\bnpm publish\b/u);
+    expect(script).not.toContain("--allow-real-run");
+    expect(script).not.toContain("NODE_AUTH_TOKEN");
+
+    expect(evidence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.p8MainReleaseCandidateEvidence.v1",
+      stage: "P8-7",
+      evidenceKind: "main-scoped-remote-release-candidate",
+      targetRef: "main",
+      mainEvidence: true,
+      branchEvidence: false,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+    expect(evidence.releaseTargetSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(evidence.currentHeadSha).toBe(evidence.releaseTargetSha);
+    expect(evidence.originMainShaAtCheck).toBe(evidence.releaseTargetSha);
+    expect(evidence.matrix.gitSha).toBe(evidence.releaseTargetSha);
+    expect(evidence.matrix.gitInputDirty).toBe(false);
+    expect(evidence.matrix.gitOutputDirty).toBe(true);
+    expect(evidence.compatibilityVerification).toMatchObject({
+      ok: true,
+      evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityMatrix.v1",
+      targetSha: { expected: evidence.releaseTargetSha, actual: evidence.releaseTargetSha, ok: true, status: "matched" },
+      freshness: { maxAgeHours: 24, ok: true, status: "fresh" },
+      dirtyPolicy: { policy: "release-strict", inputDirty: false, outputDirty: true, ok: true, status: "self_dirty_only" },
+      diagnosticSummary: { count: 0, codes: [] },
+    });
+
+    expect(evidence.localReleaseCandidate.verification).toMatchObject({
+      ok: true,
+      schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+      diagnosticsCount: 0,
+    });
+    expect(evidence.localReleaseCandidate.verification.artifactNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.localReleaseCandidate.verification.gateEvidence.gates.map((gate) => gate.script).sort()).toEqual([
+      "compat:real:evidence:verify",
+      "daemon:verify",
+      "runtime:safety",
+    ]);
+
+    expect(evidence.remoteReleaseCandidate).toMatchObject({
+      workflow: ".github/workflows/release-candidate.yml",
+      ref: "main",
+      triggered: true,
+      run: {
+        event: "workflow_dispatch",
+        headBranch: "main",
+        headSha: evidence.releaseTargetSha,
+        status: "completed",
+        conclusion: "success",
+        headShaMatchesReleaseTarget: true,
+      },
+      artifacts: {
+        count: 5,
+        complete: true,
+        valid: true,
+      },
+    });
+    expect(evidence.remoteReleaseCandidate.run.id).toBeGreaterThan(0);
+    expect(evidence.remoteReleaseCandidate.run.url).toMatch(/^https:\/\/github\.com\/iiwish\/agent-cli-runtime\/actions\/runs\/\d+$/u);
+    expect(evidence.remoteReleaseCandidate.artifacts.names.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.remoteReleaseCandidate.artifacts.expectedNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.remoteReleaseCandidate.artifacts.items.map((artifact) => artifact.name).sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    for (const artifact of evidence.remoteReleaseCandidate.artifacts.items) {
+      expect(artifact.id).toBeGreaterThan(0);
+      expect(artifact.digest).toMatch(/^sha256:[0-9a-f]{64}$/u);
+      expect(artifact.expired).toBe(false);
+    }
+
+    expect(evidence.downloadedArtifacts).toMatchObject({
+      verified: true,
+      skippedReason: null,
+      verification: {
+        command: "npm run release:verify -- --dir <normalized-downloaded-artifact-dir>",
+        schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+        ok: true,
+        diagnosticsCount: 0,
+      },
+    });
+    expect(evidence.downloadedArtifacts.verification.artifactNames.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    const remoteCompatibilityGate = evidence.downloadedArtifacts.verification.gateEvidence.gates.find((gate) => gate.script === "compat:real:evidence:verify");
+    expect(remoteCompatibilityGate).toMatchObject({
+      command: "repo-only real compatibility evidence not refreshed in CI",
+      ok: true,
+      evidenceSchemaVersion: "agent-cli-runtime.realCompatibilityMatrix.v1",
+      targetSha: { expected: evidence.releaseTargetSha, actual: null, ok: null, status: "repo_only_not_run" },
+      freshness: { status: "repo_only_not_run" },
+      dirtyPolicy: { policy: "repo-only-skipped", status: "repo_only_not_run" },
+      diagnostics: { count: 0, codes: [] },
+      repoOnlyEvidence: { status: "not_refreshed_in_ci", reason: "real_compatibility_matrix_is_repo_only" },
+    });
+    expect(evidence.boundary).toMatchObject({
+      repoOnlyEvidence: true,
+      noGithubRelease: true,
+      noTrustedPublishing: true,
+      noRawStdoutStderr: true,
+      noRawCliOutput: true,
+      noFullPrompt: true,
+      noPrivatePath: true,
+      noLocalTempPath: true,
+      noResolvedExecutablePath: true,
+      noWorkflowLogs: true,
+      noTokenValue: true,
+      noBearerValue: true,
+      noAuthEnvAssignment: true,
+    });
+
+    expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|"stdout"|"stderr"|promptText|fullPrompt|workflowLog|logs|resolvedExecutablePath|<resolved_executable>/u);
+
+    const packagedDocs = [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/compatibility.md",
+      "docs/release-checklist.md",
+      "docs/release-report.md",
+      "docs/release-publish-runbook.md",
+      "docs/production-readiness.md",
+      "docs/ssot.md",
+    ];
+    for (const doc of packagedDocs) {
+      const text = await readFile(path.join(root, doc), "utf8");
+      expect(text, `${doc} must not include P8-7 run id`).not.toContain(String(evidence.remoteReleaseCandidate.run.id));
+      expect(text, `${doc} must not include P8-7 run URL`).not.toContain(evidence.remoteReleaseCandidate.run.url);
+      for (const artifact of evidence.remoteReleaseCandidate.artifacts.items) {
+        expect(text, `${doc} must not include P8-7 artifact id`).not.toContain(String(artifact.id));
       }
       expect(text, `${doc} must not include local artifact paths`).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\//u);
     }

@@ -10,7 +10,7 @@ const RELEASE_VERIFICATION_SCHEMA_VERSION = "agent-cli-runtime.releaseVerificati
 const RELEASE_GATE_EVIDENCE_SCHEMA_VERSION = "agent-cli-runtime.releaseGateEvidence.v1";
 const SELF_TEST_SCHEMA_VERSION = "agent-cli-runtime.p8MainReleaseCandidateEvidenceSelfTest.v1";
 const MATRIX_FILE = ".release-evidence/p8-2-real-cli-compatibility-matrix.json";
-const DEFAULT_OUTPUT = ".release-evidence/p8-5-main-release-candidate.json";
+const DEFAULT_STAGE = "P8-5";
 const COMPAT_VERIFY_COMMAND = "npm run compat:real:evidence:verify -- --target-sha <releaseTargetSha> --max-age-hours 24 --release-strict";
 const LOCAL_RELEASE_COMMAND = "npm run release:candidate -- --out-dir <tmp-local-strict>";
 const LOCAL_VERIFY_COMMAND = "npm run release:verify -- --dir <tmp-local-strict>";
@@ -26,17 +26,20 @@ const EXPECTED_ARTIFACTS = [
 
 function parseArgs(argv) {
   const options = {
+    stage: DEFAULT_STAGE,
     releaseTargetSha: null,
     localReleaseDir: null,
     remoteRunJson: null,
     artifactsJson: null,
     downloadedDir: null,
-    output: DEFAULT_OUTPUT,
+    output: null,
     selfTest: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--release-target-sha" || arg === "--target-sha") {
+    if (arg === "--stage") {
+      options.stage = normalizeStage(requireValue(argv, ++index, arg));
+    } else if (arg === "--release-target-sha" || arg === "--target-sha") {
       options.releaseTargetSha = requireValue(argv, ++index, arg).toLowerCase();
     } else if (arg === "--local-release-dir") {
       options.localReleaseDir = requireValue(argv, ++index, arg);
@@ -51,9 +54,13 @@ function parseArgs(argv) {
     } else if (arg === "--self-test") {
       options.selfTest = true;
     } else if (arg === "--help" || arg === "-h") {
-      process.stdout.write(`Usage: node scripts/create-main-release-candidate-evidence.mjs --release-target-sha <sha> --local-release-dir <dir> [--remote-run-json <file> --artifacts-json <file> --downloaded-dir <dir>] [--out <file>]
+      process.stdout.write(`Usage: node scripts/create-main-release-candidate-evidence.mjs [--stage P8-5] --release-target-sha <sha> --local-release-dir <dir> [--remote-run-json <file> --artifacts-json <file> --downloaded-dir <dir>] [--out <file>]
 
-Writes repo-only P8-5 main-scoped release-candidate evidence. It summarizes local strict matrix verification, local release artifacts, and optionally a fresh remote workflow run plus downloaded artifact verification.
+Writes repo-only P8 main-scoped release-candidate evidence. It summarizes local strict matrix verification, local release artifacts, and optionally a fresh remote workflow run plus downloaded artifact verification.
+
+Options:
+  --stage <stage>  Evidence stage label, for example P8-5 or P8-7. Defaults to P8-5.
+  --out <file>     Output path. Defaults to .release-evidence/<stage-lower>-main-release-candidate.json.
 
 Self-test:
   --self-test   Run local validator fixtures without reading git state or artifacts.
@@ -63,6 +70,7 @@ Self-test:
       throw new Error(`Unknown argument: ${redact(arg)}`);
     }
   }
+  options.output = options.output ?? defaultOutputForStage(options.stage);
   if (options.selfTest) return options;
   if (!/^[0-9a-f]{40}$/u.test(options.releaseTargetSha ?? "")) {
     throw new Error("--release-target-sha must be a full lowercase 40-character commit SHA");
@@ -73,6 +81,17 @@ Self-test:
     throw new Error("--remote-run-json, --artifacts-json, and --downloaded-dir must be provided together");
   }
   return options;
+}
+
+function normalizeStage(stage) {
+  if (!/^P8-[1-9][0-9]*$/u.test(stage)) {
+    throw evidenceError("stage_invalid", "--stage must match P8-<number>, for example P8-7");
+  }
+  return stage;
+}
+
+function defaultOutputForStage(stage) {
+  return `.release-evidence/${stage.toLowerCase()}-main-release-candidate.json`;
 }
 
 function requireValue(argv, index, flag) {
@@ -399,7 +418,7 @@ function assertSafeEvidence(text) {
     },
   ];
   for (const { name, pattern } of forbidden) {
-    if (pattern.test(text)) throw new Error(`refusing to write unsafe P8-5 evidence: ${name}`);
+    if (pattern.test(text)) throw new Error(`refusing to write unsafe P8 main evidence: ${name}`);
   }
 }
 
@@ -452,6 +471,45 @@ function runSelfTest() {
   const releaseTargetSha = "0123456789abcdef0123456789abcdef01234567";
   const cases = [
     {
+      name: "missing stage keeps P8-5 default output",
+      expectedCode: null,
+      run() {
+        const parsed = parseArgs(["--self-test"]);
+        if (parsed.stage !== "P8-5") throw evidenceError("stage_default_invalid", "missing --stage must default to P8-5");
+        if (parsed.output !== ".release-evidence/p8-5-main-release-candidate.json") {
+          throw evidenceError("stage_default_output_invalid", "missing --out must use the P8-5 default output");
+        }
+      },
+    },
+    {
+      name: "P8-7 stage derives reusable output",
+      expectedCode: null,
+      run() {
+        const parsed = parseArgs(["--stage", "P8-7", "--self-test"]);
+        if (parsed.stage !== "P8-7") throw evidenceError("stage_parse_invalid", "P8-7 stage must be accepted");
+        if (parsed.output !== ".release-evidence/p8-7-main-release-candidate.json") {
+          throw evidenceError("stage_output_invalid", "P8-7 default output must be stage-specific");
+        }
+      },
+    },
+    {
+      name: "explicit output is preserved for non-P8-5 stage",
+      expectedCode: null,
+      run() {
+        const parsed = parseArgs(["--stage", "P8-7", "--out", ".release-evidence/custom.json", "--self-test"]);
+        if (parsed.output !== ".release-evidence/custom.json") {
+          throw evidenceError("explicit_output_invalid", "explicit --out must be preserved");
+        }
+      },
+    },
+    {
+      name: "invalid stage is rejected",
+      expectedCode: "stage_invalid",
+      run() {
+        parseArgs(["--stage", "P7-6", "--self-test"]);
+      },
+    },
+    {
       name: "remote headSha mismatch is rejected",
       expectedCode: "remote_run_head_sha_mismatch",
       run() {
@@ -498,7 +556,7 @@ function runSelfTest() {
   ].map((testCase) => {
     try {
       testCase.run();
-      return { name: testCase.name, ok: false, expectedCode: testCase.expectedCode, actualCode: null };
+      return { name: testCase.name, ok: testCase.expectedCode === null, expectedCode: testCase.expectedCode, actualCode: null };
     } catch (error) {
       const actualCode = typeof error?.code === "string" ? error.code : "error";
       return {
@@ -532,7 +590,7 @@ function main() {
     throw new Error("release target SHA must equal origin/main");
   }
   if (headSha !== releaseTargetSha) {
-    throw new Error("local HEAD must equal release target SHA before writing P8-5 main evidence");
+    throw new Error(`local HEAD must equal release target SHA before writing ${options.stage} main evidence`);
   }
   if (!gitIsAncestor(releaseTargetSha, "origin/main")) {
     throw new Error("release target SHA is not in origin/main");
@@ -591,7 +649,7 @@ function main() {
 
   const summary = {
     schemaVersion: SUMMARY_SCHEMA_VERSION,
-    stage: "P8-5",
+    stage: options.stage,
     evidenceKind: "main-scoped-remote-release-candidate",
     checkedAt: new Date().toISOString(),
     releaseTargetSha,
