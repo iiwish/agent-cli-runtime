@@ -13,6 +13,7 @@ const REAL_COMPATIBILITY_LOCAL_STRICT_MODE = "local-strict";
 const REAL_COMPATIBILITY_REPO_ONLY_SKIPPED_MODE = "repo-only-skipped";
 const REAL_COMPATIBILITY_MODES = new Set([REAL_COMPATIBILITY_LOCAL_STRICT_MODE, REAL_COMPATIBILITY_REPO_ONLY_SKIPPED_MODE]);
 const REAL_COMPATIBILITY_REPO_ONLY_STATUS = "repo_only_not_run";
+const REAL_COMPATIBILITY_MATRIX_FILE = ".release-evidence/p8-2-real-cli-compatibility-matrix.json";
 const AUTH_ENV_PATTERN = new RegExp(
   `\\b(?:${[
     "ANTHROPIC_AUTH_TOKEN",
@@ -33,6 +34,7 @@ function parseArgs(argv) {
     outDir: undefined,
     keepTemp: false,
     realCompatibilityMode: REAL_COMPATIBILITY_LOCAL_STRICT_MODE,
+    targetSha: undefined,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -40,6 +42,8 @@ function parseArgs(argv) {
       options.outDir = argv[++i];
     } else if (arg === "--real-compatibility-mode") {
       options.realCompatibilityMode = argv[++i];
+    } else if (arg === "--target-sha") {
+      options.targetSha = argv[++i]?.toLowerCase();
     } else if (arg === "--keep-temp") {
       options.keepTemp = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -50,6 +54,7 @@ Creates a local release-candidate directory without publishing npm.
 Options:
   --out-dir <dir>                    Write artifacts to this directory. Defaults to a temp directory.
   --real-compatibility-mode <mode>   local-strict runs the target-SHA/freshness verifier; repo-only-skipped records that CI did not refresh repo-only real CLI evidence.
+  --target-sha <sha>                 Override the release target SHA. local-strict defaults to the checked-in P8-2 matrix gitSha; repo-only-skipped defaults to HEAD.
   --keep-temp                        Print and keep the temp directory when --out-dir is omitted.
 `);
       process.exit(0);
@@ -59,6 +64,9 @@ Options:
   }
   if (!REAL_COMPATIBILITY_MODES.has(options.realCompatibilityMode)) {
     throw new Error(`Invalid --real-compatibility-mode: ${redact(options.realCompatibilityMode)}`);
+  }
+  if (options.targetSha !== undefined && !/^[0-9a-f]{40}$/u.test(options.targetSha)) {
+    throw new Error("--target-sha must be a full lowercase 40-character commit SHA");
   }
   return options;
 }
@@ -119,6 +127,25 @@ function displayPath(file) {
 
 function gitHeadSha() {
   return run("git", ["rev-parse", "HEAD"]).trim();
+}
+
+function readJson(file) {
+  return JSON.parse(readFileSync(file, "utf8"));
+}
+
+function realCompatibilityMatrixTargetSha() {
+  const matrix = readJson(REAL_COMPATIBILITY_MATRIX_FILE);
+  const targetSha = matrix?.gitSha;
+  if (!/^[0-9a-f]{40}$/u.test(targetSha)) {
+    throw new Error(`${REAL_COMPATIBILITY_MATRIX_FILE} must contain a full gitSha for local-strict release candidates`);
+  }
+  return targetSha;
+}
+
+function releaseTargetSha(options) {
+  if (options.targetSha) return options.targetSha;
+  if (options.realCompatibilityMode === REAL_COMPATIBILITY_LOCAL_STRICT_MODE) return realCompatibilityMatrixTargetSha();
+  return gitHeadSha();
 }
 
 function compatibilityGateCommand(targetSha, mode) {
@@ -202,7 +229,7 @@ function main() {
   const verificationPath = path.join(outDir, "release-verification.json");
 
   try {
-    const targetSha = gitHeadSha();
+    const targetSha = releaseTargetSha(options);
     const gateCommands = [
       {
         name: "daemon-ready",

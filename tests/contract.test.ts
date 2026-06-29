@@ -3615,6 +3615,9 @@ setInterval(() => {}, 1000);
     expect(script).toContain("--release-strict");
     expect(script).toContain("--real-compatibility-mode");
     expect(script).toContain("repo-only-skipped");
+    expect(script).toContain("p8-2-real-cli-compatibility-matrix.json");
+    expect(script).toContain("realCompatibilityMatrixTargetSha");
+    expect(script).toContain("releaseTargetSha");
     expect(script).toContain(releaseCompatibilityRepoOnlySkippedCommand);
     expect(script).toContain("targetSha");
     expect(script).toContain("freshness");
@@ -4526,6 +4529,8 @@ setInterval(() => {}, 1000);
       schemaVersion: "agent-cli-runtime.p8ReleaseStrictCompatibilityEvidence.v1",
       stage: "P8-4",
       evidenceKind: "branch-local-release-strict-compatibility",
+      targetShaSource: "p8-2-real-compatibility-matrix",
+      currentHeadShaMeaning: "HEAD at summary generation time; release target evidence remains bound to targetSha.",
       branchEvidence: true,
       mainEvidence: false,
       schemas: {
