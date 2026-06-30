@@ -24,6 +24,8 @@ Run these before treating a future alpha version as a local release candidate:
 npm test
 npm run typecheck
 npm run lint
+npm run build
+npm run stable:surface:check
 npm run package:check
 npm run package:docs:check
 npm run compat:real:evidence:verify
@@ -41,6 +43,8 @@ Acceptance:
 - [x] `npm test` passes.
 - [x] `npm run typecheck` passes.
 - [x] `npm run lint` passes.
+- [x] `npm run build` passes before build-output gates.
+- [x] `npm run stable:surface:check` passes with `schemaVersion: "agent-cli-runtime.stableSurfaceCheck.v1"` and keeps package-root value exports limited to `createAgentRuntime`.
 - [x] `npm run package:check` passes and rejects `.release-evidence/` plus `.reference/` if they appear in pack metadata.
 - [x] `npm run package:docs:check` unpacks the local tarball and rejects stale publish-state claims for this version, dry-run stop wording, publish-ready candidate wording, and old current dist-tag claims.
 - [x] `npm run compat:real:evidence:verify` passes without launching authenticated real agent runs.
@@ -111,7 +115,7 @@ The package must not contain:
 - The package root value export remains `createAgentRuntime`.
 - The schema inventory and versioning policy live in [docs/api-schema-contract.md](./api-schema-contract.md).
 - The daemon/product shell embedding contract lives in [docs/daemon-ready-contract.md](./daemon-ready-contract.md).
-- `agent-cli-runtime.releaseVerification.v1`, `agent-cli-runtime.releaseGateEvidence.v1`, `agent-cli-runtime.mainReleaseCandidateEvidence.v1`, and `agent-cli-runtime.packagedDocsVerification.v1` are release artifact schemas.
+- `agent-cli-runtime.releaseVerification.v1`, `agent-cli-runtime.releaseGateEvidence.v1`, `agent-cli-runtime.mainReleaseCandidateEvidence.v1`, `agent-cli-runtime.packagedDocsVerification.v1`, and `agent-cli-runtime.stableSurfaceCheck.v1` are release or repository gate schemas.
 
 ## Schema Vocabulary
 

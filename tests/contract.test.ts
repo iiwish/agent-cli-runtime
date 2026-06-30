@@ -57,6 +57,7 @@ const mainReleaseCandidateEvidenceCreator = path.join(root, "scripts", "create-m
 const releaseCandidateCreator = path.join(root, "scripts", "create-release-candidate.mjs");
 const releaseArtifactNormalizer = path.join(root, "scripts", "normalize-release-artifacts.mjs");
 const packageContentEquivalenceVerifier = path.join(root, "scripts", "verify-package-content-equivalence.mjs");
+const stableSurfaceChecker = path.join(root, "scripts", "check-stable-surface.mjs");
 const daemonVerifier = path.join(root, "scripts", "verify-daemon-ready.mjs");
 const runtimeSafetyVerifier = path.join(root, "scripts", "verify-runtime-safety.mjs");
 const runInstalledPackageContractTests = process.env.AGENT_RUNTIME_RUN_INSTALLED_PACKAGE_TESTS === "1";
@@ -185,6 +186,79 @@ async function writeDownloadedReleaseArtifactFixture(downloadDir: string): Promi
   }
 
   return { tarball: fixture.pack[0].filename };
+}
+
+async function writeStableSurfaceFailureFixture(dir: string): Promise<void> {
+  await mkdir(path.join(dir, "dist", "core"), { recursive: true });
+  await mkdir(path.join(dir, "docs"), { recursive: true });
+  await mkdir(path.join(dir, "scripts"), { recursive: true });
+  await mkdir(path.join(dir, ".reference"), { recursive: true });
+  await writeFile(path.join(dir, "package.json"), JSON.stringify({
+    name: "stable-surface-fixture",
+    version: "0.0.0",
+    type: "module",
+    main: "./dist/index.js",
+    types: "./dist/index.d.ts",
+    files: ["dist", "docs/api-schema-contract.md", "docs/stable-readiness.md", "scripts/check-stable-surface.mjs", ".reference"],
+  }, null, 2), "utf8");
+  await writeFile(path.join(dir, "dist", "index.js"), [
+    "export function createAgentRuntime() {}",
+    "export const debugInternal = 1;",
+    "",
+  ].join("\n"), "utf8");
+  await writeFile(path.join(dir, "dist", "index.d.ts"), [
+    'export { createAgentRuntime } from "./core/runtime.js";',
+    'export { debugInternal } from "./storage/internal.js";',
+    "",
+  ].join("\n"), "utf8");
+  await writeFile(path.join(dir, "dist", "core", "schema-contract.js"), [
+    "export const EVENT_TERMINAL_REASONS = " + JSON.stringify(EVENT_TERMINAL_REASONS) + ";",
+    "export const SMOKE_CONFORMANCE_CLASSIFICATIONS = " + JSON.stringify(SMOKE_CONFORMANCE_CLASSIFICATIONS) + ";",
+    "export const CLI_SCHEMA_INVENTORY = [",
+    '  { schemaVersion: "agent-runtime.event.v1", requiredTopLevelFields: ["schemaVersion"], classificationFields: [], redactionRules: [] },',
+    '  { schemaVersion: "agent-fixture.missing.v1", requiredTopLevelFields: ["schemaVersion"], classificationFields: [], redactionRules: [] },',
+    "];",
+    "",
+  ].join("\n"), "utf8");
+  const terminalReasons = EVENT_TERMINAL_REASONS.map((reason) => `- \`${reason}\``).join("\n");
+  const smokeClassifications = SMOKE_CONFORMANCE_CLASSIFICATIONS.map((classification) => `- \`${classification}\``).join("\n");
+  await writeFile(path.join(dir, "docs", "api-schema-contract.md"), [
+    "# Fixture API Schema Contract",
+    "",
+    "| Schema | Required top-level fields | Classification fields | Redaction rules |",
+    "| --- | --- | --- | --- |",
+    "| `agent-runtime.event.v1` | `schemaVersion` | `ok` | Redacted summary. |",
+    "",
+    "Event terminal reasons use the `EventTerminalReason` vocabulary:",
+    "",
+    terminalReasons,
+    "",
+    "Smoke and conformance classifications use:",
+    "",
+    smokeClassifications,
+    "",
+  ].join("\n"), "utf8");
+  await writeFile(path.join(dir, "docs", "stable-readiness.md"), [
+    "# Fixture Stable Readiness",
+    "",
+    "| Surface | Classification | Current contract |",
+    "| --- | --- | --- |",
+    "| `AgentRuntime.getAdapter` and `RuntimeOptions.adapters` | `stable-candidate` | bad fixture promotion |",
+    "| Adapter authoring extension types: `AgentAdapterDef`, `BuildArgsInput`, `PromptTransport`, `StreamParser`, `AdapterCompatibilityProfile` | `experimental` | adapter experiments |",
+    `| Terminal reason vocabulary | \`stable-candidate\` | ${EVENT_TERMINAL_REASONS.map((reason) => `\`${reason}\``).join(", ")}. |`,
+    `| Real smoke and conformance classification vocabulary | \`stable-candidate\` | ${SMOKE_CONFORMANCE_CLASSIFICATIONS.map((classification) => `\`${classification}\``).join(", ")}. |`,
+    "",
+    "## Schema Inventory",
+    "",
+    "| Schema | Classification |",
+    "| --- | --- |",
+    "| `agent-runtime.event.v1` | `stable-candidate` |",
+    "",
+    "## Stable Gaps",
+    "",
+  ].join("\n"), "utf8");
+  await writeFile(path.join(dir, "scripts", "check-stable-surface.mjs"), "export const repoOnly = true;\n", "utf8");
+  await writeFile(path.join(dir, ".reference", "note.txt"), "repo-only fixture\n", "utf8");
 }
 
 function fakeCliEnv(binDir: string, env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
@@ -535,6 +609,92 @@ describe("public contract", () => {
     expect(stableReadiness).not.toContain("/tmp/");
     expect(stableReadiness).not.toContain("/private/tmp/");
     expect(stableReadiness).not.toContain("/var/folders/");
+  });
+
+  it("emits parseable stable surface gate JSON with a fixed schema and package-root boundary", async () => {
+    const { stdout } = await execFileP(process.execPath, [stableSurfaceChecker], { cwd: root });
+    const result = JSON.parse(stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      packageRoot: { ok: boolean; valueExports: string[] };
+      publicTypes: { ok: boolean };
+      schemaInventory: { ok: boolean; schemaVersions: string[] };
+      cliVocabularies: { ok: boolean; terminalReasons: string[]; smokeConformanceClassifications: string[] };
+      packagedDocs: { ok: boolean; repoOnlyExcluded: Record<string, boolean> };
+      diagnostics: unknown[];
+      boundary: { repoOnlyGate: boolean; stableSurfaceCheckIsRuntimePublicApi: boolean; noAuthenticatedRealRun: boolean };
+    };
+
+    expect(result.schemaVersion).toBe("agent-cli-runtime.stableSurfaceCheck.v1");
+    expect(result.ok).toBe(true);
+    expect(result.packageRoot).toMatchObject({ ok: true, valueExports: ["createAgentRuntime"] });
+    expect(result.publicTypes.ok).toBe(true);
+    expect(result.schemaInventory.ok).toBe(true);
+    expect(result.schemaInventory.schemaVersions).toEqual(CLI_SCHEMA_INVENTORY.map((contract) => contract.schemaVersion));
+    expect(result.cliVocabularies).toMatchObject({
+      ok: true,
+      terminalReasons: [...EVENT_TERMINAL_REASONS],
+      smokeConformanceClassifications: [...SMOKE_CONFORMANCE_CLASSIFICATIONS],
+    });
+    expect(result.packagedDocs.repoOnlyExcluded).toMatchObject({
+      reference: true,
+      releaseEvidence: true,
+      repoOnlyScripts: true,
+      stableReadiness: true,
+    });
+    expect(result.boundary).toMatchObject({
+      repoOnlyGate: true,
+      stableSurfaceCheckIsRuntimePublicApi: false,
+      noAuthenticatedRealRun: true,
+    });
+    expect(result.diagnostics).toEqual([]);
+    expectNoLocalOrSecretLeak(stdout);
+  });
+
+  it("fails stable surface gate fixtures with stable short diagnostics", async () => {
+    const fixtureDir = await tempDir("agent-runtime-stable-surface-fixture-");
+    try {
+      await writeStableSurfaceFailureFixture(fixtureDir);
+      const failure = await execCliFailureViaNode([stableSurfaceChecker, "--root", fixtureDir], { cwd: root });
+      const result = JSON.parse(failure.stdout) as {
+        schemaVersion: string;
+        ok: boolean;
+        packageRoot: { ok: boolean; valueExports: string[] };
+        publicTypes: { ok: boolean; forbiddenSources: string[] };
+        schemaInventory: { ok: boolean };
+        packagedDocs: { ok: boolean; disallowedPackedFiles: string[] };
+        diagnostics: Array<{ code: string; message: string }>;
+        boundary: { experimentalAdapterSurfacePromoted: boolean };
+      };
+      const diagnosticCodes = new Set(result.diagnostics.map((diagnostic) => diagnostic.code));
+
+      expect(failure.code).toBe(1);
+      expect(failure.stderr).toBe("");
+      expect(result.schemaVersion).toBe("agent-cli-runtime.stableSurfaceCheck.v1");
+      expect(result.ok).toBe(false);
+      expect(result.packageRoot).toMatchObject({ ok: false, valueExports: ["createAgentRuntime", "debugInternal"] });
+      expect(result.publicTypes.ok).toBe(false);
+      expect(result.publicTypes.forbiddenSources).toContain("./storage/internal.js");
+      expect(result.schemaInventory.ok).toBe(false);
+      expect(result.packagedDocs.ok).toBe(false);
+      expect(result.packagedDocs.disallowedPackedFiles).toContain("scripts/check-stable-surface.mjs");
+      expect(result.boundary.experimentalAdapterSurfacePromoted).toBe(true);
+      expect([...diagnosticCodes]).toEqual(expect.arrayContaining([
+        "package_root_exports_changed",
+        "declaration_value_exports_changed",
+        "forbidden_public_type_source",
+        "schema_missing_from_api_contract",
+        "schema_missing_from_stable_readiness",
+        "experimental_surface_promoted",
+        "disallowed_package_file",
+      ]));
+      for (const diagnostic of result.diagnostics) {
+        expect(diagnostic.message.length).toBeLessThanOrEqual(180);
+      }
+      expectNoLocalOrSecretLeak(failure.stdout);
+    } finally {
+      await rm(fixtureDir, { recursive: true, force: true });
+    }
   });
 
   it("keeps installed-package daemon and runtime safety gates out of the default test matrix", async () => {

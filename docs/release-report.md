@@ -96,6 +96,8 @@ Main-scoped remote release-candidate closure uses `npm run release:main-candidat
 
 Package-content drift review uses `npm run release:package-content:verify -- --base-ref <release-target-sha> --head-ref <sha-or-ref>`. The verifier emits `schemaVersion: "agent-cli-runtime.packageContentEquivalence.v1"` and compares the npm package file list plus file-content hashes for both refs from temporary git worktrees. `.release-evidence/`, tests, and repo-only scripts can change without changing package content; README, README.zh-CN, packaged docs, package.json, dist, type declarations, bin files, examples, and other package-visible files trigger `freshReleaseCandidateRequired: true` when their package content differs. The P8-8 evidence file is `.release-evidence/p8-8-package-content-equivalence.json`. It is a package-content decision, not a replacement for fresh main release-candidate workflow evidence.
 
+Stable surface regression review uses `npm run stable:surface:check` after `npm run build`. The verifier emits `schemaVersion: "agent-cli-runtime.stableSurfaceCheck.v1"` and checks the package-root runtime value export, root declarations, schema inventory docs, terminal/classification vocabularies, experimental adapter-surface classification, and repo-only package exclusions. It is a local repository/release gate; it does not publish npm, create a GitHub Release, launch authenticated real agent runs, or make `dist/**` subpaths public API.
+
 ## Package Boundary
 
 The npm package may include stable docs, examples, `dist/`, and the runtime entrypoints. It must not include:
@@ -123,6 +125,7 @@ The API and CLI schema inventory, versioning policy, root export boundary, and f
 - `agent-cli-runtime.releaseArtifactNormalization.v1`
 - `agent-cli-runtime.mainReleaseCandidateEvidence.v1`
 - `agent-cli-runtime.packageContentEquivalence.v1`
+- `agent-cli-runtime.stableSurfaceCheck.v1`
 - `agent-cli-runtime.realCompatibilityEvidenceVerification.v1`
 - `agent-cli-runtime.realCompatibilityMatrix.v1`
 - `agent-cli-runtime.realCompatibilityEvidence.v1`
