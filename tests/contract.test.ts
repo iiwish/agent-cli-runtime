@@ -5103,10 +5103,14 @@ setInterval(() => {}, 1000);
     expect(manifest.files).not.toContain("scripts/normalize-release-artifacts.mjs");
     expect(manifest.scripts["release:main-candidate:evidence"]).toBe("node ./scripts/create-main-release-candidate-evidence.mjs");
     expect(manifest.scripts["release:artifacts:normalize"]).toBe("node ./scripts/normalize-release-artifacts.mjs");
-    expect(script).toContain("agent-cli-runtime.p8MainReleaseCandidateEvidence.v1");
-    expect(script).toContain("agent-cli-runtime.p8MainReleaseCandidateEvidenceSelfTest.v1");
+    expect(script).toContain("agent-cli-runtime.mainReleaseCandidateEvidence.v1");
+    expect(script).toContain("agent-cli-runtime.mainReleaseCandidateEvidenceSelfTest.v1");
+    expect(script).not.toContain("agent-cli-runtime.p8MainReleaseCandidateEvidence.v1");
+    expect(script).not.toContain("agent-cli-runtime.p8MainReleaseCandidateEvidenceSelfTest.v1");
     expect(script).toContain("releaseTargetSha");
     expect(script).toContain("headShaMatchesReleaseTarget");
+    expect(script).toContain("historicalMainEvidence");
+    expect(script).toContain("currentMainFreshEvidence");
     expect(script).toContain("workflow_dispatch");
     expect(script).toContain("remote_run_head_sha_mismatch");
     expect(script).toContain("remote_run_conclusion_not_success");
@@ -5120,18 +5124,19 @@ setInterval(() => {}, 1000);
     expect(script).not.toContain("NODE_AUTH_TOKEN");
 
     expect(selfTest).toMatchObject({
-      schemaVersion: "agent-cli-runtime.p8MainReleaseCandidateEvidenceSelfTest.v1",
+      schemaVersion: "agent-cli-runtime.mainReleaseCandidateEvidenceSelfTest.v1",
       ok: true,
     });
     expect(selfTest.cases.map((testCase) => testCase.name).sort()).toEqual([
-      "P8-7 stage derives reusable output",
+      "P9-2 stage derives reusable output",
       "artifact without explicit non-expired state is rejected",
       "downloaded verification failure is rejected",
-      "explicit output is preserved for non-P8-5 stage",
+      "explicit output is preserved for stage-specific output",
       "failed remote conclusion is rejected",
+      "historical main evidence is not current fresh evidence",
       "incomplete remote artifact set is rejected",
       "invalid stage is rejected",
-      "missing stage keeps P8-5 default output",
+      "missing stage keeps stage-neutral default output",
       "remote headSha mismatch is rejected",
     ].sort());
     expect(selfTest.cases.filter((testCase) => testCase.expectedCode !== null).map((testCase) => testCase.expectedCode).sort()).toEqual([
@@ -5371,7 +5376,8 @@ setInterval(() => {}, 1000);
     };
 
     expect(script).toContain("--stage <stage>");
-    expect(script).toContain("P8-7");
+    expect(script).toContain("P9-2");
+    expect(script).toContain("agent-cli-runtime.mainReleaseCandidateEvidence.v1");
     expect(script).toContain("stage_invalid");
     expect(script).toContain("defaultOutputForStage");
     expect(script).not.toMatch(/\bnpm publish\b/u);
@@ -5744,6 +5750,54 @@ setInterval(() => {}, 1000);
     }
   });
 
+  it("keeps stage-neutral main release evidence tooling ready for P9-2 without reclassifying P8 history", async () => {
+    const script = await readFile(mainReleaseCandidateEvidenceCreator, "utf8");
+    const selfTest = JSON.parse((await execFileP(process.execPath, [
+      mainReleaseCandidateEvidenceCreator,
+      "--stage",
+      "P9-2",
+      "--self-test",
+    ])).stdout) as {
+      schemaVersion: string;
+      ok: boolean;
+      cases: Array<{ name: string; ok: boolean }>;
+    };
+    const p8HistoricalFiles = [
+      ".release-evidence/p8-5-main-release-candidate.json",
+      ".release-evidence/p8-7-main-release-candidate.json",
+      ".release-evidence/p8-9-main-release-candidate.json",
+    ];
+
+    expect(script).toContain("agent-cli-runtime.mainReleaseCandidateEvidence.v1");
+    expect(script).toContain("agent-cli-runtime.mainReleaseCandidateEvidenceSelfTest.v1");
+    expect(script).toContain(".release-evidence/p9-2-main-release-candidate.json");
+    expect(script).toContain("P9-2 stage derives reusable output");
+    expect(script).not.toContain("--stage must match P8-<number>");
+    expect(selfTest).toMatchObject({
+      schemaVersion: "agent-cli-runtime.mainReleaseCandidateEvidenceSelfTest.v1",
+      ok: true,
+    });
+    expect(selfTest.cases).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "P9-2 stage derives reusable output", ok: true }),
+      expect.objectContaining({ name: "historical main evidence is not current fresh evidence", ok: true }),
+    ]));
+
+    for (const file of p8HistoricalFiles) {
+      const evidence = JSON.parse(await readFile(path.join(root, file), "utf8")) as {
+        schemaVersion: string;
+        stage: string;
+        mainEvidence: boolean;
+        branchEvidence: boolean;
+        releaseTargetSha: string;
+      };
+      expect(evidence.schemaVersion).toBe("agent-cli-runtime.p8MainReleaseCandidateEvidence.v1");
+      expect(evidence.stage).toMatch(/^P8-/u);
+      expect(evidence.mainEvidence).toBe(true);
+      expect(evidence.branchEvidence).toBe(false);
+      expect(evidence.releaseTargetSha).toMatch(/^[0-9a-f]{40}$/u);
+    }
+  });
+
   it("records P8-8 package content equivalence evidence without over-claiming fresh main evidence", async () => {
     const evidenceText = await readFile(path.join(root, ".release-evidence", "p8-8-package-content-equivalence.json"), "utf8");
     const evidence = JSON.parse(evidenceText) as {
@@ -5832,6 +5886,7 @@ setInterval(() => {}, 1000);
     expect(releaseReport).toContain("corrective pre-alpha release");
     expect(releaseReport).toContain("agent-cli-runtime.releaseVerification.v1");
     expect(releaseReport).toContain("agent-cli-runtime.releaseGateEvidence.v1");
+    expect(releaseReport).toContain("agent-cli-runtime.mainReleaseCandidateEvidence.v1");
     expect(releaseReport).toContain("compat:real:evidence:verify");
     expect(releaseReport).toContain(".release-evidence/");
     expect(releaseChecklist).toContain("P7-5 Alpha.3 Corrective Release");

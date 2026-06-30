@@ -414,6 +414,8 @@ Main-scoped release-candidate evidence is generated with:
 npm run release:main-candidate:evidence -- --stage <stage> --release-target-sha <origin-main-sha> --local-release-dir <local-strict-dir> --remote-run-json <run.json> --artifacts-json <artifacts.json> --downloaded-dir <normalized-artifact-dir> --out .release-evidence/<stage-lower>-main-release-candidate.json
 ```
 
+The generator emits `schemaVersion: "agent-cli-runtime.mainReleaseCandidateEvidence.v1"`. Stage labels such as `P9-2` are accepted; P8 main evidence files remain historical exact-SHA evidence and are not current fresh main evidence for later package-visible changes.
+
 Package-content equivalence between a recorded release target SHA and a later ref is checked with:
 
 ```bash
@@ -422,7 +424,7 @@ npm run release:package-content:verify -- --base-ref <release-target-sha> --head
 
 The verifier emits `schemaVersion: "agent-cli-runtime.packageContentEquivalence.v1"` and compares npm package-visible file lists plus per-file content hashes from temporary git worktrees. It does not rely on gzip/tarball bytes as the only signal. Package-external `.release-evidence/`, tests, and repo-only script changes can be recorded as `evidenceOnlyDrift: true` with `freshReleaseCandidateRequired: false`; README, packaged docs, package.json, dist, types, bin, examples, and other package-visible changes require fresh release-candidate evidence before the later ref is treated as a release target.
 
-The release evidence summary is [docs/release-report.md](./docs/release-report.md), with volatile P8-4 target-SHA evidence under `.release-evidence/p8-4-release-strict-compatibility.json`, historical P8-5 main remote evidence under `.release-evidence/p8-5-main-release-candidate.json`, and current P8-7 fresh main evidence under `.release-evidence/p8-7-main-release-candidate.json`. The alpha publish decision runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate. Published package verification is a separate manual post-publish workflow, not a publish workflow.
+The release evidence summary is [docs/release-report.md](./docs/release-report.md), with volatile P8-4 target-SHA evidence under `.release-evidence/p8-4-release-strict-compatibility.json` and historical P8 main remote evidence under `.release-evidence/p8-5-main-release-candidate.json`, `.release-evidence/p8-7-main-release-candidate.json`, and `.release-evidence/p8-9-main-release-candidate.json`. The alpha publish decision runbook is [docs/release-publish-runbook.md](./docs/release-publish-runbook.md). `npm publish --dry-run --ignore-scripts --tag alpha` is documented there as a local manual dry-run check; it must not publish and is not required as a remote CI gate. Published package verification is a separate manual post-publish workflow, not a publish workflow.
 
 Main-scoped evidence proves only its recorded `releaseTargetSha`; an evidence-recording commit or later PR merge commit needs its own fresh main evidence before it can be used as a release target.
 
