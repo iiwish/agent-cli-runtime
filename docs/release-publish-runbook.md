@@ -21,6 +21,7 @@ Current state and future human gate:
 - `agent-cli-runtime@0.1.0-alpha.0` is deprecated because its immutable package docs shipped stale pre-publish state.
 - Future human-controlled publish path: use the fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, run `npm run package:docs:check`, run `npm publish --dry-run --ignore-scripts --tag alpha`, and require explicit maintainer authorization before any registry mutation.
 - Current-head evidence rule: trigger a fresh release-candidate workflow for the commit being considered, download all five artifacts, run `npm run release:verify -- --dir <normalized-artifact-dir>`, and record volatile run evidence under `.release-evidence/`.
+- Package-content equivalence rule: use `npm run release:package-content:verify -- --base-ref <release-target-sha> --head-ref <sha-or-ref>` only to decide whether a later ref has the same npm package content as the recorded release target SHA. A `freshReleaseCandidateRequired: true` result requires fresh release-candidate evidence before publishing that later ref.
 - Because this runbook and release report are included in the npm package, do not write current run ids, artifact digests, tarball shasums, integrity values, or pack shasums into package docs.
 - Before any future real publish, confirm the fresh release-candidate workflow head SHA matches the commit being published.
 - After any future real publish, run the manual published package verification workflow and download `agent-cli-runtime-published-verification`; it must pass `npm run published:verify:evidence -- --dir <downloaded-artifact-dir>`.
@@ -62,6 +63,7 @@ Before a future real publish, also confirm the current branch and evidence targe
 git rev-parse --abbrev-ref HEAD
 git rev-parse HEAD
 git rev-parse origin/main
+npm run release:package-content:verify -- --base-ref <recorded-release-target-sha> --head-ref HEAD
 gh workflow run release-candidate.yml --ref main
 gh run view <current-release-candidate-run-id> --json headSha,status,conclusion,url,jobs
 npm view agent-cli-runtime@<next-version> version --json
@@ -82,6 +84,7 @@ Before a future real publish, a maintainer must confirm:
 
 - The version is exactly the intended immutable npm version. A published `name@version` cannot be overwritten.
 - The release-candidate run head SHA matches the commit being published; historical runs are insufficient for later commits.
+- Package-content equivalence evidence, when used, compares the recorded release target SHA with the later ref by npm package file list and file-content hashes, not by gzip/tarball bytes alone.
 - `npm run package:docs:check`, `npm pack --dry-run`, and `npm publish --dry-run --ignore-scripts --tag alpha` show only expected files and release-state wording.
 - `.reference/`, `.release-evidence/`, `tests/`, fixtures, raw real CLI output, private paths, token-looking values, and repair backups are absent from the packed files.
 - `dist/index.js` runtime value exports remain limited to `createAgentRuntime`.

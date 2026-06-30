@@ -95,7 +95,7 @@ const disallowedPathPatterns = [
   /(?:^|\/)repair-backups(?:\/|$)/u,
   /(?:^|\/)raw-corrupt-samples(?:\/|$)/u,
   /(?:^|\/)raw-real-cli-output(?:\/|$)/u,
-  /^scripts\/(?:create-real-compatibility-evidence|verify-real-compatibility-evidence)\.mjs$/u,
+  /^scripts\/(?:create-real-compatibility-evidence|verify-real-compatibility-evidence|verify-package-content-equivalence)\.mjs$/u,
   /\/Users\//u,
   /\/home\/[^/\s]+/u,
   /[A-Z]:\\Users\\/u,

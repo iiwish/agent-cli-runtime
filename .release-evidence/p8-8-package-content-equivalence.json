@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "agent-cli-runtime.packageContentEquivalence.v1",
+  "ok": true,
+  "baseRef": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+  "headRef": "origin/main",
+  "baseSha": "ff553b27f0765b4e2b67c60a05d28d4449423207",
+  "headSha": "e1c493b99d54dc85eeef3e2c92a72bafe7f71e03",
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.3",
+  "basePackageName": "agent-cli-runtime",
+  "headPackageName": "agent-cli-runtime",
+  "basePackageVersion": "0.1.0-alpha.3",
+  "headPackageVersion": "0.1.0-alpha.3",
+  "packageContentEqual": false,
+  "basePackageDigest": "sha256:12c8bced01f308554e17de926cad26a57b6650b0c01904406ebeba8365603549",
+  "headPackageDigest": "sha256:c91a28f745f5ec694f13325cf480bbd8d0a6592c60b94d446f662fad8b02101a",
+  "baseFileCount": 151,
+  "headFileCount": 151,
+  "changedPackageFiles": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "baseSha256": "sha256:f2efe65627a3c187370c404e71b68fb0d479f4124c976232495385c45b174667",
+      "headSha256": "sha256:34e58f07f6d77bd9263a4f34b516c7c87f3f80046fd45d46a137138114d7e35e"
+    },
+    {
+      "path": "README.zh-CN.md",
+      "status": "modified",
+      "baseSha256": "sha256:3d5b2ae07f30f75413c25625719c38a6ade740f77f9270b9ab8d39718b6bb626",
+      "headSha256": "sha256:4eb8d9a26e20bdc085c0b0f22670b8949bcd0df76b05c2d3dc7f8aea7f30d2fa"
+    },
+    {
+      "path": "docs/production-readiness.md",
+      "status": "modified",
+      "baseSha256": "sha256:1d35a089bb03282b8450dfa1ad11a4ad4360efd3a69ae6077f2f4d047a54d7b1",
+      "headSha256": "sha256:b5066f04cdb9abd4eea3e49f061f428d7cd4946a3b4c9f249a89de2edbf46de6"
+    },
+    {
+      "path": "docs/release-report.md",
+      "status": "modified",
+      "baseSha256": "sha256:13b3e0d08a70551dfb4bc7237b0b203134efb1c5c62c843d00ae5e41567d95e4",
+      "headSha256": "sha256:26d13553f82c938069111faa0f85d592710fadbb7a26fae5fd686ae74e308749"
+    },
+    {
+      "path": "docs/ssot.md",
+      "status": "modified",
+      "baseSha256": "sha256:3f14b7c19118db5c68b349605d7c40c6fd3228d2f813e469258a27a88f067f5a",
+      "headSha256": "sha256:01da8cc8cd9175c389108e7b141f29b8d19892a2acebc716ec34a677b0bcb042"
+    }
+  ],
+  "evidenceOnlyDrift": false,
+  "freshReleaseCandidateRequired": true,
+  "repoChangedFileCount": 10,
+  "diagnostics": [
+    {
+      "code": "package_content_drift",
+      "severity": "decision",
+      "message": "Package-visible content differs between refs; fresh release-candidate evidence is required before treating the head ref as a release target."
+    }
+  ],
+  "boundary": {
+    "repoOnlyEvidence": true,
+    "comparedNpmPackageContentOnly": true,
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noNpmToken": true,
+    "noGithubRelease": true,
+    "noTarballGzipDigestDecision": true,
+    "noRawStdoutStderr": true,
+    "noRawCliOutput": true,
+    "noPrivatePath": true,
+    "noLocalTempPath": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvAssignment": true
+  }
+}

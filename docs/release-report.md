@@ -3,7 +3,7 @@
 Status: `0.1.0-alpha.3` corrective pre-alpha release
 Last updated: 2026-06-29
 
-This report is the packaged, stable release-state summary. Volatile release evidence such as current workflow run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, command transcripts, raw logs, raw CLI output, prompt text, and token-looking values belongs outside the npm package under `.release-evidence/` or durable GitHub Release assets. The current fresh main release-candidate closure is recorded as P8-7 repo-only evidence.
+This report is the packaged, stable release-state summary. Volatile release evidence such as current workflow run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, command transcripts, raw logs, raw CLI output, prompt text, and token-looking values belongs outside the npm package under `.release-evidence/` or durable GitHub Release assets. The current fresh main release-candidate closure is recorded as P8-7 repo-only evidence, and package-content drift decisions are recorded as P8-8 repo-only evidence.
 
 ## Current State
 
@@ -94,6 +94,8 @@ P8-4 release-strict compatibility closure uses `.release-evidence/p8-4-release-s
 
 Main-scoped P8 remote release-candidate closure uses `npm run release:main-candidate:evidence -- --stage <stage> --release-target-sha <origin-main-sha> --local-release-dir <local-strict-dir> --remote-run-json <run.json> --artifacts-json <artifacts.json> --downloaded-dir <normalized-artifact-dir> --out .release-evidence/<stage-lower>-main-release-candidate.json`. Stage `P8-5` remains the default for existing evidence; stage `P8-7` records the fresh main release-candidate closure after P8-6 tooling hardening. The summary binds `releaseTargetSha` to `origin/main`, records local strict matrix verification and local strict release artifacts, then records a fresh `release-candidate.yml --ref main` run whose `event` is `workflow_dispatch`, `headBranch` is `main`, `status` is `completed`, `conclusion` is `success`, and `headSha` equals `releaseTargetSha`. The evidence scope is target-SHA-only: the evidence-recording commit and any later PR merge commit require their own fresh main evidence before they can be treated as release targets. The remote artifact metadata must contain exactly the five release-candidate artifact names, with no missing, duplicate, expired, unknown, digest-less, or expiration-unverified artifact. The downloaded artifact set must keep each expected file under its matching artifact directory before normalization and must pass `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>` with `ok: true`. Remote clean-checkout artifacts record real compatibility as `repo_only_not_run` / `not_refreshed_in_ci`; the compatibility conclusion comes from the local strict matrix verifier. P8 main-scoped evidence is not npm publish evidence and does not create a GitHub Release, npm token, trusted publishing configuration, or authenticated real run.
 
+Package-content drift review uses `npm run release:package-content:verify -- --base-ref <release-target-sha> --head-ref <sha-or-ref>`. The verifier emits `schemaVersion: "agent-cli-runtime.packageContentEquivalence.v1"` and compares the npm package file list plus file-content hashes for both refs from temporary git worktrees. `.release-evidence/`, tests, and repo-only scripts can change without changing package content; README, README.zh-CN, packaged docs, package.json, dist, type declarations, bin files, examples, and other package-visible files trigger `freshReleaseCandidateRequired: true` when their package content differs. The P8-8 evidence file is `.release-evidence/p8-8-package-content-equivalence.json`. It is a package-content decision, not a replacement for fresh main release-candidate workflow evidence.
+
 ## Package Boundary
 
 The npm package may include stable docs, examples, `dist/`, and the runtime entrypoints. It must not include:
@@ -104,6 +106,7 @@ The npm package may include stable docs, examples, `dist/`, and the runtime entr
 - `tests/fixtures/`
 - fault fixtures
 - raw real CLI output
+- repo-only release evidence scripts
 - local temporary review directories
 - private user paths
 - raw prompts or full command transcripts
@@ -118,6 +121,7 @@ The API and CLI schema inventory, versioning policy, root export boundary, and f
 - `agent-cli-runtime.releaseVerification.v1`
 - `agent-cli-runtime.releaseGateEvidence.v1`
 - `agent-cli-runtime.releaseArtifactNormalization.v1`
+- `agent-cli-runtime.packageContentEquivalence.v1`
 - `agent-cli-runtime.realCompatibilityEvidenceVerification.v1`
 - `agent-cli-runtime.realCompatibilityMatrix.v1`
 - `agent-cli-runtime.realCompatibilityEvidence.v1`
