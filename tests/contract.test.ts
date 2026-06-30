@@ -410,13 +410,26 @@ describe("public contract", () => {
 
     for (const contract of CLI_SCHEMA_INVENTORY) {
       expect(apiContract).toContain(contract.schemaVersion);
-      expect(daemonContract).toContain(contract.schemaVersion);
       for (const field of contract.requiredTopLevelFields) {
         expect(apiContract).toContain(field);
       }
       for (const field of contract.classificationFields) {
         expect(apiContract).toContain(field);
       }
+    }
+    for (const schemaVersion of [
+      "agent-runtime.event.v1",
+      "agent-runtime.diagnostics.v1",
+      "agent-runtime.conformance.v1",
+      "agent-runtime.daemonVerification.v1",
+      "agent-runtime.runtimeSafety.v1",
+      "agent-runtime.publishedDaemonConsumer.v1",
+      "agent-runtime.publishedAdapters.v1",
+      "agent-cli-runtime.publishedVerification.v1",
+      "agent-cli-runtime.releaseVerification.v1",
+      "agent-cli-runtime.releaseGateEvidence.v1",
+    ]) {
+      expect(daemonContract).toContain(schemaVersion);
     }
 
     for (const reason of EVENT_TERMINAL_REASONS) {
@@ -479,6 +492,49 @@ describe("public contract", () => {
       expect(text).not.toContain("stable API release");
       expect(text).not.toContain("production-ready hosted daemon");
     }
+  });
+
+  it("locks the P9-1 stable readiness inventory as repo-only audit evidence", async () => {
+    const stableReadiness = await readFile(path.join(root, "docs", "stable-readiness.md"), "utf8");
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
+      files: string[];
+    };
+    const schemaSection = stableReadiness.slice(
+      stableReadiness.indexOf("## Schema Inventory"),
+      stableReadiness.indexOf("## Stable Gaps"),
+    );
+    const docSchemas = Array.from(schemaSection.matchAll(/\| `(agent-[^`]+\.v1)` \|/gu), (match) => match[1]);
+
+    expect(manifest.files).not.toContain("docs/stable-readiness.md");
+    expect(stableReadiness).toContain("repository-only audit document");
+    expect(stableReadiness).toContain("`stable-candidate`");
+    expect(stableReadiness).toContain("`beta-candidate`");
+    expect(stableReadiness).toContain("`experimental`");
+    expect(stableReadiness).toContain("`internal`");
+    expect(stableReadiness).toContain("| Package root value exports | `stable-candidate` |");
+    expect(stableReadiness).toContain("The only package-root runtime value export is `createAgentRuntime`");
+    expect(stableReadiness).toContain("| `AgentRuntime.getAdapter` and `RuntimeOptions.adapters` | `experimental` |");
+    expect(stableReadiness).toContain("| Adapter authoring extension types: `AgentAdapterDef`, `BuildArgsInput`, `PromptTransport`, `StreamParser`, `AdapterCompatibilityProfile` | `experimental` |");
+    expect(stableReadiness).toContain("| Internal `dist/**` subpaths | `internal` |");
+    expect(stableReadiness).toContain("Subpath imports under `dist/**` are unsupported");
+    expect(stableReadiness).toContain("Release evidence schemas are repository and release-gate contracts");
+    expect(stableReadiness).toContain("Repo-only scripts for release evidence, real compatibility evidence, published verification, package-content equivalence, artifact normalization, and package checks | `internal`");
+    expect(stableReadiness).toContain("Codex `session` and `authProbe` remain in `needsVerification`");
+    expect(stableReadiness).toContain("Claude Code `session.id` and `reasoning` remain in `needsVerification`");
+    expect(stableReadiness).toContain("OpenCode `extraAllowedDirs`, `session`, and `permissionPolicy.read-only` remain in `needsVerification`");
+    expect(docSchemas).toEqual(CLI_SCHEMA_INVENTORY.map((contract) => contract.schemaVersion));
+    expect(stableReadiness).not.toMatch(/\bis stable\b/iu);
+    expect(stableReadiness).not.toMatch(/production[- ]ready/iu);
+    expect(stableReadiness).not.toMatch(/\btoken\b/iu);
+    expect(stableReadiness).not.toMatch(/\bBearer\b/u);
+    expect(stableReadiness).not.toMatch(/auth\s+env/iu);
+    expect(stableReadiness).not.toMatch(/\brun id\b/iu);
+    expect(stableReadiness).not.toMatch(/\bartifact id\b/iu);
+    expect(stableReadiness).not.toContain(process.env.HOME ?? "__no_home__");
+    expect(stableReadiness).not.toContain("/Users/");
+    expect(stableReadiness).not.toContain("/tmp/");
+    expect(stableReadiness).not.toContain("/private/tmp/");
+    expect(stableReadiness).not.toContain("/var/folders/");
   });
 
   it("keeps installed-package daemon and runtime safety gates out of the default test matrix", async () => {
