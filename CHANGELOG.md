@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-alpha.4 — release-prep pre-alpha candidate
+
+- P9-5 alpha.4 release-prep:
+  - prepares `0.1.0-alpha.4` package metadata as the next pre-alpha candidate after the published alpha.3 corrective line;
+  - keeps npm registry metadata and GitHub Releases authoritative for available versions and dist-tags;
+  - records the P9 stable surface gate and P9-4 fresh main release-candidate evidence as package-out release evidence, not as a substitute for alpha.4 publish evidence;
+  - requires P9-6 fresh main release-candidate workflow evidence after this package-visible version/docs drift is merged to `main`;
+  - treats package-content equivalence against the P9-4 release target as expected drift for `package.json` and packaged docs, so `freshReleaseCandidateRequired` remains true before any human publish decision;
+  - keeps real npm publish, npm dist-tag/deprecate changes, GitHub Release creation or editing, npm token/trusted publishing configuration, authenticated real agent runs, run ids, artifact digests, tarball hashes, local temp paths, raw logs, prompts, and token-looking values outside this release-prep package.
+
 ## 0.1.0-alpha.3 — corrective pre-alpha release
 
 - P7-5 alpha.3 corrective release:

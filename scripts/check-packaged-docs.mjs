@@ -89,6 +89,8 @@ try {
     packageSource: null,
     diagnostics: [{ code: "packaged_docs_check_error", message: redact(error instanceof Error ? error.message : String(error)) }],
     noAlpha3UnpublishedClaim: false,
+    noAlpha4PublishedClaim: false,
+    noStaleAlpha3CurrentClaim: false,
     noDryRunStopPoint: false,
     noPublishReadyCandidate: false,
     noOldDistTagClaim: false,

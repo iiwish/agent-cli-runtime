@@ -157,6 +157,16 @@ const publishOverclaimPatterns = [
       /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:not published|unpublished|has not occurred|not yet published|未发布|尚未发布|尚未发生)/iu,
   },
   {
+    name: "alpha.3 kept as current corrective line after alpha.4 prep",
+    pattern:
+      /(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu,
+  },
+  {
+    name: "alpha.4 described as already published during release prep",
+    pattern:
+      /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,120}(?:is already published|is published on npm|published on npm|has GitHub pre-release|已发布到 npm|已经发布到 npm)/iu,
+  },
+  {
     name: "self-expiring dry-run stop point",
     pattern: /dry-run stop point|stop point.*dry-run|停在\s*dry-run/iu,
   },

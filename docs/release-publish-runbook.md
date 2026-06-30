@@ -1,11 +1,11 @@
 # Alpha Publish Readiness Runbook
 
-Status: `0.1.0-alpha.3` corrective pre-alpha release; registry mutations remain human-controlled
-Last updated: 2026-06-26
+Status: `0.1.0-alpha.4` release-prep pre-alpha candidate; registry mutations remain human-controlled
+Last updated: 2026-06-30
 
-This runbook records the publish and registry boundary for the alpha.3 corrective release line. `agent-cli-runtime@0.1.0-alpha.2` is published, but its immutable npm tarball contains stale pre-publish package docs. `agent-cli-runtime@0.1.0-alpha.3` is the corrective pre-alpha release for package consumers. npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags.
+This runbook records the publish and registry boundary for the alpha.4 release-prep candidate. `agent-cli-runtime@0.1.0-alpha.4` is package-visible prep only until fresh P9-6 main release-candidate evidence and a separate human publish decision exist. `agent-cli-runtime@0.1.0-alpha.2` is published, but its immutable npm tarball contains stale pre-publish package docs. `agent-cli-runtime@0.1.0-alpha.3` is the previous corrective pre-alpha release for package consumers. npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags.
 
-This runbook does not create or commit npm credentials and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, tarball shasums, pack shasums, integrity values, and local temporary paths are recorded outside the npm package under `.release-evidence/` or attached as GitHub Release assets; package docs keep only stable process rules, the alpha.2 stale package-docs incident, the alpha.3 corrective boundary, and the human-gated boundary for registry mutations.
+This runbook does not create or commit npm credentials and does not configure trusted publishing. Current-head release-candidate run ids, artifact digests, tarball shasums, pack shasums, integrity values, and local temporary paths are recorded outside the npm package under `.release-evidence/` or attached as GitHub Release assets; package docs keep only stable process rules, the alpha.2 stale package-docs incident, the alpha.3 corrective history, the alpha.4 release-prep boundary, and the human-gated boundary for registry mutations.
 
 ## Decision
 
@@ -14,7 +14,9 @@ Current state and future human gate:
 - Package metadata is ready for an alpha package page: `name`, `version`, `description`, `license`, `type`, `bin`, `main`, `types`, `exports`, `files`, `engines`, `repository`, `homepage`, `bugs`, `keywords`, and `publishConfig.tag` are present and intentional.
 - The package root value API remains `createAgentRuntime` only; public TypeScript types are exposed through the root declarations, not as runtime values.
 - The release-candidate workflow remains artifact-only: it creates and verifies the tarball but does not publish and does not require registry credentials.
-- Corrective package line: `agent-cli-runtime@0.1.0-alpha.3`.
+- Next package candidate: `agent-cli-runtime@0.1.0-alpha.4`.
+- P9-6 fresh main evidence required after merge: trigger the release-candidate workflow on final `main`, download all five artifacts, and verify them before any human publish decision.
+- Previous corrective release: `agent-cli-runtime@0.1.0-alpha.3`.
 - Stale-docs incident package: `agent-cli-runtime@0.1.0-alpha.2`.
 - Previous package: `agent-cli-runtime@0.1.0-alpha.1`.
 - Previous GitHub pre-release: `v0.1.0-alpha.1`.
@@ -116,7 +118,7 @@ If npm asks for a second factor, complete the interactive 2FA prompt or use the 
 Immediately after any real publish:
 
 ```bash
-npm view agent-cli-runtime@0.1.0-alpha.3 version dist-tags --json
+npm view agent-cli-runtime@0.1.0-alpha.4 version dist-tags --json
 npm dist-tag ls agent-cli-runtime
 npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
@@ -126,14 +128,14 @@ npm run published:verify:evidence -- --dir published-verification
 
 Expected result:
 
-- `agent-cli-runtime@0.1.0-alpha.3` is the corrective package line.
+- `agent-cli-runtime@0.1.0-alpha.4` is the package version being verified after an authorized publish.
 - Registry dist-tags match the maintainer's intended pre-alpha policy.
 - Published verification includes `agent-cli-runtime.packagedDocsVerification.v1` for the npm registry tarball.
 
 If the wrong tag is attached but the package version itself is acceptable, fix the tag rather than republishing the same version:
 
 ```bash
-npm dist-tag add agent-cli-runtime@0.1.0-alpha.3 alpha
+npm dist-tag add agent-cli-runtime@0.1.0-alpha.4 alpha
 npm dist-tag ls agent-cli-runtime
 ```
 
@@ -179,7 +181,7 @@ If real publish fails before package creation:
 
 - Capture the redacted error class only.
 - Do not commit npm debug logs if they contain local paths, auth state, or registry session details.
-- Re-run `npm view agent-cli-runtime@0.1.0-alpha.3 version --json` before retrying to confirm the version was not created.
+- Re-run `npm view agent-cli-runtime@0.1.0-alpha.4 version --json` before retrying to confirm the version was not created.
 
 If real publish succeeds but post-publish checks fail:
 
@@ -189,13 +191,13 @@ If real publish succeeds but post-publish checks fail:
 - If the package is unsafe and still eligible under npm policy, consider unpublish only as an emergency path:
 
 ```bash
-npm unpublish agent-cli-runtime@0.1.0-alpha.3
+npm unpublish agent-cli-runtime@0.1.0-alpha.4
 ```
 
 Unpublish has strict policy limits and cannot make the same `name@version` reusable. If unpublish is not allowed or would break consumers, prefer deprecation:
 
 ```bash
-npm deprecate agent-cli-runtime@0.1.0-alpha.3 "Do not use this alpha; upgrade to a later pre-release."
+npm deprecate agent-cli-runtime@0.1.0-alpha.4 "Do not use this alpha; upgrade to a later pre-release."
 ```
 
 ## Rollback Boundary
@@ -207,4 +209,4 @@ Rollback means one of these actions:
 - Unpublish only when npm policy allows it and a maintainer accepts the registry impact.
 - Publish a new corrected pre-release version.
 
-Rollback does not mean overwriting `agent-cli-runtime@0.1.0-alpha.2` or `agent-cli-runtime@0.1.0-alpha.3`; npm does not permit replacing an already published package version.
+Rollback does not mean overwriting `agent-cli-runtime@0.1.0-alpha.2`, `agent-cli-runtime@0.1.0-alpha.3`, or `agent-cli-runtime@0.1.0-alpha.4`; npm does not permit replacing an already published package version.
