@@ -322,6 +322,36 @@ function expectNoLocalOrSecretLeak(text: string): void {
   expect(text).not.toMatch(/\b(?:ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY|OPENAI_API_KEY|OPENAI_AUTH_TOKEN|CLAUDE_AUTH_TOKEN|CODEX_AUTH_TOKEN|OPENCODE_AUTH_TOKEN)\s*=/iu);
 }
 
+function expectStableSurfaceFailureEnvelope(result: {
+  schemaVersion?: unknown;
+  ok?: unknown;
+  packageRoot?: unknown;
+  publicTypes?: unknown;
+  schemaInventory?: unknown;
+  cliVocabularies?: unknown;
+  packagedDocs?: unknown;
+  diagnostics?: unknown;
+  boundary?: Record<string, unknown>;
+}): void {
+  expect(result.schemaVersion).toBe("agent-cli-runtime.stableSurfaceCheck.v1");
+  expect(result.ok).toBe(false);
+  expect(result).toHaveProperty("packageRoot");
+  expect(result).toHaveProperty("publicTypes");
+  expect(result).toHaveProperty("schemaInventory");
+  expect(result).toHaveProperty("cliVocabularies");
+  expect(result).toHaveProperty("packagedDocs");
+  expect(result).toHaveProperty("diagnostics");
+  expect(result.boundary).toMatchObject({
+    repoOnlyGate: true,
+    noNpmPublish: true,
+    noGithubRelease: true,
+    noAuthenticatedRealRun: true,
+    distSubpathsAreNotPublicApi: true,
+    stableSurfaceCheckIsRuntimePublicApi: false,
+    experimentalAdapterSurfacePromoted: expect.any(Boolean),
+  });
+}
+
 async function execInstalledCliJson<T = unknown>(
   bin: string,
   args: string[],
@@ -622,7 +652,15 @@ describe("public contract", () => {
       cliVocabularies: { ok: boolean; terminalReasons: string[]; smokeConformanceClassifications: string[] };
       packagedDocs: { ok: boolean; repoOnlyExcluded: Record<string, boolean> };
       diagnostics: unknown[];
-      boundary: { repoOnlyGate: boolean; stableSurfaceCheckIsRuntimePublicApi: boolean; noAuthenticatedRealRun: boolean };
+      boundary: {
+        repoOnlyGate: boolean;
+        noNpmPublish: boolean;
+        noGithubRelease: boolean;
+        noAuthenticatedRealRun: boolean;
+        distSubpathsAreNotPublicApi: boolean;
+        stableSurfaceCheckIsRuntimePublicApi: boolean;
+        experimentalAdapterSurfacePromoted: boolean;
+      };
     };
 
     expect(result.schemaVersion).toBe("agent-cli-runtime.stableSurfaceCheck.v1");
@@ -645,6 +683,10 @@ describe("public contract", () => {
     expect(result.boundary).toMatchObject({
       repoOnlyGate: true,
       stableSurfaceCheckIsRuntimePublicApi: false,
+      experimentalAdapterSurfacePromoted: false,
+      noNpmPublish: true,
+      noGithubRelease: true,
+      distSubpathsAreNotPublicApi: true,
       noAuthenticatedRealRun: true,
     });
     expect(result.diagnostics).toEqual([]);
@@ -670,8 +712,7 @@ describe("public contract", () => {
 
       expect(failure.code).toBe(1);
       expect(failure.stderr).toBe("");
-      expect(result.schemaVersion).toBe("agent-cli-runtime.stableSurfaceCheck.v1");
-      expect(result.ok).toBe(false);
+      expectStableSurfaceFailureEnvelope(result);
       expect(result.packageRoot).toMatchObject({ ok: false, valueExports: ["createAgentRuntime", "debugInternal"] });
       expect(result.publicTypes.ok).toBe(false);
       expect(result.publicTypes.forbiddenSources).toContain("./storage/internal.js");
@@ -695,6 +736,24 @@ describe("public contract", () => {
     } finally {
       await rm(fixtureDir, { recursive: true, force: true });
     }
+  });
+
+  it("returns the stable surface failure envelope for unexpected usage errors", async () => {
+    const failure = await execCliFailureViaNode([stableSurfaceChecker, "--bad-arg"], { cwd: root });
+    const result = JSON.parse(failure.stdout) as {
+      diagnostics: Array<{ code: string; message: string }>;
+    };
+
+    expect(failure.code).toBe(1);
+    expect(failure.stderr).toBe("");
+    expectStableSurfaceFailureEnvelope(result);
+    expect(result.diagnostics).toEqual([
+      {
+        code: "stable_surface_check_error",
+        message: "unknown_arg:--bad-arg",
+      },
+    ]);
+    expectNoLocalOrSecretLeak(failure.stdout);
   });
 
   it("keeps installed-package daemon and runtime safety gates out of the default test matrix", async () => {

@@ -71,6 +71,19 @@ function diagnostic(code, message, field) {
   };
 }
 
+function boundary(overrides = {}) {
+  return {
+    repoOnlyGate: true,
+    noNpmPublish: true,
+    noGithubRelease: true,
+    noAuthenticatedRealRun: true,
+    distSubpathsAreNotPublicApi: true,
+    stableSurfaceCheckIsRuntimePublicApi: false,
+    experimentalAdapterSurfacePromoted: false,
+    ...overrides,
+  };
+}
+
 function readText(root, relativeFile, diagnostics) {
   try {
     return readFileSync(path.join(root, relativeFile), "utf8");
@@ -323,13 +336,7 @@ function sanitizeOutput(result) {
     cliVocabularies: { ok: false, terminalReasons: [], smokeConformanceClassifications: [] },
     packagedDocs: { ok: false, packedFileCount: 0, disallowedPackedFiles: [], repoOnlyExcluded: {} },
     diagnostics: [diagnostic("unsafe_output_redacted", "stable surface check output was replaced by a redacted failure envelope")],
-    boundary: {
-      repoOnlyGate: true,
-      noNpmPublish: true,
-      noGithubRelease: true,
-      noAuthenticatedRealRun: true,
-      distSubpathsAreNotPublicApi: true,
-    },
+    boundary: boundary(),
   };
 }
 
@@ -352,15 +359,9 @@ async function main() {
   const cliVocabularies = checkCliVocabularies(schemaContract, docs, diagnostics);
   const stableReadiness = checkStableReadiness(docs, diagnostics);
   const packagedDocs = checkPackagedDocs(root, diagnostics);
-  const boundary = {
-    repoOnlyGate: true,
-    noNpmPublish: true,
-    noGithubRelease: true,
-    noAuthenticatedRealRun: true,
-    distSubpathsAreNotPublicApi: true,
-    stableSurfaceCheckIsRuntimePublicApi: false,
+  const resultBoundary = boundary({
     experimentalAdapterSurfacePromoted: !stableReadiness.ok,
-  };
+  });
 
   const result = sanitizeOutput({
     schemaVersion: SCHEMA_VERSION,
@@ -378,7 +379,7 @@ async function main() {
     cliVocabularies,
     packagedDocs,
     diagnostics,
-    boundary,
+    boundary: resultBoundary,
   });
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -395,13 +396,7 @@ main().catch((error) => {
     cliVocabularies: { ok: false, terminalReasons: [], smokeConformanceClassifications: [] },
     packagedDocs: { ok: false, packedFileCount: 0, disallowedPackedFiles: [], repoOnlyExcluded: {} },
     diagnostics: [diagnostic("stable_surface_check_error", error instanceof Error ? error.message : String(error))],
-    boundary: {
-      repoOnlyGate: true,
-      noNpmPublish: true,
-      noGithubRelease: true,
-      noAuthenticatedRealRun: true,
-      distSubpathsAreNotPublicApi: true,
-    },
+    boundary: boundary(),
   });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   process.exit(1);

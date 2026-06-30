@@ -1,14 +1,14 @@
 {
   "schemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
-  "checkedAt": "2026-06-30T05:09:15.207Z",
-  "gitSha": "4077aabe2996508fc778bafe992efde7f0c0cc2d",
-  "gitHeadSha": "4077aabe2996508fc778bafe992efde7f0c0cc2d",
+  "checkedAt": "2026-06-30T09:09:09.646Z",
+  "gitSha": "b159072bc2fead08b28c5ccd6fee62826a7522d3",
+  "gitHeadSha": "b159072bc2fead08b28c5ccd6fee62826a7522d3",
   "gitShaMeaning": "HEAD commit only; see gitInputDirty/gitOutputDirty and dirtySummary for uncommitted input evidence versus evidence-output self writes.",
   "gitDirty": false,
   "gitInputDirty": false,
   "gitOutputDirty": true,
   "gitStatusBeforeWrite": {
-    "headSha": "4077aabe2996508fc778bafe992efde7f0c0cc2d",
+    "headSha": "b159072bc2fead08b28c5ccd6fee62826a7522d3",
     "dirty": false,
     "changedFilesCount": 0,
     "changedFiles": [],
@@ -129,7 +129,7 @@
             "version": "1.15.6",
             "authStatus": "unknown",
             "modelsSource": "live",
-            "modelCount": 24,
+            "modelCount": 78,
             "capabilities": {
               "streaming": true,
               "tools": true,
@@ -202,7 +202,7 @@
             "version": "1.15.6",
             "authStatus": "unknown",
             "modelsSource": "live",
-            "modelCount": 24,
+            "modelCount": 78,
             "capabilities": {
               "streaming": true,
               "tools": true,
@@ -827,7 +827,7 @@
       },
       "modelsSource": {
         "source": "live",
-        "modelCount": 24
+        "modelCount": 78
       },
       "capabilities": {
         "streaming": true,
@@ -974,7 +974,7 @@
       "version": "1.15.6",
       "authStatus": "unknown",
       "modelsSource": "live",
-      "modelCount": 24,
+      "modelCount": 78,
       "capabilities": {
         "streaming": true,
         "tools": true,
@@ -1041,7 +1041,7 @@
         "version": "1.15.6",
         "authStatus": "unknown",
         "modelsSource": "live",
-        "modelCount": 24,
+        "modelCount": 78,
         "capabilities": {
           "streaming": true,
           "tools": true,
@@ -1471,7 +1471,7 @@
     "expectedExcludedPath": ".release-evidence/"
   },
   "gitStatusAfterWrite": {
-    "headSha": "4077aabe2996508fc778bafe992efde7f0c0cc2d",
+    "headSha": "b159072bc2fead08b28c5ccd6fee62826a7522d3",
     "dirty": true,
     "changedFilesCount": 1,
     "changedFiles": [
