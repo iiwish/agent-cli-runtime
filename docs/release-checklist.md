@@ -111,7 +111,7 @@ The package must not contain:
 - The package root value export remains `createAgentRuntime`.
 - The schema inventory and versioning policy live in [docs/api-schema-contract.md](./api-schema-contract.md).
 - The daemon/product shell embedding contract lives in [docs/daemon-ready-contract.md](./daemon-ready-contract.md).
-- `agent-cli-runtime.releaseVerification.v1`, `agent-cli-runtime.releaseGateEvidence.v1`, and `agent-cli-runtime.packagedDocsVerification.v1` are release artifact schemas.
+- `agent-cli-runtime.releaseVerification.v1`, `agent-cli-runtime.releaseGateEvidence.v1`, `agent-cli-runtime.mainReleaseCandidateEvidence.v1`, and `agent-cli-runtime.packagedDocsVerification.v1` are release artifact schemas.
 
 ## Schema Vocabulary
 

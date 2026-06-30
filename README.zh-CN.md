@@ -412,6 +412,8 @@ Main-scoped release-candidate evidence 通过以下命令生成：
 npm run release:main-candidate:evidence -- --stage <stage> --release-target-sha <origin-main-sha> --local-release-dir <local-strict-dir> --remote-run-json <run.json> --artifacts-json <artifacts.json> --downloaded-dir <normalized-artifact-dir> --out .release-evidence/<stage-lower>-main-release-candidate.json
 ```
 
+该 generator 输出 `schemaVersion: "agent-cli-runtime.mainReleaseCandidateEvidence.v1"`。`P9-2` 这类阶段名是有效标签；P8 main evidence 文件只保留为 exact-SHA historical evidence，不作为后续 package-visible 变化的当前 fresh main evidence。
+
 记录过的 release target SHA 与后续 ref 的 package-content equivalence 通过以下命令判断：
 
 ```bash
@@ -420,7 +422,7 @@ npm run release:package-content:verify -- --base-ref <release-target-sha> --head
 
 该 verifier 输出 `schemaVersion: "agent-cli-runtime.packageContentEquivalence.v1"`，通过临时 git worktree 收集两个 refs 的 npm package 可见文件列表和逐文件内容 hash，不把 gzip/tarball bytes 当作唯一判定依据。`.release-evidence/`、tests 和 repo-only scripts 这类包外变化可以记录为 `evidenceOnlyDrift: true` 且 `freshReleaseCandidateRequired: false`；README、packaged docs、package.json、dist、types、bin、examples 和其它 package-visible 内容变化会要求在把后续 ref 当作 release target 前生成 fresh release-candidate evidence。
 
-Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，易漂移的 P8-4 target-SHA evidence 保存在 `.release-evidence/p8-4-release-strict-compatibility.json`，历史 P8-5 main remote evidence 保存在 `.release-evidence/p8-5-main-release-candidate.json`，当前 P8-7 fresh main evidence 保存在 `.release-evidence/p8-7-main-release-candidate.json`，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。Published package verification 是单独的手动 post-publish workflow，不是 publish workflow。
+Release evidence summary 见 [docs/release-report.md](./docs/release-report.md)，易漂移的 P8-4 target-SHA evidence 保存在 `.release-evidence/p8-4-release-strict-compatibility.json`，历史 P8 main remote evidence 保存在 `.release-evidence/p8-5-main-release-candidate.json`、`.release-evidence/p8-7-main-release-candidate.json` 和 `.release-evidence/p8-9-main-release-candidate.json`，alpha publish decision runbook 见 [docs/release-publish-runbook.md](./docs/release-publish-runbook.md)。`npm publish --dry-run --ignore-scripts --tag alpha` 只作为本地手动 dry-run check 记录在这些文档中；它不得真的 publish，也不作为远端 CI 必选 gate。Published package verification 是单独的手动 post-publish workflow，不是 publish workflow。
 
 Main-scoped evidence 只证明其记录的 `releaseTargetSha`；记录 evidence 的提交或后续 PR merge commit 要作为 release target 时，需要重新生成 fresh main evidence。
 

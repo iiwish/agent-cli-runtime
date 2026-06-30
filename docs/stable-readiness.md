@@ -60,6 +60,7 @@ This list is synchronized with `src/core/schema-contract.ts`.
 | `agent-cli-runtime.releaseVerification.v1` | `beta-candidate` |
 | `agent-cli-runtime.releaseGateEvidence.v1` | `beta-candidate` |
 | `agent-cli-runtime.releaseArtifactNormalization.v1` | `beta-candidate` |
+| `agent-cli-runtime.mainReleaseCandidateEvidence.v1` | `beta-candidate` |
 | `agent-cli-runtime.packageContentEquivalence.v1` | `beta-candidate` |
 
 ## Stable Gaps
