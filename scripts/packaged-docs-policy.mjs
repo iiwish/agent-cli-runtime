@@ -15,18 +15,7 @@ export const PACKAGED_DOCS = [
   "docs/release-publish-runbook.md",
 ];
 
-const stalePatterns = [
-  {
-    code: "alpha3_unpublished_claim",
-    message: "alpha.3 package docs must not describe alpha.3 as unpublished.",
-    pattern:
-      /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:not published|unpublished|has not occurred|not yet published|未发布|尚未发布|尚未发生)/iu,
-  },
-  {
-    code: "alpha3_candidate_claim",
-    message: "alpha.3 package docs must describe the corrective release state, not a release candidate state.",
-    pattern: /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:release candidate|publish-ready release candidate|candidate\s*\/\s*prep|候选发布)/iu,
-  },
+const commonStalePatterns = [
   {
     code: "dry_run_stop_point",
     message: "package docs must not contain self-expiring dry-run stop point wording.",
@@ -50,12 +39,36 @@ const stalePatterns = [
   },
 ];
 
-const requiredPatterns = [
+const alpha3StalePatterns = [
   {
-    code: "missing_alpha3",
-    message: "packaged docs must mention the corrective alpha.3 release.",
-    pattern: /0\.1\.0-alpha\.3/u,
+    code: "alpha3_unpublished_claim",
+    message: "alpha.3 package docs must not describe alpha.3 as unpublished.",
+    pattern:
+      /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:not published|unpublished|has not occurred|not yet published|未发布|尚未发布|尚未发生)/iu,
   },
+  {
+    code: "alpha3_candidate_claim",
+    message: "alpha.3 package docs must describe the corrective release state, not a release candidate state.",
+    pattern: /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:release candidate|publish-ready release candidate|candidate\s*\/\s*prep|候选发布)/iu,
+  },
+];
+
+const alpha4StalePatterns = [
+  {
+    code: "alpha4_published_claim",
+    message: "alpha.4 release-prep docs must not describe alpha.4 as already published.",
+    pattern:
+      /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,120}(?:is already published|is published on npm|published on npm|has GitHub pre-release|已发布到 npm|已经发布到 npm)/iu,
+  },
+  {
+    code: "stale_alpha3_current_claim",
+    message: "alpha.4 release-prep docs must not keep alpha.3 as the current corrective package line.",
+    pattern:
+      /(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu,
+  },
+];
+
+const commonRequiredPatterns = [
   {
     code: "missing_alpha2_stale_incident",
     message: "packaged docs must record the alpha.2 stale package-docs incident.",
@@ -65,6 +78,32 @@ const requiredPatterns = [
     code: "missing_registry_source_of_truth",
     message: "packaged docs must keep registry and GitHub state as the source of truth.",
     pattern: /(?:npm registry|GitHub)[^\n]*(?:source of truth|authoritative|为准|权威)/iu,
+  },
+];
+
+const alpha3RequiredPatterns = [
+  {
+    code: "missing_alpha3",
+    message: "packaged docs must mention the corrective alpha.3 release.",
+    pattern: /0\.1\.0-alpha\.3/u,
+  },
+];
+
+const alpha4RequiredPatterns = [
+  {
+    code: "missing_alpha4",
+    message: "packaged docs must mention the alpha.4 release-prep candidate.",
+    pattern: /0\.1\.0-alpha\.4/u,
+  },
+  {
+    code: "missing_alpha4_release_prep",
+    message: "packaged docs must describe alpha.4 as release prep or a pre-release candidate.",
+    pattern: /(?:release-prep|pre-release candidate|package candidate|candidate version|发布准备|候选)/iu,
+  },
+  {
+    code: "missing_alpha3_history",
+    message: "packaged docs must keep alpha.3 as historical corrective release context.",
+    pattern: /0\.1\.0-alpha\.3/u,
   },
 ];
 
@@ -103,6 +142,15 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
   } catch {
     addDiagnostic(diagnostics, "missing_package_manifest", "unpacked package is missing package.json");
   }
+
+  const requiredPatterns = [
+    ...commonRequiredPatterns,
+    ...(version === "0.1.0-alpha.4" ? alpha4RequiredPatterns : alpha3RequiredPatterns),
+  ];
+  const stalePatterns = [
+    ...commonStalePatterns,
+    ...(version === "0.1.0-alpha.4" ? alpha4StalePatterns : alpha3StalePatterns),
+  ];
 
   for (const doc of PACKAGED_DOCS) {
     const fullPath = path.join(packageDir, doc);
@@ -149,6 +197,8 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
     docs,
     diagnostics,
     noAlpha3UnpublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha3_unpublished_claim"),
+    noAlpha4PublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_published_claim"),
+    noStaleAlpha3CurrentClaim: !diagnostics.some((diagnostic) => diagnostic.code === "stale_alpha3_current_claim"),
     noDryRunStopPoint: !diagnostics.some((diagnostic) => diagnostic.code === "dry_run_stop_point"),
     noPublishReadyCandidate: !diagnostics.some((diagnostic) => diagnostic.code === "publish_ready_candidate"),
     noOldDistTagClaim: !diagnostics.some((diagnostic) => diagnostic.code === "old_current_alpha_dist_tag_claim"),

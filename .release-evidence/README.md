@@ -70,4 +70,6 @@ P8-8 uses `.release-evidence/p8-8-package-content-equivalence.json` for repo-onl
 
 P9-2 and later main-scoped evidence uses the stage-neutral generator schema `agent-cli-runtime.mainReleaseCandidateEvidence.v1`. P8 main evidence files remain readable historical exact-SHA evidence; stage-neutral summaries list them as `historicalMainEvidence` with `currentMainFreshEvidence: false` so they are not mistaken for current main evidence after package-visible changes.
 
+P9-5 prepares `0.1.0-alpha.4` package-visible version and docs on a branch. Its local release candidate, npm pack dry-run, npm publish dry-run, and package-content comparison are branch/local release-prep evidence only. Compare package content against the P9-4 `releaseTargetSha`; version and packaged-doc changes should produce `packageContentEqual: false` and `freshReleaseCandidateRequired: true`. After P9-5 merges, P9-6 must trigger a fresh release-candidate workflow for the final `main` merge commit, download all five artifacts, run `npm run release:verify -- --dir <normalized-downloaded-artifact-dir>`, and record the redacted summary here before any human publish decision.
+
 Do not put `.reference/`, temporary download directories, private user paths, CI tokens, npm tokens, or real provider tokens in this directory.

@@ -25,7 +25,8 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 发布边界说明：
 - `agent-cli-runtime@0.1.0-alpha.1` 已发布到 npm，并创建了 GitHub pre-release `v0.1.0-alpha.1`。
 - `agent-cli-runtime@0.1.0-alpha.2` 已发布到 npm，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 npm tarball 内含过期的发布前 package docs。
-- `agent-cli-runtime@0.1.0-alpha.3` 是面向 package consumer 的 corrective pre-alpha release。
+- `agent-cli-runtime@0.1.0-alpha.3` 是上一条面向 package consumer 的 corrective pre-alpha release。
+- `agent-cli-runtime@0.1.0-alpha.4` 是下一次发布准备中的 package candidate。本分支不发布该版本；合并后必须由 P9-6 为最终 `main` merge commit 重新生成 fresh main release-candidate evidence，之后才进入 human publish decision。
 - `agent-cli-runtime@0.1.0-alpha.0` 已 deprecate，原因是不可变 package docs 内含过期的发布前状态。
 - 可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。
 - release-candidate 与 post-alpha evidence 将 target SHA、evidence target SHA、workflow head SHA 和下载 artifact 细节保存在 npm 包外的 `.release-evidence/` 或 GitHub Release assets 中。
@@ -368,7 +369,13 @@ CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、product
 
 `npm run release:strict-compatibility:evidence -- --target-sha <target-sha> --local-release-dir <tmp-local-strict>` 会把 P8-4 repo-only summary 写入 `.release-evidence/p8-4-release-strict-compatibility.json`。Summary 记录 P8-2 matrix schema、strict verifier schema、本地 strict `release:candidate` / `release:verify` 结果、远端 workflow 触发状态、下载 artifact 复验状态、`noAuthenticatedRealRun`、`noNpmPublish`、`noNpmToken`，以及明确的 branch/main evidence 判定。`targetSha` 是 matrix 证明的 release target；`currentHeadSha` 只是 summary 生成时的 HEAD，上层 evidence-only commit 可能让它不同于最终分支 HEAD。如果 target SHA 不在 `origin/main`，summary 只能是 branch/local evidence，`mainEvidence: false`；它不是当前 `main` release evidence。
 
-`0.1.0-alpha.1` 已发布到 npm，并有 GitHub pre-release `v0.1.0-alpha.1`。`0.1.0-alpha.2` 已发布到 npm，使用 `alpha` dist-tag，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 tarball 内含过期的发布前 package docs。`0.1.0-alpha.3` 是面向 package consumer 的 corrective pre-alpha release。`0.1.0-alpha.0` 已 deprecate，原因是该不可变 tarball 内含过期的发布前状态说明。可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。由于 release docs 会进入 npm package，易漂移的 target-SHA evidence 必须留在包外的 `.release-evidence/` 或 GitHub Release assets 中。
+`0.1.0-alpha.1` 已发布到 npm，并有 GitHub pre-release `v0.1.0-alpha.1`。
+`0.1.0-alpha.2` 已发布到 npm，使用 `alpha` dist-tag，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 tarball 内含过期的发布前 package docs。
+`0.1.0-alpha.3` 是上一条面向 package consumer 的 corrective pre-alpha release。
+`0.1.0-alpha.4` 是发布准备中的 package candidate，本分支不发布该版本；合并后必须由 P9-6 为最终 `main` merge commit 重新生成 fresh main release-candidate evidence，之后才进入 human publish decision。
+`0.1.0-alpha.0` 已 deprecate，原因是该不可变 tarball 内含过期的发布前状态说明。
+可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。
+由于 release docs 会进入 npm package，易漂移的 target-SHA evidence 必须留在包外的 `.release-evidence/` 或 GitHub Release assets 中。
 
 post-alpha 验证：
 

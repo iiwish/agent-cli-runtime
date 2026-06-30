@@ -1,13 +1,16 @@
-# Release Report: 0.1.0-alpha.3 Corrective Release
+# Release Report: 0.1.0-alpha.4 Release Prep
 
-Status: `0.1.0-alpha.3` corrective pre-alpha release
-Last updated: 2026-06-29
+Status: `0.1.0-alpha.4` release-prep pre-alpha candidate
+Last updated: 2026-06-30
 
 This report is the packaged, stable release-state summary. Volatile release evidence such as current workflow run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, command transcripts, raw logs, raw CLI output, prompt text, and token-looking values belongs outside the npm package under `.release-evidence/` or durable GitHub Release assets. P8 main release-candidate files remain historical repo-only evidence for their exact target SHAs; package-content drift decisions and current main release-candidate decisions are recorded under `.release-evidence/` with stage-specific repo-only summaries.
 
 ## Current State
 
-- Corrective package line: `agent-cli-runtime@0.1.0-alpha.3`.
+- Next package candidate: `agent-cli-runtime@0.1.0-alpha.4`.
+- P9-5 prepares package-visible metadata and docs only; it does not publish npm and does not create or edit a GitHub Release.
+- After P9-5 is merged, P9-6 must generate fresh main release-candidate workflow evidence for the final `main` merge commit before any human publish decision.
+- `agent-cli-runtime@0.1.0-alpha.3` remains the previous corrective pre-alpha release for package consumers.
 - `agent-cli-runtime@0.1.0-alpha.2` is published on npm and has GitHub pre-release `v0.1.0-alpha.2`, but its immutable npm tarball contains stale pre-publish package docs.
 - `agent-cli-runtime@0.1.0-alpha.1` remains an earlier published alpha with GitHub pre-release `v0.1.0-alpha.1`.
 - `agent-cli-runtime@0.1.0-alpha.0` is deprecated because its immutable package docs shipped stale pre-publish status text.
@@ -16,13 +19,13 @@ This report is the packaged, stable release-state summary. Volatile release evid
 
 ## Verdict
 
-`0.1.0-alpha.3` is the corrective pre-alpha release for the stale alpha.2 package-docs incident. The release gate now verifies the docs that actually enter the tarball:
+`0.1.0-alpha.4` is the next pre-alpha package candidate. P9-5 is release prep, not publish authorization. The P9 line keeps three package gates in force before a later publish:
 
-- local `npm pack` is unpacked and scanned by `npm run package:docs:check`;
-- `npm run package:check` includes the packaged-docs check after the package boundary check;
-- `npm run prepublish:check` includes the packaged-docs check through `npm run package:check`;
-- post-publish verification downloads and unpacks the npm registry tarball before accepting package-docs state;
-- later repository docs are not treated as proof that an already published immutable tarball was fixed.
+- `npm run stable:surface:check` keeps the package-root value export limited to `createAgentRuntime` and keeps repo-only gates out of the public runtime API;
+- `npm run package:check` verifies the package boundary and scans the docs that actually enter the tarball;
+- `npm run release:package-content:verify -- --base-ref <p9-4-release-target-sha> --head-ref HEAD` must report package-visible drift for alpha.4 version/docs changes, with `packageContentEqual: false` and `freshReleaseCandidateRequired: true`.
+
+The alpha.3 stale-docs corrective path remains history. Alpha.4 requires a fresh release-candidate workflow on the final merged `main` commit because `package.json`, README, and packaged release docs are package-visible content.
 
 The release remains local-first runtime/kernel scope:
 
@@ -30,19 +33,26 @@ The release remains local-first runtime/kernel scope:
 - no authenticated real Codex/Claude/OpenCode run is launched by default gates;
 - no daemon, hosted control plane, API server, database/WAL, web UI, telemetry system, or remote worker is added.
 
-## P7-5 Alpha.3 Corrective Flow
+## P9-5 Alpha.4 Release Prep
 
-The alpha.3 pre-publish path uses:
+The alpha.4 branch-local prep path uses:
 
 ```bash
-npm test
+git diff --check
 npm run typecheck
 npm run lint
+npm run build
+npm run stable:surface:check
+npm test
 npm run package:check
-npm run package:docs:check
 npm run prepublish:check
-npm publish --dry-run --ignore-scripts --tag alpha
 npm pack --dry-run
+npm pack --dry-run --json --ignore-scripts
+npm publish --dry-run --ignore-scripts --tag alpha
+tmp_dir="$(mktemp -d)"
+npm run release:candidate -- --out-dir "$tmp_dir"
+npm run release:verify -- --dir "$tmp_dir"
+npm run release:package-content:verify -- --base-ref <p9-4-release-target-sha> --head-ref HEAD
 git diff --check
 ```
 
@@ -55,7 +65,7 @@ node ./scripts/check-packaged-docs.mjs
 Published verification uses the registry package, not repo files:
 
 ```bash
-node ./scripts/check-packaged-docs.mjs --package-spec agent-cli-runtime@0.1.0-alpha.3
+node ./scripts/check-packaged-docs.mjs --package-spec agent-cli-runtime@<published-version>
 npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
 ```

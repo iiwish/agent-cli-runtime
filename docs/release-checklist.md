@@ -1,13 +1,18 @@
 # Release Checklist (pre-alpha / developer preview)
 
-Status: `0.1.0-alpha.3` corrective pre-alpha release
-Last updated: 2026-06-26
+Status: `0.1.0-alpha.4` release-prep pre-alpha candidate
+Last updated: 2026-06-30
 
-## P7-5 Alpha.3 Corrective Release
+## P9-5 Alpha.4 Release Prep
 
-- [x] Prepare package metadata for `0.1.0-alpha.3` in `package.json` and `package-lock.json`.
+- [x] Prepare package metadata for `0.1.0-alpha.4` in `package.json` and `package-lock.json`.
+- [x] Keep `0.1.0-alpha.4` as release-prep package candidate wording, not published-package wording.
+- [x] Keep P9 stable surface gate coverage visible through `npm run stable:surface:check`.
+- [x] Keep P9-4 fresh main release-candidate evidence package-out and exact-SHA scoped.
+- [x] Record that package-content comparison against the P9-4 release target must show package-visible drift and `freshReleaseCandidateRequired: true` for alpha.4 version/docs changes.
+- [x] Record that P9-6 must generate fresh main release-candidate evidence after the P9-5 merge before any human publish decision.
 - [x] Record that `0.1.0-alpha.2` is published but its immutable npm tarball contains stale pre-publish package docs.
-- [x] Recommend `0.1.0-alpha.3` as the corrective pre-alpha release for package consumers.
+- [x] Keep `0.1.0-alpha.3` documented as the previous corrective pre-alpha release for package consumers.
 - [x] Keep `0.1.0-alpha.1` and GitHub pre-release `v0.1.0-alpha.1` documented as earlier alpha history.
 - [x] Keep `0.1.0-alpha.0` documented as deprecated because its immutable package docs shipped stale pre-publish state.
 - [x] Keep npm registry metadata and GitHub Releases as the source of truth for available versions and dist-tags.

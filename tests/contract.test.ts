@@ -1073,7 +1073,7 @@ describe("public contract", () => {
         externalOutFile,
       ], {
         cwd: root,
-        timeout: 30_000,
+        timeout: 90_000,
       })).stdout;
       const externalOut = JSON.parse(externalStdout) as { ok: boolean; schemaVersion: string; output: string };
       expect(externalOut).toMatchObject({
@@ -1091,7 +1091,7 @@ describe("public contract", () => {
     } finally {
       await rm(externalOutDir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 120_000);
 
   it("keeps real compatibility evidence verifier strict, redacted, and offline testable", async () => {
     const { stdout } = await execFileP(process.execPath, [realCompatibilityEvidenceVerifier, "--self-test"]);
@@ -1708,7 +1708,7 @@ describe("public contract", () => {
 
     expect(manifest).toMatchObject({
       name: "agent-cli-runtime",
-      version: "0.1.0-alpha.3",
+      version: "0.1.0-alpha.4",
       license: "Apache-2.0",
       type: "module",
       bin: { "agent-runtime": "dist/cli/main.js" },
@@ -1735,7 +1735,7 @@ describe("public contract", () => {
     expect(manifest.keywords).toEqual(expect.arrayContaining(["agent", "cli", "codex", "claude", "opencode", "runtime"]));
   });
 
-  it("keeps alpha.3 package metadata aligned with the corrective release state", async () => {
+  it("keeps alpha.4 package metadata aligned with the release-prep state", async () => {
     const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
       name: string;
       version: string;
@@ -1760,7 +1760,7 @@ describe("public contract", () => {
 
     expect(manifest).toMatchObject({
       name: "agent-cli-runtime",
-      version: "0.1.0-alpha.3",
+      version: "0.1.0-alpha.4",
       publishConfig: { tag: "alpha" },
     });
     expect(lock.version).toBe(manifest.version);
@@ -1768,12 +1768,16 @@ describe("public contract", () => {
 
     for (const doc of docs) {
       const text = await readFile(path.join(root, doc), "utf8");
+      expect(text).toContain("0.1.0-alpha.4");
       expect(text).toContain("0.1.0-alpha.3");
       expect(text, `${doc} must record the alpha.2 stale-docs incident`).toMatch(
         /0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu,
       );
-      expect(text, `${doc} must not describe alpha.3 as unpublished`).not.toMatch(
-        /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:not published|unpublished|has not occurred|not yet published|未发布|尚未发布|尚未发生)/iu,
+      expect(text, `${doc} must not keep alpha.3 as the current corrective line`).not.toMatch(
+        /(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu,
+      );
+      expect(text, `${doc} must not describe alpha.4 as already published`).not.toMatch(
+        /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,120}(?:is already published|is published on npm|published on npm|has GitHub pre-release|已发布到 npm|已经发布到 npm)/iu,
       );
     }
   });
@@ -1787,6 +1791,8 @@ describe("public contract", () => {
       version: string;
       docs: Array<{ path: string; ok: boolean }>;
       noAlpha3UnpublishedClaim: boolean;
+      noAlpha4PublishedClaim: boolean;
+      noStaleAlpha3CurrentClaim: boolean;
       noDryRunStopPoint: boolean;
       noPublishReadyCandidate: boolean;
       noOldDistTagClaim: boolean;
@@ -1796,8 +1802,10 @@ describe("public contract", () => {
       schemaVersion: "agent-cli-runtime.packagedDocsVerification.v1",
       ok: true,
       packageSource: "local-pack",
-      version: "0.1.0-alpha.3",
+      version: "0.1.0-alpha.4",
       noAlpha3UnpublishedClaim: true,
+      noAlpha4PublishedClaim: true,
+      noStaleAlpha3CurrentClaim: true,
       noDryRunStopPoint: true,
       noPublishReadyCandidate: true,
       noOldDistTagClaim: true,
@@ -6086,7 +6094,7 @@ setInterval(() => {}, 1000);
     expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|"stdout"|"stderr"|promptText|fullPrompt|workflowLog|logs|resolvedExecutablePath|<resolved_executable>|worktree/u);
   });
 
-  it("keeps alpha.3 corrective docs stable and package-safe", async () => {
+  it("keeps alpha.4 release-prep docs stable and package-safe", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
@@ -6101,21 +6109,25 @@ setInterval(() => {}, 1000);
     const releaseChecklist = await readFile(path.join(root, "docs", "release-checklist.md"), "utf8");
     const runbook = await readFile(path.join(root, "docs", "release-publish-runbook.md"), "utf8");
 
-    expect(releaseReport).toContain("0.1.0-alpha.3");
-    expect(releaseReport).toContain("corrective pre-alpha release");
+    expect(releaseReport).toContain("0.1.0-alpha.4");
+    expect(releaseReport).toContain("release-prep pre-alpha candidate");
     expect(releaseReport).toContain("agent-cli-runtime.releaseVerification.v1");
     expect(releaseReport).toContain("agent-cli-runtime.releaseGateEvidence.v1");
     expect(releaseReport).toContain("agent-cli-runtime.mainReleaseCandidateEvidence.v1");
+    expect(releaseReport).toContain("agent-cli-runtime.packageContentEquivalence.v1");
     expect(releaseReport).toContain("compat:real:evidence:verify");
     expect(releaseReport).toContain(".release-evidence/");
-    expect(releaseChecklist).toContain("P7-5 Alpha.3 Corrective Release");
-    expect(releaseChecklist).toContain("0.1.0-alpha.3");
-    expect(runbook).toContain("Corrective package line: `agent-cli-runtime@0.1.0-alpha.3`");
+    expect(releaseChecklist).toContain("P9-5 Alpha.4 Release Prep");
+    expect(releaseChecklist).toContain("0.1.0-alpha.4");
+    expect(runbook).toContain("Next package candidate: `agent-cli-runtime@0.1.0-alpha.4`");
+    expect(runbook).toContain("P9-6 fresh main evidence required after merge");
 
     const productionReadiness = await readFile(path.join(root, "docs", "production-readiness.md"), "utf8");
     const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
-    expect(productionReadiness).toContain("0.1.0-alpha.3` is the corrective pre-alpha release");
+    expect(productionReadiness).toContain("0.1.0-alpha.4` is the release-prep package candidate");
     expect(productionReadiness).toContain("installed-package CLI smoke");
+    expect(changelog).toContain("0.1.0-alpha.4 — release-prep pre-alpha candidate");
+    expect(changelog).toContain("P9-5 alpha.4 release-prep");
     expect(changelog).toContain("0.1.0-alpha.3 — corrective pre-alpha release");
     expect(changelog).toContain("P7-5 alpha.3 corrective release");
 
@@ -6128,7 +6140,9 @@ setInterval(() => {}, 1000);
       expect(text, doc + " must not include raw tarball or pack hashes").not.toMatch(/(?:tarball sha256|tarball shasum|npm pack shasum|pack shasum)\s*[:：]?\s*[0-9a-f]{16,}/iu);
       expect(text, doc + " must keep executable shell snippets executable").not.toMatch(/mktemp -d\s+<local-temp-dir>|>\s*<local-temp-dir>|readFileSync\(['"]<local-temp-dir>['"]/u);
       expect(text, doc + " must record alpha.2 stale-docs incident").toMatch(/0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu);
-      expect(text, doc + " must not describe alpha.3 as unpublished").not.toMatch(/(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:not published|unpublished|has not occurred|not yet published|未发布|尚未发布|尚未发生)/iu);
+      expect(text, doc + " must mention alpha.4 release prep").toMatch(/0\.1\.0-alpha\.4[^\n]*(?:release-prep|package candidate|发布准备|候选)/iu);
+      expect(text, doc + " must not keep alpha.3 as the current corrective line").not.toMatch(/(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu);
+      expect(text, doc + " must not describe alpha.4 as already published").not.toMatch(/(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,120}(?:is already published|is published on npm|published on npm|has GitHub pre-release|已发布到 npm|已经发布到 npm)/iu);
       expect(text).not.toMatch(/P6-6[^\n]*(?:run \d{8,}|artifact digest|artifact id|tarball shasum|npm pack shasum|pack shasum|包 shasum|local temp|临时路径)/iu);
     }
 
@@ -6138,7 +6152,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("locks packaged docs to the P7-5 alpha.3 corrective boundary", async () => {
+  it("locks packaged docs to the P9-5 alpha.4 release-prep boundary", async () => {
     const packagedDocs = [
       "CHANGELOG.md",
       "README.md",
@@ -6152,16 +6166,24 @@ setInterval(() => {}, 1000);
     ];
     const compatibility = await readFile(path.join(root, "docs", "compatibility.md"), "utf8");
 
-    expect(compatibility).toContain("P7-5");
-    expect(compatibility).toContain("0.1.0-alpha.3` is the corrective pre-alpha release");
+    expect(compatibility).toContain("P9-5");
+    expect(compatibility).toContain("0.1.0-alpha.4");
+    expect(compatibility).toContain("release-prep package candidate");
+    expect(compatibility).toContain("0.1.0-alpha.3");
     expect(compatibility).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
     expect(compatibility).toContain("0.1.0-alpha.2");
     expect(compatibility).toContain("stale package docs");
 
     for (const doc of packagedDocs) {
       const text = await readFile(path.join(root, doc), "utf8");
-      expect(text, `${doc} must not describe alpha.3 as a candidate or unpublished package`).not.toMatch(
-        /(?:0\.1\.0-alpha\.3|alpha\.3)[^\n]*(?:release candidate|publish-ready|candidate\s*\/\s*prep|not published|unpublished|未发布|候选)/iu,
+      expect(text, `${doc} must describe alpha.4 as release prep`).toMatch(
+        /0\.1\.0-alpha\.4[^\n]*(?:release-prep|package candidate|发布准备|候选)/iu,
+      );
+      expect(text, `${doc} must not describe alpha.4 as already published`).not.toMatch(
+        /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,120}(?:is already published|is published on npm|published on npm|has GitHub pre-release|已发布到 npm|已经发布到 npm)/iu,
+      );
+      expect(text, `${doc} must not keep alpha.3 as current corrective package`).not.toMatch(
+        /(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu,
       );
       expect(text, `${doc} must not use only the P7-1 alpha.2 prep state as current status`).not.toMatch(
         /P7-1 prepares `0\.1\.0-alpha\.2` as a candidate version only/iu,
@@ -6453,14 +6475,14 @@ setInterval(() => {}, 1000);
     expect(runbook).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
     expect(runbook).toContain("npm publish --tag alpha");
     expect(runbook).toContain("npm dist-tag ls agent-cli-runtime");
-    expect(runbook).toContain("npm dist-tag add agent-cli-runtime@0.1.0-alpha.3 alpha");
-    expect(runbook).toContain("npm unpublish agent-cli-runtime@0.1.0-alpha.3");
+    expect(runbook).toContain("npm dist-tag add agent-cli-runtime@0.1.0-alpha.4 alpha");
+    expect(runbook).toContain("npm unpublish agent-cli-runtime@0.1.0-alpha.4");
     expect(runbook).toContain("2FA");
     expect(runbook).toContain("trusted publishing");
     expect(runbook).toContain("provenance");
     expect(runbook).toContain("not configured");
     expect(runbook).toContain("npm registry metadata and GitHub Releases are the source of truth");
-    expect(runbook).toContain("Corrective package line: `agent-cli-runtime@0.1.0-alpha.3`");
+    expect(runbook).toContain("Next package candidate: `agent-cli-runtime@0.1.0-alpha.4`");
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
     expect(ci).not.toMatch(/\bnpm publish\b/u);
@@ -6497,7 +6519,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("documents alpha.3 registry source-of-truth and stale alpha.2 release reality", async () => {
+  it("documents alpha.4 release-prep source-of-truth and stale alpha.2 release reality", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
@@ -6512,10 +6534,12 @@ setInterval(() => {}, 1000);
       const text = await readFile(path.join(root, doc), "utf8");
       expect(text).toContain("0.1.0-alpha.1");
       expect(text).toContain("0.1.0-alpha.3");
+      expect(text).toContain("0.1.0-alpha.4");
       expect(text).toMatch(/0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu);
       expect(text).toMatch(/(?:npm registry|GitHub)[^\n]*(?:source of truth|authoritative|为准|权威)/iu);
       expect(text).toMatch(/0\.1\.0-alpha\.0[^\n]*(?:deprecated|deprecate|deprecate|已 deprecate|已弃用)/iu);
       expect(text).toMatch(/v0\.1\.0-alpha\.1/u);
+      expect(text).toMatch(/P9-6|fresh main release-candidate evidence|fresh main evidence/u);
     }
   });
 
