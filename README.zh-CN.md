@@ -243,6 +243,7 @@ npx --package agent-cli-runtime agent-runtime conformance --mode fixtures --json
 ```bash
 npm ci
 npm run build
+npm run stable:surface:check
 node ./dist/cli/main.js --help
 npm run daemon:verify
 npm run dogfood

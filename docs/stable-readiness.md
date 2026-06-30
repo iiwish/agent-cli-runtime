@@ -31,6 +31,7 @@ The project remains pre-alpha / developer preview. The labels below describe rea
 | Built-in adapter values, parser helpers, executable resolution, stores, schedulers, task-graph helpers, and storage modules | `internal` | These are implementation details and must not be documented as public API. |
 | Daemon embedding gate and runtime safety gate | `beta-candidate` | `daemon:verify` and `runtime:safety` prove installed-tarball local-kernel behavior with fake CLIs. They do not create a hosted daemon contract. |
 | Release verification, published verification, package-content, packaged-docs, and compatibility evidence schemas | `beta-candidate` | These are repository/release gate contracts. They are not runtime public API for package consumers. |
+| Stable surface regression gate | `beta-candidate` | `npm run stable:surface:check` emits `agent-cli-runtime.stableSurfaceCheck.v1` and verifies package-root exports, public declarations, schema inventory docs, frozen CLI vocabularies, experimental adapter-surface classification, and repo-only package exclusions. It is a repository/release gate, not runtime public API. |
 | Repo-only scripts for release evidence, real compatibility evidence, published verification, package-content equivalence, artifact normalization, and package checks | `internal` | Script outputs can be versioned, but the scripts themselves are repository workflow surfaces, not package-root public contract. |
 | `.release-evidence/`, downloaded verification material, raw workflow logs, and local machine observations | `internal` | These are evidence inputs or summaries outside the npm package boundary. |
 
@@ -62,6 +63,7 @@ This list is synchronized with `src/core/schema-contract.ts`.
 | `agent-cli-runtime.releaseArtifactNormalization.v1` | `beta-candidate` |
 | `agent-cli-runtime.mainReleaseCandidateEvidence.v1` | `beta-candidate` |
 | `agent-cli-runtime.packageContentEquivalence.v1` | `beta-candidate` |
+| `agent-cli-runtime.stableSurfaceCheck.v1` | `beta-candidate` |
 
 ## Stable Gaps
 
@@ -69,6 +71,7 @@ This list is synchronized with `src/core/schema-contract.ts`.
 - Internal `dist/**` subpath imports remain unsupported, even when those files appear in the tarball.
 - CLI JSON schemas have a versioning policy, but command removal or flag semantic changes still need an explicit pre-alpha breaking-change note.
 - Release evidence schemas are repository and release-gate contracts; they do not become runtime public API for package consumers.
+- `agent-cli-runtime.stableSurfaceCheck.v1` is a repository/release gate schema; it does not become runtime public API for package consumers.
 - Codex `session` and `authProbe` remain in `needsVerification`.
 - Claude Code `session.id` and `reasoning` remain in `needsVerification`.
 - OpenCode `extraAllowedDirs`, `session`, and `permissionPolicy.read-only` remain in `needsVerification`.
