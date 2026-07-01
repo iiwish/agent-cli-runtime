@@ -1805,7 +1805,7 @@ describe("public contract", () => {
         /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:not published|unpublished|not yet published|release-prep package candidate|next package candidate|before any human publish decision|requires fresh P9-6|requires fresh main release-candidate evidence|未发布|尚未发布|发布准备中的 package candidate|进入 human publish decision)/iu,
       );
       expect(text, `${doc} must not describe alpha.4 GitHub Release as missing`).not.toMatch(
-        /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
+        /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)/iu,
       );
       expect(text, `${doc} must not describe alpha.5 as published`).not.toMatch(
         /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,180}(?:published on npm|published pre-alpha|npm package is published|已发布到 npm|已经发布到 npm)|(?:Published npm package|Published package|已发布包)[^\n]{0,120}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
@@ -1865,6 +1865,40 @@ describe("public contract", () => {
     ].sort());
     expect(result.docs.every((doc) => doc.ok)).toBe(true);
   }, 60_000);
+
+  it("rejects alpha.5 package docs that keep alpha.4 GitHub Release parity blocked-until wording", async () => {
+    const { inspectPackagedDocs, PACKAGED_DOCS } = await import("../scripts/packaged-docs-policy.mjs");
+    const packageDir = await tempDir("packaged-docs-stale-alpha4-release-");
+    const staleText = [
+      "0.1.0-alpha.5 is the corrective alpha target to replace stale alpha.4 package docs for consumers.",
+      "0.1.0-alpha.5 requires fresh release-candidate evidence and explicit maintainer authorization before publish.",
+      "After any authorized publish of alpha.5, rerun published:verify and published:verify:evidence.",
+      "0.1.0-alpha.4 is published on npm and the alpha dist-tag points at 0.1.0-alpha.4.",
+      "GitHub Release v0.1.0-alpha.4 exists as a prerelease with the npm registry tarball asset.",
+      "release:post-alpha:verify remains blocked until GitHub Release v0.1.0-alpha.4 and its tarball asset exist.",
+      "The published alpha.4 npm tarball contains stale release-prep package docs.",
+      "0.1.0-alpha.3 and 0.1.0-alpha.2 are historical corrective context.",
+      "npm registry metadata and GitHub Releases are the source of truth.",
+    ].join("\n");
+
+    try {
+      await writeFile(path.join(packageDir, "package.json"), JSON.stringify({
+        name: "agent-cli-runtime",
+        version: "0.1.0-alpha.5",
+      }), "utf8");
+      for (const doc of PACKAGED_DOCS) {
+        await mkdir(path.dirname(path.join(packageDir, doc)), { recursive: true });
+        await writeFile(path.join(packageDir, doc), staleText, "utf8");
+      }
+
+      const result = inspectPackagedDocs(packageDir, { packageSource: "fixture" });
+      expect(result.ok).toBe(false);
+      expect(result.noAlpha4GithubReleaseMissingClaim).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "alpha4_github_release_missing_claim")).toBe(true);
+    } finally {
+      await rm(packageDir, { recursive: true, force: true });
+    }
+  });
 
   it("prints CLI help with all frozen commands and key flags", async () => {
     const { stdout } = await execFileP(process.execPath, [cli, "help"]);

@@ -169,7 +169,7 @@ const publishOverclaimPatterns = [
   {
     name: "alpha.4 GitHub Release described as missing after creation",
     pattern:
-      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)/iu,
   },
   {
     name: "alpha.5 described as published before authorization",

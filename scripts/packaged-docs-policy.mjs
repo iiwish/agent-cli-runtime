@@ -64,7 +64,7 @@ const alpha4StalePatterns = [
     code: "alpha4_github_release_missing_claim",
     message: "alpha.4 package docs must not describe GitHub Release v0.1.0-alpha.4 as missing after it is created.",
     pattern:
-      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)/iu,
   },
   {
     code: "stale_alpha3_current_claim",
@@ -226,7 +226,10 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
       ...alpha4RequiredPatterns,
       ...alpha5RequiredPatterns,
     ];
-    versionStalePatterns = alpha5StalePatterns;
+    versionStalePatterns = [
+      ...alpha4StalePatterns,
+      ...alpha5StalePatterns,
+    ];
   }
   const requiredPatterns = [
     ...commonRequiredPatterns,
