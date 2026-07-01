@@ -25,12 +25,14 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 发布边界说明：
 - `agent-cli-runtime@0.1.0-alpha.1` 已发布到 npm，并创建了 GitHub pre-release `v0.1.0-alpha.1`。
 - `agent-cli-runtime@0.1.0-alpha.2` 已发布到 npm，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 npm tarball 内含过期的发布前 package docs。
+- `agent-cli-runtime@0.1.0-alpha.5` 是用于替换 alpha.4 stale package docs 的 corrective alpha target；任何真实发布人工授权前都必须先生成 fresh release-candidate evidence。
 - `agent-cli-runtime@0.1.0-alpha.4` 已发布到 npm，`alpha` dist-tag 指向该版本；`latest` dist-tag 仍指向 `0.1.0-alpha.1`。
 - `0.1.0-alpha.4` 的不可变 npm tarball 内含过期的 release-prep package docs；该版本的发布状态和 dist-tags 以 npm registry metadata 为准。
 - GitHub Release `v0.1.0-alpha.4` 已创建为 prerelease 并上传 npm registry tarball asset；alpha.4 的 `release:post-alpha:verify` tarball parity 已通过。
 - `agent-cli-runtime@0.1.0-alpha.3` 是上一条面向 package consumer 的 corrective pre-alpha release。
 - `agent-cli-runtime@0.1.0-alpha.0` 已 deprecate，原因是不可变 package docs 内含过期的发布前状态。
 - 可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。
+- alpha.5 真实发布后，必须对已发布 npm registry package 重新运行 `published:verify` 和 `published:verify:evidence`，通过后才能接受该 corrective release。
 - release-candidate 与 post-alpha evidence 将 target SHA、evidence target SHA、workflow head SHA 和下载 artifact 细节保存在 npm 包外的 `.release-evidence/` 或 GitHub Release assets 中。
 - `createAgentRuntime` 是当前公开的主要 value 入口，其他 adapter/parser/store 内部实现不对外承诺。
 - 这版不包含后台 daemon、API server、WAL、database 或 remote runtime 模式承诺。
@@ -373,11 +375,13 @@ CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、product
 
 `0.1.0-alpha.1` 已发布到 npm，并有 GitHub pre-release `v0.1.0-alpha.1`。
 `0.1.0-alpha.2` 已发布到 npm，使用 `alpha` dist-tag，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 tarball 内含过期的发布前 package docs。
-`0.1.0-alpha.3` 是上一条面向 package consumer 的 corrective pre-alpha release。
+`0.1.0-alpha.5` 是用于替换 alpha.4 stale package docs 的 corrective alpha target；任何真实发布人工授权前都必须先生成 fresh release-candidate evidence。
 `0.1.0-alpha.4` 已发布到 npm，`alpha` dist-tag 指向该版本；`latest` dist-tag 仍指向 `0.1.0-alpha.1`。GitHub Release `v0.1.0-alpha.4` 已创建为 prerelease 并上传 npm registry tarball asset，alpha.4 的 `release:post-alpha:verify` tarball parity 已通过。
 `0.1.0-alpha.4` 的不可变 npm tarball 内含过期的 release-prep package docs，因此该版本的发布状态和 dist-tags 以 npm registry metadata 为准。
+`0.1.0-alpha.3` 是上一条面向 package consumer 的 corrective pre-alpha release。
 `0.1.0-alpha.0` 已 deprecate，原因是该不可变 tarball 内含过期的发布前状态说明。
 可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。
+alpha.5 真实发布后，必须对已发布 npm registry package 重新运行 `published:verify` 和 `published:verify:evidence`，通过后才能接受该 corrective release。
 由于 release docs 会进入 npm package，易漂移的 target-SHA evidence 必须留在包外的 `.release-evidence/` 或 GitHub Release assets 中。
 
 post-alpha 验证：

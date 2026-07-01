@@ -92,6 +92,8 @@ try {
     noAlpha4PublishedClaim: true,
     noAlpha4UnpublishedClaim: false,
     noAlpha4GithubReleaseMissingClaim: false,
+    noAlpha5PublishedClaim: false,
+    noAlpha5GithubReleaseCreatedClaim: false,
     noStaleAlpha3CurrentClaim: false,
     noDryRunStopPoint: false,
     noPublishReadyCandidate: false,

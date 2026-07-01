@@ -25,12 +25,14 @@ This repository is in **pre-alpha / developer preview**.
 Release boundary:
 - `agent-cli-runtime@0.1.0-alpha.1` is published on npm and has GitHub pre-release `v0.1.0-alpha.1`.
 - `agent-cli-runtime@0.1.0-alpha.2` is published on npm and has GitHub pre-release `v0.1.0-alpha.2`, but its immutable npm tarball contains stale pre-publish package docs.
+- `agent-cli-runtime@0.1.0-alpha.5` is the corrective alpha target to replace stale alpha.4 package docs for consumers. It requires fresh release-candidate evidence before any explicit maintainer authorization for real publish.
 - `agent-cli-runtime@0.1.0-alpha.4` is published on npm with the `alpha` dist-tag. The `latest` dist-tag remains on `0.1.0-alpha.1`.
 - The immutable `0.1.0-alpha.4` npm tarball contains stale release-prep package docs. Treat npm registry metadata as authoritative for the version and dist-tags.
 - GitHub Release `v0.1.0-alpha.4` exists as a prerelease with the npm registry tarball asset; `release:post-alpha:verify` tarball parity passes for alpha.4.
 - `agent-cli-runtime@0.1.0-alpha.3` is the previous corrective pre-alpha release for package consumers.
 - `agent-cli-runtime@0.1.0-alpha.0` is deprecated because its immutable package docs shipped stale pre-publish state.
 - npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags.
+- After any authorized publish of alpha.5, rerun `published:verify` and `published:verify:evidence` against the published npm registry package before accepting the corrective release.
 - Release-candidate and post-alpha evidence keeps target SHA, evidence target SHA, workflow head SHA, and downloaded artifact details outside the npm package under `.release-evidence/` or GitHub Release assets.
 - `createAgentRuntime` is the only runtime value export.
 - No background daemon, no API server, no WAL, no database, and no remote runtime mode are included in this pre-alpha track.
@@ -375,11 +377,13 @@ For local release-candidate confidence, run `npm run prepublish:check` and `npm 
 
 Version `0.1.0-alpha.1` is published to npm and has GitHub pre-release `v0.1.0-alpha.1`.
 Version `0.1.0-alpha.2` is published to npm with the `alpha` dist-tag and has GitHub pre-release `v0.1.0-alpha.2`, but its immutable tarball contains stale pre-publish package docs.
-Version `0.1.0-alpha.3` is the previous corrective pre-alpha release for package consumers.
+Version `0.1.0-alpha.5` is the corrective alpha target to replace stale alpha.4 package docs for consumers. It requires fresh release-candidate evidence before any explicit maintainer authorization for real publish.
 Version `0.1.0-alpha.4` is published on npm with the `alpha` dist-tag, while `latest` remains on `0.1.0-alpha.1`. GitHub Release `v0.1.0-alpha.4` exists as a prerelease with the npm registry tarball asset, and `release:post-alpha:verify` tarball parity passes.
 The immutable `0.1.0-alpha.4` npm tarball contains stale release-prep package docs, so registry metadata is the source of truth for alpha.4 publish state.
+Version `0.1.0-alpha.3` is the previous corrective pre-alpha release for package consumers.
 Version `0.1.0-alpha.0` is deprecated because its immutable tarball contains stale pre-publish status text.
 npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags.
+After any authorized publish of alpha.5, rerun `published:verify` and `published:verify:evidence` against the published npm registry package before accepting the corrective release.
 Because release docs are included in the npm package, volatile target-SHA evidence must stay outside packaged docs under `.release-evidence/` or GitHub Release assets.
 
 Post-alpha verification:

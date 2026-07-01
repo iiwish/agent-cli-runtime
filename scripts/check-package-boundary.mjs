@@ -172,6 +172,16 @@ const publishOverclaimPatterns = [
       /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
   },
   {
+    name: "alpha.5 described as published before authorization",
+    pattern:
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,180}(?:published on npm|published pre-alpha|npm package is published|已发布到 npm|已经发布到 npm)|(?:Published npm package|Published package|已发布包)[^\n]{0,120}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
+  },
+  {
+    name: "alpha.5 GitHub Release described as created before authorization",
+    pattern:
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+  },
+  {
     name: "self-expiring dry-run stop point",
     pattern: /dry-run stop point|stop point.*dry-run|停在\s*dry-run/iu,
   },

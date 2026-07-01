@@ -74,6 +74,21 @@ const alpha4StalePatterns = [
   },
 ];
 
+const alpha5StalePatterns = [
+  {
+    code: "alpha5_published_claim",
+    message: "alpha.5 candidate package docs must not describe alpha.5 as already published.",
+    pattern:
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,180}(?:published on npm|published pre-alpha|npm package is published|已发布到 npm|已经发布到 npm)|(?:Published npm package|Published package|已发布包)[^\n]{0,120}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
+  },
+  {
+    code: "alpha5_github_release_created_claim",
+    message: "alpha.5 candidate package docs must not describe GitHub Release v0.1.0-alpha.5 as already created.",
+    pattern:
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+  },
+];
+
 const commonRequiredPatterns = [
   {
     code: "missing_alpha2_stale_incident",
@@ -133,6 +148,38 @@ const alpha4RequiredPatterns = [
   },
 ];
 
+const alpha5RequiredPatterns = [
+  {
+    code: "missing_alpha5",
+    message: "packaged docs must mention the alpha.5 corrective target.",
+    pattern: /0\.1\.0-alpha\.5/u,
+  },
+  {
+    code: "missing_alpha5_corrective_target",
+    message: "packaged docs must describe alpha.5 as the corrective alpha target for replacing consumer-visible stale alpha.4 docs.",
+    pattern:
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,240}(?:corrective alpha target|corrective alpha|replace consumer-visible package docs|replace stale alpha\.4 package docs|替换[^\n]{0,80}package docs|纠偏[^\n]{0,80}alpha)|(?:corrective alpha target|corrective alpha|replace consumer-visible package docs|replace stale alpha\.4 package docs|替换[^\n]{0,80}package docs|纠偏[^\n]{0,80}alpha)[^\n]{0,240}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
+  },
+  {
+    code: "missing_alpha5_fresh_release_candidate",
+    message: "packaged docs must require fresh release-candidate evidence before alpha.5 publish authorization.",
+    pattern:
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,240}(?:fresh release-candidate|fresh RC|fresh local release-candidate|fresh release candidate|fresh release-candidate evidence|fresh release-candidate artifacts|fresh release-candidate artifact|fresh release-candidate workflow|fresh release-candidate gate|fresh release-candidate 证据|新鲜[^\n]{0,80}release-candidate|新生成[^\n]{0,80}release-candidate)/iu,
+  },
+  {
+    code: "missing_alpha5_post_publish_verification",
+    message: "packaged docs must require published verification reruns after an authorized alpha.5 publish.",
+    pattern:
+      /(?:after any authorized publish|after authorized publish|after publish|post-publish|发布后|真实发布后)[^\n]{0,220}(?:published:verify|published:verify:evidence)|(?:published:verify|published:verify:evidence)[^\n]{0,220}(?:after any authorized publish|after authorized publish|after publish|post-publish|发布后|真实发布后)/iu,
+  },
+  {
+    code: "missing_alpha5_human_gate",
+    message: "packaged docs must keep alpha.5 real publish human-gated.",
+    pattern:
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,240}(?:explicit maintainer authorization|human-gated|human gate|maintainer authorization|明确授权|人工授权|人工门禁)|(?:explicit maintainer authorization|human-gated|human gate|maintainer authorization|明确授权|人工授权|人工门禁)[^\n]{0,240}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
+  },
+];
+
 export function redact(value) {
   if (typeof value !== "string") return value;
   return value
@@ -169,13 +216,25 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
     addDiagnostic(diagnostics, "missing_package_manifest", "unpacked package is missing package.json");
   }
 
+  let versionRequiredPatterns = alpha3RequiredPatterns;
+  let versionStalePatterns = alpha3StalePatterns;
+  if (version === "0.1.0-alpha.4") {
+    versionRequiredPatterns = alpha4RequiredPatterns;
+    versionStalePatterns = alpha4StalePatterns;
+  } else if (version === "0.1.0-alpha.5") {
+    versionRequiredPatterns = [
+      ...alpha4RequiredPatterns,
+      ...alpha5RequiredPatterns,
+    ];
+    versionStalePatterns = alpha5StalePatterns;
+  }
   const requiredPatterns = [
     ...commonRequiredPatterns,
-    ...(version === "0.1.0-alpha.4" ? alpha4RequiredPatterns : alpha3RequiredPatterns),
+    ...versionRequiredPatterns,
   ];
   const stalePatterns = [
     ...commonStalePatterns,
-    ...(version === "0.1.0-alpha.4" ? alpha4StalePatterns : alpha3StalePatterns),
+    ...versionStalePatterns,
   ];
 
   for (const doc of PACKAGED_DOCS) {
@@ -226,6 +285,8 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
     noAlpha4PublishedClaim: true,
     noAlpha4UnpublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_unpublished_claim"),
     noAlpha4GithubReleaseMissingClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_github_release_missing_claim"),
+    noAlpha5PublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha5_published_claim"),
+    noAlpha5GithubReleaseCreatedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha5_github_release_created_claim"),
     noStaleAlpha3CurrentClaim: !diagnostics.some((diagnostic) => diagnostic.code === "stale_alpha3_current_claim"),
     noDryRunStopPoint: !diagnostics.some((diagnostic) => diagnostic.code === "dry_run_stop_point"),
     noPublishReadyCandidate: !diagnostics.some((diagnostic) => diagnostic.code === "publish_ready_candidate"),

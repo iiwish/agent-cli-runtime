@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-alpha.5 — corrective alpha candidate
+
+- P9-8 alpha.5 corrective release candidate:
+  - prepares `0.1.0-alpha.5` as the corrective alpha target to replace stale alpha.4 package docs for consumers;
+  - `0.1.0-alpha.5` requires fresh release-candidate evidence before any explicit maintainer authorization for real publish;
+  - keeps `publishConfig.tag` on `alpha` and leaves npm `latest` policy unchanged;
+  - preserves the alpha.4 facts: `0.1.0-alpha.4` is published on npm with the `alpha` dist-tag, GitHub Release `v0.1.0-alpha.4` exists with the npm registry tarball asset, and `release:post-alpha:verify` tarball parity passes;
+  - records that the immutable alpha.4 npm tarball contains stale release-prep package docs, so aggregate published verification for alpha.4 remains blocked by registry packaged-docs inspection;
+  - after any authorized publish of alpha.5, requires `published:verify` and `published:verify:evidence` before accepting the corrective release;
+  - keeps real npm publish, npm dist-tag/deprecate changes, GitHub Release creation or editing, npm token/trusted publishing configuration, authenticated real agent runs, run ids, artifact digests, tarball hashes, local temp paths, raw logs, prompts, and token-looking values outside this package.
+
 ## 0.1.0-alpha.4 — published pre-alpha release
 
 - P9-7 alpha.4 npm publish:

@@ -1,14 +1,20 @@
 # Release Checklist (pre-alpha / developer preview)
 
-Status: `0.1.0-alpha.4` is published on npm with the `alpha` dist-tag; GitHub Release `v0.1.0-alpha.4` exists with the npm registry tarball asset
+Status: `0.1.0-alpha.5` is the corrective alpha target; alpha.4 remains the npm `alpha` version with stale package docs
 Last updated: 2026-07-01
 
-## P9 Alpha.4 Publish State
+## P9 Alpha.5 Corrective Candidate State
 
-- [x] Prepare package metadata for `0.1.0-alpha.4` in `package.json` and `package-lock.json`.
+- [x] Prepare package metadata for `0.1.0-alpha.5` in `package.json` and `package-lock.json`.
+- [x] Keep `publishConfig.tag` set to `alpha`.
+- [x] Document `0.1.0-alpha.5` as the corrective alpha target that replaces stale alpha.4 package docs for package consumers.
+- [x] Require fresh release-candidate evidence before any explicit maintainer authorization for real alpha.5 publish.
+- [x] After any authorized publish of alpha.5, require `published:verify` and `published:verify:evidence` before accepting the corrective release.
+- [x] Keep package docs free of claims that alpha.5 is already in the npm registry or already has a release asset.
 - [x] Publish `agent-cli-runtime@0.1.0-alpha.4` to npm with the `alpha` dist-tag.
 - [x] Keep npm `latest` on `0.1.0-alpha.1`.
 - [x] Record that the immutable `0.1.0-alpha.4` npm tarball contains stale release-prep package docs.
+- [x] Record that `agent-cli-runtime@0.1.0-alpha.4` is published on npm with the `alpha` dist-tag.
 - [x] Create GitHub Release `v0.1.0-alpha.4`, attach the npm registry tarball asset, and record that GitHub Release tarball parity verification passes.
 - [x] Keep P9 stable surface gate coverage visible through `npm run stable:surface:check`.
 - [x] Keep P9-4 fresh main release-candidate evidence package-out and exact-SHA scoped.
@@ -80,7 +86,8 @@ Do not run another real publish, deprecate an existing version, modify dist-tags
 - [x] Create GitHub Release `v0.1.0-alpha.4` and attach the npm registry tarball asset after separate explicit maintainer authorization.
 - [x] Rerun `release:post-alpha:verify` after GitHub Release assets exist; tarball parity passes.
 - [x] Rerun aggregate `published:verify:evidence` after GitHub Release assets exist; it still fails only because the immutable npm tarball contains stale release-prep package docs.
-- [ ] Publish a later corrective alpha if maintainers choose to replace the stale alpha.4 package docs for consumers.
+- [ ] Publish `0.1.0-alpha.5` only after fresh release-candidate evidence and explicit maintainer authorization.
+- [ ] After any authorized publish of alpha.5, rerun `published:verify` and `published:verify:evidence` against the npm registry package.
 
 ## Release-Candidate Artifact Contract
 
