@@ -1,16 +1,20 @@
 # Release Checklist (pre-alpha / developer preview)
 
-Status: `0.1.0-alpha.4` release-prep pre-alpha candidate
-Last updated: 2026-06-30
+Status: `0.1.0-alpha.4` is published on npm with the `alpha` dist-tag; GitHub Release `v0.1.0-alpha.4` is not created yet
+Last updated: 2026-07-01
 
-## P9-5 Alpha.4 Release Prep
+## P9 Alpha.4 Publish State
 
 - [x] Prepare package metadata for `0.1.0-alpha.4` in `package.json` and `package-lock.json`.
-- [x] Keep `0.1.0-alpha.4` as release-prep package candidate wording, not published-package wording.
+- [x] Publish `agent-cli-runtime@0.1.0-alpha.4` to npm with the `alpha` dist-tag.
+- [x] Keep npm `latest` on `0.1.0-alpha.1`.
+- [x] Record that the immutable `0.1.0-alpha.4` npm tarball contains stale release-prep package docs.
+- [x] Record that GitHub Release `v0.1.0-alpha.4` is not created yet and GitHub Release tarball parity evidence remains open.
 - [x] Keep P9 stable surface gate coverage visible through `npm run stable:surface:check`.
 - [x] Keep P9-4 fresh main release-candidate evidence package-out and exact-SHA scoped.
 - [x] Record that package-content comparison against the P9-4 release target must show package-visible drift and `freshReleaseCandidateRequired: true` for alpha.4 version/docs changes.
-- [x] Record that P9-6 must generate fresh main release-candidate evidence after the P9-5 merge before any human publish decision.
+- [x] Record that P9-6 generated fresh main release-candidate evidence after the P9-5 merge.
+- [x] Record that P9-7 authorized npm publish and captured post-publish registry state under `.release-evidence/`.
 - [x] Record that `0.1.0-alpha.2` is published but its immutable npm tarball contains stale pre-publish package docs.
 - [x] Keep `0.1.0-alpha.3` documented as the previous corrective pre-alpha release for package consumers.
 - [x] Keep `0.1.0-alpha.1` and GitHub pre-release `v0.1.0-alpha.1` documented as earlier alpha history.
@@ -64,17 +68,18 @@ Acceptance:
 
 ## Human Publish Gate
 
-Do not run a real publish, deprecate an existing version, or create/modify a GitHub Release without explicit maintainer authorization. Before any later publish:
+Do not run another real publish, deprecate an existing version, modify dist-tags, unpublish, or create/modify a GitHub Release without explicit maintainer authorization. For alpha.4:
 
-- [ ] Trigger a fresh manual release-candidate workflow for the exact commit being considered.
-- [ ] Download all five artifacts into a local review directory.
-- [ ] Run `npm run release:verify -- --dir <normalized-artifact-dir>` on the downloaded artifacts.
-- [ ] Confirm the workflow head SHA equals the commit selected for publish.
-- [ ] Run `npm publish --dry-run --ignore-scripts --tag alpha`.
-- [ ] Run `npm run package:docs:check` and confirm it inspected the local packed tarball.
-- [ ] Obtain separate explicit maintainer authorization for the real publish.
-- [ ] Run real `npm publish --tag alpha` only after that authorization.
-- [ ] After publish, verify npm registry state, run the published package verification workflow, and confirm registry tarball docs pass `agent-cli-runtime.packagedDocsVerification.v1`.
+- [x] Trigger fresh main release-candidate evidence for the release target.
+- [x] Confirm package content equivalence from the P9-6 release target to the evidence-recording publish HEAD.
+- [x] Run `npm publish --dry-run --ignore-scripts --tag alpha`.
+- [x] Run real `npm publish --tag alpha` only after explicit maintainer authorization.
+- [x] Verify npm registry state: `agent-cli-runtime@0.1.0-alpha.4` exists, `alpha` points at alpha.4, and `latest` remains alpha.1.
+- [x] Run published verification against npmjs.
+- [x] Confirm registry tarball docs are inspected by `agent-cli-runtime.packagedDocsVerification.v1`.
+- [ ] Publish a later corrective alpha if maintainers choose to replace the stale alpha.4 package docs for consumers.
+- [ ] Create GitHub Release `v0.1.0-alpha.4` and attach the release tarball only after separate explicit maintainer authorization.
+- [ ] Rerun `release:post-alpha:verify` and aggregate `published:verify:evidence` after GitHub Release assets exist.
 
 ## Release-Candidate Artifact Contract
 

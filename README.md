@@ -25,8 +25,10 @@ This repository is in **pre-alpha / developer preview**.
 Release boundary:
 - `agent-cli-runtime@0.1.0-alpha.1` is published on npm and has GitHub pre-release `v0.1.0-alpha.1`.
 - `agent-cli-runtime@0.1.0-alpha.2` is published on npm and has GitHub pre-release `v0.1.0-alpha.2`, but its immutable npm tarball contains stale pre-publish package docs.
+- `agent-cli-runtime@0.1.0-alpha.4` is published on npm with the `alpha` dist-tag. The `latest` dist-tag remains on `0.1.0-alpha.1`.
+- The immutable `0.1.0-alpha.4` npm tarball contains stale release-prep package docs. Treat npm registry metadata as authoritative for the version and dist-tags.
+- GitHub Release `v0.1.0-alpha.4` is not created yet, so GitHub Release tarball parity evidence for alpha.4 is still open.
 - `agent-cli-runtime@0.1.0-alpha.3` is the previous corrective pre-alpha release for package consumers.
-- `agent-cli-runtime@0.1.0-alpha.4` is the next package candidate in release-prep. It is not published by this branch, and it requires fresh P9-6 main release-candidate evidence after merge before any human publish decision.
 - `agent-cli-runtime@0.1.0-alpha.0` is deprecated because its immutable package docs shipped stale pre-publish state.
 - npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags.
 - Release-candidate and post-alpha evidence keeps target SHA, evidence target SHA, workflow head SHA, and downloaded artifact details outside the npm package under `.release-evidence/` or GitHub Release assets.
@@ -374,7 +376,8 @@ For local release-candidate confidence, run `npm run prepublish:check` and `npm 
 Version `0.1.0-alpha.1` is published to npm and has GitHub pre-release `v0.1.0-alpha.1`.
 Version `0.1.0-alpha.2` is published to npm with the `alpha` dist-tag and has GitHub pre-release `v0.1.0-alpha.2`, but its immutable tarball contains stale pre-publish package docs.
 Version `0.1.0-alpha.3` is the previous corrective pre-alpha release for package consumers.
-Version `0.1.0-alpha.4` is the release-prep package candidate and is not published by this branch; after merge, P9-6 must generate fresh main release-candidate evidence before any human publish decision.
+Version `0.1.0-alpha.4` is published on npm with the `alpha` dist-tag, while `latest` remains on `0.1.0-alpha.1`. GitHub Release `v0.1.0-alpha.4` is not created yet, so GitHub Release tarball parity evidence remains open.
+The immutable `0.1.0-alpha.4` npm tarball contains stale release-prep package docs, so registry metadata is the source of truth for alpha.4 publish state.
 Version `0.1.0-alpha.0` is deprecated because its immutable tarball contains stale pre-publish status text.
 npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags.
 Because release docs are included in the npm package, volatile target-SHA evidence must stay outside packaged docs under `.release-evidence/` or GitHub Release assets.
@@ -390,7 +393,7 @@ npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
 ```
 
-`release:post-alpha:verify` compares the npm registry tarball with the `v0.1.0-alpha.1` GitHub Release tarball. Raw gzip SHA1/SHA256 values may differ because the registry tarball and Release asset are separate packaging artifacts; the package content boundary is npm registry `shasum`/`integrity`, matching unpacked package file list and content, and `npm run release:verify -- --dir <downloaded-github-release-assets-dir>`.
+`release:post-alpha:verify` compares the npm registry tarball with the same-version GitHub Release tarball. Raw gzip SHA1/SHA256 values may differ because the registry tarball and Release asset are separate packaging artifacts; the package content boundary is npm registry `shasum`/`integrity`, matching unpacked package file list and content, and `npm run release:verify -- --dir <downloaded-github-release-assets-dir>`. For alpha.4, this gate remains blocked until GitHub Release `v0.1.0-alpha.4` and its tarball asset are created under separate maintainer authorization.
 
 `published:daemon:verify` installs the already published npm package from the registry, not the local checkout or local `dist/`, and emits `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"` with `packageSource: "npm-registry"`. It uses fake CLIs only and covers detect, run, goal, cancel, timeout, replay, read-only inspection while a writer is active, second-writer refusal, shutdown/reopen, and stale owner recovery without launching authenticated real agent runs.
 

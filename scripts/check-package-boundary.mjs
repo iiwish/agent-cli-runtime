@@ -162,9 +162,14 @@ const publishOverclaimPatterns = [
       /(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu,
   },
   {
-    name: "alpha.4 described as already published during release prep",
+    name: "alpha.4 described as unpublished after publish",
     pattern:
-      /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,120}(?:is already published|is published on npm|published on npm|has GitHub pre-release|已发布到 npm|已经发布到 npm)/iu,
+      /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:not published|unpublished|not yet published|release-prep package candidate|next package candidate|before any human publish decision|requires fresh P9-6|requires fresh main release-candidate evidence|未发布|尚未发布|发布准备中的 package candidate|进入 human publish decision)/iu,
+  },
+  {
+    name: "alpha.4 GitHub Release claimed before creation",
+    pattern:
+      /(?:0\.1\.0-alpha\.4|alpha\.4|v0\.1\.0-alpha\.4)[^\n]{0,160}(?:has GitHub pre-release|has GitHub Release|GitHub pre-release `v0\.1\.0-alpha\.4`|GitHub Release `v0\.1\.0-alpha\.4` exists|创建了 GitHub pre-release `v0\.1\.0-alpha\.4`|已有 GitHub Release `v0\.1\.0-alpha\.4`)/iu,
   },
   {
     name: "self-expiring dry-run stop point",

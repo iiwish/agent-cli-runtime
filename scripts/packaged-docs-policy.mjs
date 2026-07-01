@@ -55,14 +55,20 @@ const alpha3StalePatterns = [
 
 const alpha4StalePatterns = [
   {
-    code: "alpha4_published_claim",
-    message: "alpha.4 release-prep docs must not describe alpha.4 as already published.",
+    code: "alpha4_unpublished_claim",
+    message: "alpha.4 package docs must not describe alpha.4 as unpublished or still waiting for the publish decision.",
     pattern:
-      /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,120}(?:is already published|is published on npm|published on npm|has GitHub pre-release|已发布到 npm|已经发布到 npm)/iu,
+      /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:not published|unpublished|not yet published|release-prep package candidate|next package candidate|before any human publish decision|requires fresh P9-6|requires fresh main release-candidate evidence|未发布|尚未发布|发布准备中的 package candidate|进入 human publish decision)/iu,
+  },
+  {
+    code: "alpha4_github_release_claim",
+    message: "alpha.4 package docs must not claim GitHub Release v0.1.0-alpha.4 exists before it is created.",
+    pattern:
+      /(?:0\.1\.0-alpha\.4|alpha\.4|v0\.1\.0-alpha\.4)[^\n]{0,160}(?:has GitHub pre-release|has GitHub Release|GitHub pre-release `v0\.1\.0-alpha\.4`|GitHub Release `v0\.1\.0-alpha\.4` exists|创建了 GitHub pre-release `v0\.1\.0-alpha\.4`|已有 GitHub Release `v0\.1\.0-alpha\.4`)/iu,
   },
   {
     code: "stale_alpha3_current_claim",
-    message: "alpha.4 release-prep docs must not keep alpha.3 as the current corrective package line.",
+    message: "alpha.4 package docs must not keep alpha.3 as the current corrective package line.",
     pattern:
       /(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu,
   },
@@ -92,13 +98,28 @@ const alpha3RequiredPatterns = [
 const alpha4RequiredPatterns = [
   {
     code: "missing_alpha4",
-    message: "packaged docs must mention the alpha.4 release-prep candidate.",
+    message: "packaged docs must mention the alpha.4 release.",
     pattern: /0\.1\.0-alpha\.4/u,
   },
   {
-    code: "missing_alpha4_release_prep",
-    message: "packaged docs must describe alpha.4 as release prep or a pre-release candidate.",
-    pattern: /(?:release-prep|pre-release candidate|package candidate|candidate version|发布准备|候选)/iu,
+    code: "missing_alpha4_published_state",
+    message: "packaged docs must describe alpha.4 as published on npm.",
+    pattern: /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:published on npm|published pre-alpha|npm package is published|已发布到 npm|已经发布到 npm)/iu,
+  },
+  {
+    code: "missing_alpha4_alpha_tag",
+    message: "packaged docs must state that the alpha dist-tag points at alpha.4.",
+    pattern: /(?:alpha\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.4|0\.1\.0-alpha\.4[^\n]{0,120}(?:alpha\s*(?:dist-tag|tag)|dist-tag)/iu,
+  },
+  {
+    code: "missing_alpha4_github_release_gap",
+    message: "packaged docs must state that GitHub Release v0.1.0-alpha.4 has not been created.",
+    pattern: /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
+  },
+  {
+    code: "missing_alpha4_stale_docs_incident",
+    message: "packaged docs must record that the published alpha.4 npm tarball contains stale release-prep docs.",
+    pattern: /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,160}(?:package docs|packaged docs|tarball docs|docs)|(?:package docs|packaged docs|tarball docs|docs)[^\n]{0,160}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,220}(?:0\.1\.0-alpha\.4|alpha\.4)/iu,
   },
   {
     code: "missing_alpha3_history",
@@ -197,7 +218,9 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
     docs,
     diagnostics,
     noAlpha3UnpublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha3_unpublished_claim"),
-    noAlpha4PublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_published_claim"),
+    noAlpha4PublishedClaim: true,
+    noAlpha4UnpublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_unpublished_claim"),
+    noAlpha4GithubReleaseClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_github_release_claim"),
     noStaleAlpha3CurrentClaim: !diagnostics.some((diagnostic) => diagnostic.code === "stale_alpha3_current_claim"),
     noDryRunStopPoint: !diagnostics.some((diagnostic) => diagnostic.code === "dry_run_stop_point"),
     noPublishReadyCandidate: !diagnostics.some((diagnostic) => diagnostic.code === "publish_ready_candidate"),

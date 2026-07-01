@@ -1,0 +1,181 @@
+{
+  "schemaVersion": "agent-cli-runtime.alphaPostPublishEvidence.v1",
+  "stage": "P9-7",
+  "evidenceKind": "alpha-4-post-publish-npm-success-verification-blocked",
+  "checkedAt": "2026-07-01T10:34:11Z",
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.4",
+  "targetVersion": "0.1.0-alpha.4",
+  "targetDistTag": "alpha",
+  "git": {
+    "branch": "codex/p9-7-alpha4-publish-decision",
+    "publishHeadSha": "34b4f40b4877138cb84ed3d4c14cbf3aeba53f96",
+    "originMainShaAtPublish": "4d42347955d10acf5389ed0fc7b7c93878185036",
+    "p9SixReleaseTargetSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+    "p9SixEvidenceCommitSha": "4d42347955d10acf5389ed0fc7b7c93878185036"
+  },
+  "authorization": {
+    "realNpmPublishAuthorized": true,
+    "authorizationPhrase": "授权真实 npm publish 0.1.0-alpha.4",
+    "browserAuthenticationCompleted": true,
+    "otpValueRecorded": false,
+    "authUrlRecorded": false,
+    "tokenValueRecorded": false
+  },
+  "publish": {
+    "command": "npm publish --tag alpha --registry=https://registry.npmjs.org/",
+    "executed": true,
+    "ok": true,
+    "registry": "https://registry.npmjs.org/",
+    "publishedVersion": "0.1.0-alpha.4",
+    "publishedDistTag": "alpha",
+    "latestTagRequested": false,
+    "latestTagChanged": false,
+    "manualDistTagMutationExecuted": false,
+    "deprecateExecuted": false,
+    "unpublishExecuted": false
+  },
+  "registryAfter": {
+    "commands": [
+      "npm view agent-cli-runtime@0.1.0-alpha.4 version dist-tags --json --registry=https://registry.npmjs.org/",
+      "npm dist-tag ls agent-cli-runtime --registry=https://registry.npmjs.org/",
+      "npm view agent-cli-runtime version dist-tags versions --json --registry=https://registry.npmjs.org/"
+    ],
+    "targetVersionExists": true,
+    "targetVersion": "0.1.0-alpha.4",
+    "defaultVersionFromLatestTag": "0.1.0-alpha.1",
+    "distTags": {
+      "alpha": "0.1.0-alpha.4",
+      "latest": "0.1.0-alpha.1"
+    },
+    "versions": [
+      "0.1.0-alpha.0",
+      "0.1.0-alpha.1",
+      "0.1.0-alpha.2",
+      "0.1.0-alpha.3",
+      "0.1.0-alpha.4"
+    ],
+    "packageFileCount": 151,
+    "registryTarballMetadataPresent": true
+  },
+  "publishedVerification": {
+    "generatorCommand": "NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ npm run published:verify -- --out-dir published-verification",
+    "verifierCommand": "NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ npm run published:verify:evidence -- --dir published-verification",
+    "schemaVersion": "agent-cli-runtime.publishedVerification.v1",
+    "ok": false,
+    "packageSource": "npm-registry",
+    "packageName": "agent-cli-runtime",
+    "version": "0.1.0-alpha.4",
+    "registryLookupOk": true,
+    "registryPackageDocsInspection": {
+      "ok": false,
+      "schemaVersion": "agent-cli-runtime.packagedDocsVerification.v1",
+      "inspectedDocs": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "docs/ssot.md",
+        "docs/compatibility.md",
+        "docs/production-readiness.md",
+        "docs/release-report.md",
+        "docs/release-checklist.md",
+        "docs/release-publish-runbook.md"
+      ],
+      "diagnosticCodes": [
+        "missing_alpha4_published_state",
+        "missing_alpha4_alpha_tag",
+        "missing_alpha4_github_release_gap",
+        "alpha4_unpublished_claim"
+      ]
+    },
+    "gates": [
+      {
+        "script": "smoke:published",
+        "ok": true,
+        "schemaVersion": "agent-cli-runtime.publishedSmoke.v1"
+      },
+      {
+        "script": "published:daemon:verify",
+        "ok": true,
+        "schemaVersion": "agent-runtime.publishedDaemonConsumer.v1"
+      },
+      {
+        "script": "published:adapters:verify",
+        "ok": true,
+        "schemaVersion": "agent-runtime.publishedAdapters.v1"
+      },
+      {
+        "script": "release:post-alpha:verify",
+        "ok": false,
+        "schemaVersion": "agent-cli-runtime.postAlphaEvidence.v1",
+        "diagnosticCodes": [
+          "post_alpha_verification_error"
+        ]
+      }
+    ],
+    "verifierDiagnostics": [
+      {
+        "code": "failed_gate",
+        "script": "release:post-alpha:verify"
+      },
+      {
+        "code": "registry_packaged_docs_failed",
+        "script": "registryPackageDocsInspection"
+      }
+    ],
+    "noAuthenticatedRealRun": true,
+    "noNpmPublishDuringVerification": true,
+    "noNpmToken": true
+  },
+  "githubRelease": {
+    "tagName": "v0.1.0-alpha.4",
+    "exists": false,
+    "apiStatus": 404,
+    "ghReleaseViewStatus": "release_not_found",
+    "tarballAssetPresent": false,
+    "createdOrModified": false,
+    "createOrModifyAuthorized": false,
+    "postAlphaVerificationBlocked": true,
+    "blocker": "github_release_v0.1.0-alpha.4_missing"
+  },
+  "documentationState": {
+    "packageVisibleDocsUpdatedForNpmPublishedState": true,
+    "publishedNpmTarballContainsStaleReleasePrepDocs": true,
+    "packageVisibleDocsStateGitHubReleaseMissing": true,
+    "packageVisibleDocsDoNotClaimGithubReleaseExists": true
+  },
+  "boundary": {
+    "repoOnlyEvidence": true,
+    "npmPublishExecuted": true,
+    "noLatestTagChange": true,
+    "noManualDistTagMutation": true,
+    "noDeprecate": true,
+    "noUnpublish": true,
+    "noGithubReleaseCreateOrEdit": true,
+    "noTrustedPublishing": true,
+    "noAuthenticatedRealRun": true,
+    "noRawStdoutStderr": true,
+    "noRawCliOutput": true,
+    "noFullCommandOutput": true,
+    "noPrivatePath": true,
+    "noLocalTempPath": true,
+    "noNpmHashOrDigestValues": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvAssignment": true,
+    "noOtpValue": true,
+    "preserveAuthMissingClassification": true,
+    "preserveRealRunSkippedClassification": true,
+    "preserveNeedsVerificationClassification": true
+  },
+  "residualBlockers": [
+    {
+      "code": "registry_packaged_docs_stale",
+      "message": "The immutable agent-cli-runtime@0.1.0-alpha.4 npm tarball contains stale release-prep package docs; only a later corrective release or maintainer-approved registry action can change consumer-visible package docs."
+    },
+    {
+      "code": "github_release_missing",
+      "message": "GitHub Release v0.1.0-alpha.4 and its tarball asset are required before release:post-alpha:verify and aggregate published verification can pass."
+    }
+  ]
+}

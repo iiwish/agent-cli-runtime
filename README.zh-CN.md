@@ -25,8 +25,10 @@ Agent CLI Runtime 是一个 adapter layer。它适合你在不想重新造一个
 发布边界说明：
 - `agent-cli-runtime@0.1.0-alpha.1` 已发布到 npm，并创建了 GitHub pre-release `v0.1.0-alpha.1`。
 - `agent-cli-runtime@0.1.0-alpha.2` 已发布到 npm，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 npm tarball 内含过期的发布前 package docs。
+- `agent-cli-runtime@0.1.0-alpha.4` 已发布到 npm，`alpha` dist-tag 指向该版本；`latest` dist-tag 仍指向 `0.1.0-alpha.1`。
+- `0.1.0-alpha.4` 的不可变 npm tarball 内含过期的 release-prep package docs；该版本的发布状态和 dist-tags 以 npm registry metadata 为准。
+- GitHub Release `v0.1.0-alpha.4` 尚未创建，因此 alpha.4 的 GitHub Release tarball parity evidence 仍未闭合。
 - `agent-cli-runtime@0.1.0-alpha.3` 是上一条面向 package consumer 的 corrective pre-alpha release。
-- `agent-cli-runtime@0.1.0-alpha.4` 是下一次发布准备中的 package candidate。本分支不发布该版本；合并后必须由 P9-6 为最终 `main` merge commit 重新生成 fresh main release-candidate evidence，之后才进入 human publish decision。
 - `agent-cli-runtime@0.1.0-alpha.0` 已 deprecate，原因是不可变 package docs 内含过期的发布前状态。
 - 可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。
 - release-candidate 与 post-alpha evidence 将 target SHA、evidence target SHA、workflow head SHA 和下载 artifact 细节保存在 npm 包外的 `.release-evidence/` 或 GitHub Release assets 中。
@@ -372,7 +374,8 @@ CI 使用 Node.js 20/22/24 matrix 跑 typecheck、lint、tests、build、product
 `0.1.0-alpha.1` 已发布到 npm，并有 GitHub pre-release `v0.1.0-alpha.1`。
 `0.1.0-alpha.2` 已发布到 npm，使用 `alpha` dist-tag，并创建了 GitHub pre-release `v0.1.0-alpha.2`，但其不可变 tarball 内含过期的发布前 package docs。
 `0.1.0-alpha.3` 是上一条面向 package consumer 的 corrective pre-alpha release。
-`0.1.0-alpha.4` 是发布准备中的 package candidate，本分支不发布该版本；合并后必须由 P9-6 为最终 `main` merge commit 重新生成 fresh main release-candidate evidence，之后才进入 human publish decision。
+`0.1.0-alpha.4` 已发布到 npm，`alpha` dist-tag 指向该版本；`latest` dist-tag 仍指向 `0.1.0-alpha.1`。GitHub Release `v0.1.0-alpha.4` 尚未创建，因此 alpha.4 的 GitHub Release tarball parity evidence 仍未闭合。
+`0.1.0-alpha.4` 的不可变 npm tarball 内含过期的 release-prep package docs，因此该版本的发布状态和 dist-tags 以 npm registry metadata 为准。
 `0.1.0-alpha.0` 已 deprecate，原因是该不可变 tarball 内含过期的发布前状态说明。
 可用版本和 dist-tags 以 npm registry metadata 与 GitHub Releases 为准。
 由于 release docs 会进入 npm package，易漂移的 target-SHA evidence 必须留在包外的 `.release-evidence/` 或 GitHub Release assets 中。
@@ -388,7 +391,7 @@ npm run published:verify -- --out-dir published-verification
 npm run published:verify:evidence -- --dir published-verification
 ```
 
-`release:post-alpha:verify` 会比较 npm registry tarball 与 `v0.1.0-alpha.1` GitHub Release tarball。两者 raw gzip SHA1/SHA256 可以不同，因为 registry tarball 和 Release asset 是不同 packaging artifact；package 内容边界以 npm registry `shasum`/`integrity`、解包后的 package 文件列表和内容一致性，以及 `npm run release:verify -- --dir <downloaded-github-release-assets-dir>` 为准。
+`release:post-alpha:verify` 会比较 npm registry tarball 与同版本 GitHub Release tarball。两者 raw gzip SHA1/SHA256 可以不同，因为 registry tarball 和 Release asset 是不同 packaging artifact；package 内容边界以 npm registry `shasum`/`integrity`、解包后的 package 文件列表和内容一致性，以及 `npm run release:verify -- --dir <downloaded-github-release-assets-dir>` 为准。alpha.4 当前只有 npm 发布完成，GitHub Release `v0.1.0-alpha.4` 尚未创建，所以该 parity gate 会在 GitHub Release 缺失处失败，直到 release asset 被单独授权创建并上传。
 
 `published:daemon:verify` 安装的是已经发布到 npm registry 的包，不依赖本地 checkout 或本地 `dist/`，输出 `schemaVersion: "agent-runtime.publishedDaemonConsumer.v1"` 且 `packageSource: "npm-registry"`。它只使用 fake CLI，覆盖 detect、run、goal、cancel、timeout、replay、writer active 时的 read-only inspection、second-writer refusal、shutdown/reopen 和 stale owner recovery，不启动 authenticated real agent run。
 

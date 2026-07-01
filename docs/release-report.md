@@ -1,15 +1,17 @@
-# Release Report: 0.1.0-alpha.4 Release Prep
+# Release Report: 0.1.0-alpha.4 Published Alpha
 
-Status: `0.1.0-alpha.4` release-prep pre-alpha candidate
-Last updated: 2026-06-30
+Status: `0.1.0-alpha.4` is published on npm with the `alpha` dist-tag; GitHub Release `v0.1.0-alpha.4` is not created yet
+Last updated: 2026-07-01
 
 This report is the packaged, stable release-state summary. Volatile release evidence such as current workflow run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, command transcripts, raw logs, raw CLI output, prompt text, and token-looking values belongs outside the npm package under `.release-evidence/` or durable GitHub Release assets. P8 main release-candidate files remain historical repo-only evidence for their exact target SHAs; package-content drift decisions and current main release-candidate decisions are recorded under `.release-evidence/` with stage-specific repo-only summaries.
 
 ## Current State
 
-- Next package candidate: `agent-cli-runtime@0.1.0-alpha.4`.
-- P9-5 prepares package-visible metadata and docs only; it does not publish npm and does not create or edit a GitHub Release.
-- After P9-5 is merged, P9-6 must generate fresh main release-candidate workflow evidence for the final `main` merge commit before any human publish decision.
+- Published npm package: `agent-cli-runtime@0.1.0-alpha.4`.
+- npm `alpha` dist-tag points at `0.1.0-alpha.4`; npm `latest` remains on `0.1.0-alpha.1`.
+- The immutable `0.1.0-alpha.4` npm tarball contains stale release-prep package docs; npm registry metadata is authoritative for the alpha.4 version and dist-tags.
+- GitHub Release `v0.1.0-alpha.4` is not created yet, so GitHub Release tarball parity evidence for alpha.4 remains open.
+- P9-6 records the fresh main release-candidate workflow evidence for the alpha.4 package content. P9-7 records the dry-run decision and post-publish registry state under `.release-evidence/`.
 - `agent-cli-runtime@0.1.0-alpha.3` remains the previous corrective pre-alpha release for package consumers.
 - `agent-cli-runtime@0.1.0-alpha.2` is published on npm and has GitHub pre-release `v0.1.0-alpha.2`, but its immutable npm tarball contains stale pre-publish package docs.
 - `agent-cli-runtime@0.1.0-alpha.1` remains an earlier published alpha with GitHub pre-release `v0.1.0-alpha.1`.
@@ -19,13 +21,16 @@ This report is the packaged, stable release-state summary. Volatile release evid
 
 ## Verdict
 
-`0.1.0-alpha.4` is the next pre-alpha package candidate. P9-5 is release prep, not publish authorization. The P9 line keeps three package gates in force before a later publish:
+`0.1.0-alpha.4` is the current published pre-alpha package on the npm `alpha` dist-tag. The npm registry package is available for package consumers, but its immutable tarball contains stale release-prep package docs. The GitHub Release side of post-alpha verification remains incomplete because `v0.1.0-alpha.4` has not been created and no GitHub Release asset has been authorized.
+
+The P9 line keeps these release gates in force:
 
 - `npm run stable:surface:check` keeps the package-root value export limited to `createAgentRuntime` and keeps repo-only gates out of the public runtime API;
-- `npm run package:check` verifies the package boundary and scans the docs that actually enter the tarball;
-- `npm run release:package-content:verify -- --base-ref <p9-4-release-target-sha> --head-ref HEAD` must report package-visible drift for alpha.4 version/docs changes, with `packageContentEqual: false` and `freshReleaseCandidateRequired: true`.
+- `npm run package:check` verifies the package boundary and scans the docs that enter the tarball;
+- `npm run release:package-content:verify -- --base-ref <p9-6-release-target-sha> --head-ref HEAD` proves whether repo-only evidence and test changes leave npm package content unchanged;
+- `npm run published:verify -- --out-dir published-verification` verifies the registry package and currently reports the GitHub Release parity gate as blocked until `v0.1.0-alpha.4` exists.
 
-The alpha.3 stale-docs corrective path remains history. Alpha.4 requires a fresh release-candidate workflow on the final merged `main` commit because `package.json`, README, and packaged release docs are package-visible content.
+The alpha.3 stale-docs corrective path remains history. Alpha.4 package content is published on npm, but GitHub Release evidence must not be claimed until the release and asset exist.
 
 The release remains local-first runtime/kernel scope:
 
@@ -33,9 +38,9 @@ The release remains local-first runtime/kernel scope:
 - no authenticated real Codex/Claude/OpenCode run is launched by default gates;
 - no daemon, hosted control plane, API server, database/WAL, web UI, telemetry system, or remote worker is added.
 
-## P9-5 Alpha.4 Release Prep
+## P9 Alpha.4 Publish And Verification
 
-The alpha.4 branch-local prep path uses:
+The alpha.4 local and post-publish gate path uses:
 
 ```bash
 git diff --check
@@ -49,10 +54,15 @@ npm run prepublish:check
 npm pack --dry-run
 npm pack --dry-run --json --ignore-scripts
 npm publish --dry-run --ignore-scripts --tag alpha
+npm publish --tag alpha
+npm view agent-cli-runtime@0.1.0-alpha.4 version dist-tags --json
+npm dist-tag ls agent-cli-runtime
 tmp_dir="$(mktemp -d)"
 npm run release:candidate -- --out-dir "$tmp_dir"
 npm run release:verify -- --dir "$tmp_dir"
-npm run release:package-content:verify -- --base-ref <p9-4-release-target-sha> --head-ref HEAD
+npm run release:package-content:verify -- --base-ref <p9-6-release-target-sha> --head-ref HEAD
+NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ npm run published:verify -- --out-dir published-verification
+NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ npm run published:verify:evidence -- --dir published-verification
 git diff --check
 ```
 
@@ -71,6 +81,8 @@ npm run published:verify:evidence -- --dir published-verification
 ```
 
 `published:verify` creates the evidence file. `published:verify:evidence` verifies an existing local output directory or downloaded `agent-cli-runtime-published-verification` artifact directory; a bare verifier run without `published-verification/published-verification.json` exits `1` with redacted actionable JSON by design.
+
+For `0.1.0-alpha.4`, the registry package, smoke, daemon, and adapters checks pass against npmjs. Registry packaged-docs inspection fails because the immutable tarball contains stale release-prep package docs. The aggregate published verification also remains `ok: false` because `release:post-alpha:verify` requires GitHub Release `v0.1.0-alpha.4` and its tarball asset. Creating or modifying that GitHub Release is a separate maintainer authorization boundary.
 
 ## Release-Candidate Artifacts
 
