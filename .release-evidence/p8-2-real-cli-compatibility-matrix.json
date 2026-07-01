@@ -1,14 +1,14 @@
 {
   "schemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
-  "checkedAt": "2026-06-30T09:09:09.646Z",
-  "gitSha": "b159072bc2fead08b28c5ccd6fee62826a7522d3",
-  "gitHeadSha": "b159072bc2fead08b28c5ccd6fee62826a7522d3",
+  "checkedAt": "2026-07-01T07:05:02.997Z",
+  "gitSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+  "gitHeadSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
   "gitShaMeaning": "HEAD commit only; see gitInputDirty/gitOutputDirty and dirtySummary for uncommitted input evidence versus evidence-output self writes.",
   "gitDirty": false,
   "gitInputDirty": false,
   "gitOutputDirty": true,
   "gitStatusBeforeWrite": {
-    "headSha": "b159072bc2fead08b28c5ccd6fee62826a7522d3",
+    "headSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
     "dirty": false,
     "changedFilesCount": 0,
     "changedFiles": [],
@@ -64,7 +64,7 @@
     }
   },
   "nodeVersion": "v24.15.0",
-  "packageVersion": "0.1.0-alpha.3",
+  "packageVersion": "0.1.0-alpha.4",
   "safePreflightOnly": true,
   "noAuthenticatedRealRunByDefault": true,
   "noRawStdoutStderr": true,
@@ -82,7 +82,7 @@
             "id": "codex",
             "displayName": "Codex CLI",
             "available": true,
-            "version": "codex-cli 0.142.4",
+            "version": "codex-cli 0.142.5",
             "authStatus": "unknown",
             "modelsSource": "live",
             "modelCount": 6,
@@ -126,10 +126,10 @@
             "id": "opencode",
             "displayName": "OpenCode",
             "available": true,
-            "version": "1.15.6",
+            "version": "1.17.12",
             "authStatus": "unknown",
             "modelsSource": "live",
-            "modelCount": 78,
+            "modelCount": 27,
             "capabilities": {
               "streaming": true,
               "tools": true,
@@ -155,7 +155,7 @@
             "id": "codex",
             "displayName": "Codex CLI",
             "available": true,
-            "version": "codex-cli 0.142.4",
+            "version": "codex-cli 0.142.5",
             "authStatus": "unknown",
             "modelsSource": "live",
             "modelCount": 6,
@@ -199,10 +199,10 @@
             "id": "opencode",
             "displayName": "OpenCode",
             "available": true,
-            "version": "1.15.6",
+            "version": "1.17.12",
             "authStatus": "unknown",
             "modelsSource": "live",
-            "modelCount": 78,
+            "modelCount": 27,
             "capabilities": {
               "streaming": true,
               "tools": true,
@@ -229,7 +229,7 @@
         "agents": [
           {
             "adapter": "codex",
-            "version": "codex-cli 0.142.4",
+            "version": "codex-cli 0.142.5",
             "auth": "unknown",
             "modelsSource": "live",
             "runClassification": "real_run_skipped",
@@ -398,7 +398,7 @@
           },
           {
             "adapter": "opencode",
-            "version": "1.15.6",
+            "version": "1.17.12",
             "auth": "unknown",
             "modelsSource": "live",
             "runClassification": "real_run_skipped",
@@ -474,7 +474,7 @@
         "schemaVersion": "agent-runtime.realSmoke.v1",
         "ok": false,
         "adapter": "codex",
-        "version": "codex-cli 0.142.4",
+        "version": "codex-cli 0.142.5",
         "auth": "unknown",
         "modelsSource": "live",
         "runClassification": "real_run_skipped",
@@ -532,7 +532,7 @@
         "schemaVersion": "agent-runtime.realSmoke.v1",
         "ok": false,
         "adapter": "opencode",
-        "version": "1.15.6",
+        "version": "1.17.12",
         "auth": "unknown",
         "modelsSource": "live",
         "runClassification": "real_run_skipped",
@@ -557,7 +557,7 @@
         "path": "<resolved_executable>",
         "unavailableReason": null
       },
-      "version": "codex-cli 0.142.4",
+      "version": "codex-cli 0.142.5",
       "auth": {
         "status": "unknown",
         "diagnosticCodes": []
@@ -820,14 +820,14 @@
         "path": "<resolved_executable>",
         "unavailableReason": null
       },
-      "version": "1.15.6",
+      "version": "1.17.12",
       "auth": {
         "status": "unknown",
         "diagnosticCodes": []
       },
       "modelsSource": {
         "source": "live",
-        "modelCount": 78
+        "modelCount": 27
       },
       "capabilities": {
         "streaming": true,
@@ -927,7 +927,7 @@
       "id": "codex",
       "displayName": "Codex CLI",
       "available": true,
-      "version": "codex-cli 0.142.4",
+      "version": "codex-cli 0.142.5",
       "authStatus": "unknown",
       "modelsSource": "live",
       "modelCount": 6,
@@ -971,10 +971,10 @@
       "id": "opencode",
       "displayName": "OpenCode",
       "available": true,
-      "version": "1.15.6",
+      "version": "1.17.12",
       "authStatus": "unknown",
       "modelsSource": "live",
-      "modelCount": 78,
+      "modelCount": 27,
       "capabilities": {
         "streaming": true,
         "tools": true,
@@ -994,7 +994,7 @@
         "id": "codex",
         "displayName": "Codex CLI",
         "available": true,
-        "version": "codex-cli 0.142.4",
+        "version": "codex-cli 0.142.5",
         "authStatus": "unknown",
         "modelsSource": "live",
         "modelCount": 6,
@@ -1038,10 +1038,10 @@
         "id": "opencode",
         "displayName": "OpenCode",
         "available": true,
-        "version": "1.15.6",
+        "version": "1.17.12",
         "authStatus": "unknown",
         "modelsSource": "live",
-        "modelCount": 78,
+        "modelCount": 27,
         "capabilities": {
           "streaming": true,
           "tools": true,
@@ -1062,7 +1062,7 @@
     "agents": [
       {
         "adapter": "codex",
-        "version": "codex-cli 0.142.4",
+        "version": "codex-cli 0.142.5",
         "auth": "unknown",
         "modelsSource": "live",
         "runClassification": "real_run_skipped",
@@ -1231,7 +1231,7 @@
       },
       {
         "adapter": "opencode",
-        "version": "1.15.6",
+        "version": "1.17.12",
         "auth": "unknown",
         "modelsSource": "live",
         "runClassification": "real_run_skipped",
@@ -1302,7 +1302,7 @@
       "schemaVersion": "agent-runtime.realSmoke.v1",
       "ok": false,
       "adapter": "codex",
-      "version": "codex-cli 0.142.4",
+      "version": "codex-cli 0.142.5",
       "auth": "unknown",
       "modelsSource": "live",
       "runClassification": "real_run_skipped",
@@ -1348,7 +1348,7 @@
       "schemaVersion": "agent-runtime.realSmoke.v1",
       "ok": false,
       "adapter": "opencode",
-      "version": "1.15.6",
+      "version": "1.17.12",
       "auth": "unknown",
       "modelsSource": "live",
       "runClassification": "real_run_skipped",
@@ -1425,7 +1425,7 @@
   "driftAnalysis": [
     {
       "adapter": "codex",
-      "version": "codex-cli 0.142.4",
+      "version": "codex-cli 0.142.5",
       "auth": "unknown",
       "modelsSource": "live",
       "classifications": [
@@ -1453,7 +1453,7 @@
     },
     {
       "adapter": "opencode",
-      "version": "1.15.6",
+      "version": "1.17.12",
       "auth": "unknown",
       "modelsSource": "live",
       "classifications": [
@@ -1471,7 +1471,7 @@
     "expectedExcludedPath": ".release-evidence/"
   },
   "gitStatusAfterWrite": {
-    "headSha": "b159072bc2fead08b28c5ccd6fee62826a7522d3",
+    "headSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
     "dirty": true,
     "changedFilesCount": 1,
     "changedFiles": [
