@@ -1,0 +1,325 @@
+{
+  "schemaVersion": "agent-cli-runtime.alphaPublishDecision.v1",
+  "stage": "P9-7",
+  "evidenceKind": "alpha-4-publish-decision-dry-run",
+  "checkedAt": "2026-07-01T08:09:52Z",
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.4",
+  "targetVersion": "0.1.0-alpha.4",
+  "targetDistTag": "alpha",
+  "git": {
+    "branch": "codex/p9-7-alpha4-publish-decision",
+    "headSha": "4d42347955d10acf5389ed0fc7b7c93878185036",
+    "originMainShaAtCheck": "4d42347955d10acf5389ed0fc7b7c93878185036",
+    "p9SixReleaseTargetSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+    "p9SixEvidenceCommitSha": "4d42347955d10acf5389ed0fc7b7c93878185036"
+  },
+  "registryBefore": {
+    "command": "npm view agent-cli-runtime version dist-tags versions --json",
+    "version": "0.1.0-alpha.1",
+    "distTags": {
+      "alpha": "0.1.0-alpha.3",
+      "latest": "0.1.0-alpha.1"
+    },
+    "versions": [
+      "0.1.0-alpha.0",
+      "0.1.0-alpha.1",
+      "0.1.0-alpha.2",
+      "0.1.0-alpha.3"
+    ],
+    "targetVersionExists": false,
+    "targetVersionCheck": {
+      "command": "npm view agent-cli-runtime@0.1.0-alpha.4 version --json",
+      "ok": false,
+      "errorCode": "E404"
+    }
+  },
+  "p9SixEvidence": {
+    "file": ".release-evidence/p9-6-main-release-candidate.json",
+    "schemaVersion": "agent-cli-runtime.mainReleaseCandidateEvidence.v1",
+    "stage": "P9-6",
+    "releaseTargetSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+    "workflowHeadSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+    "releaseTargetMatchesWorkflowHead": true,
+    "mainEvidence": true,
+    "branchEvidence": false,
+    "artifacts": {
+      "count": 5,
+      "names": [
+        "agent-cli-runtime-gate-evidence",
+        "agent-cli-runtime-pack-metadata",
+        "agent-cli-runtime-package-files",
+        "agent-cli-runtime-release-verification",
+        "agent-cli-runtime-tarball"
+      ]
+    },
+    "downloadedArtifacts": {
+      "verified": true,
+      "verificationSchemaVersion": "agent-cli-runtime.releaseVerification.v1",
+      "ok": true,
+      "diagnosticsCount": 0,
+      "packageFiles": 151
+    },
+    "remoteGateEvidence": {
+      "schemaVersion": "agent-cli-runtime.releaseGateEvidence.v1",
+      "gates": [
+        {
+          "script": "daemon:verify",
+          "ok": true,
+          "outputSchemaVersion": "agent-runtime.daemonVerification.v1"
+        },
+        {
+          "script": "runtime:safety",
+          "ok": true,
+          "outputSchemaVersion": "agent-runtime.runtimeSafety.v1"
+        },
+        {
+          "script": "compat:real:evidence:verify",
+          "ok": true,
+          "outputSchemaVersion": "agent-cli-runtime.realCompatibilityEvidenceVerification.v1",
+          "evidenceSchemaVersion": "agent-cli-runtime.realCompatibilityMatrix.v1",
+          "targetSha": {
+            "expected": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+            "status": "repo_only_not_run"
+          },
+          "repoOnlyEvidence": {
+            "status": "not_refreshed_in_ci",
+            "reason": "real_compatibility_matrix_is_repo_only"
+          }
+        }
+      ],
+      "noAuthenticatedRealRun": true,
+      "noNpmPublish": true,
+      "noNpmToken": true
+    }
+  },
+  "packageContentEquivalence": {
+    "command": "npm run release:package-content:verify -- --base-ref 5532fd7394834fb9f1eea28508b45d7bdb8fd9e5 --head-ref HEAD",
+    "schemaVersion": "agent-cli-runtime.packageContentEquivalence.v1",
+    "ok": true,
+    "baseRef": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+    "headRef": "HEAD",
+    "baseSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+    "headSha": "4d42347955d10acf5389ed0fc7b7c93878185036",
+    "packageName": "agent-cli-runtime",
+    "packageVersion": "0.1.0-alpha.4",
+    "packageContentEqual": true,
+    "baseFileCount": 151,
+    "headFileCount": 151,
+    "changedPackageFiles": [],
+    "evidenceOnlyDrift": true,
+    "freshReleaseCandidateRequired": false,
+    "repoChangedFileCount": 4,
+    "diagnosticCodes": [
+      "evidence_only_drift"
+    ],
+    "boundary": {
+      "repoOnlyEvidence": true,
+      "comparedNpmPackageContentOnly": true,
+      "noAuthenticatedRealRun": true,
+      "noNpmPublish": true,
+      "noNpmToken": true,
+      "noGithubRelease": true,
+      "noTarballGzipDigestDecision": true,
+      "noRawStdoutStderr": true,
+      "noRawCliOutput": true,
+      "noPrivatePath": true,
+      "noLocalTempPath": true,
+      "noTokenValue": true,
+      "noBearerValue": true,
+      "noAuthEnvAssignment": true
+    }
+  },
+  "localGates": {
+    "allPassed": true,
+    "commands": [
+      {
+        "command": "git diff --check",
+        "ok": true
+      },
+      {
+        "command": "npm run typecheck",
+        "ok": true
+      },
+      {
+        "command": "npm run lint",
+        "ok": true
+      },
+      {
+        "command": "npm test",
+        "ok": true,
+        "summary": {
+          "testFilesPassed": 11,
+          "testsPassed": 235,
+          "testsSkipped": 1
+        }
+      },
+      {
+        "command": "npm run build",
+        "ok": true
+      },
+      {
+        "command": "npm run stable:surface:check",
+        "ok": true,
+        "schemaVersion": "agent-cli-runtime.stableSurfaceCheck.v1",
+        "packageRootValueExports": [
+          "createAgentRuntime"
+        ],
+        "packedFileCount": 151
+      },
+      {
+        "command": "npm run package:check",
+        "ok": true,
+        "schemaVersion": "agent-cli-runtime.packagedDocsVerification.v1",
+        "packageFilesChecked": 151
+      },
+      {
+        "command": "npm run prepublish:check",
+        "ok": true
+      },
+      {
+        "command": "npm run release:candidate -- --out-dir <local-release-candidate-dir>",
+        "ok": true,
+        "artifactNames": [
+          "agent-cli-runtime-gate-evidence",
+          "agent-cli-runtime-pack-metadata",
+          "agent-cli-runtime-package-files",
+          "agent-cli-runtime-release-verification",
+          "agent-cli-runtime-tarball"
+        ]
+      },
+      {
+        "command": "npm run release:verify -- --dir <local-release-candidate-dir>",
+        "ok": true,
+        "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+        "diagnosticsCount": 0,
+        "packageFiles": 151
+      },
+      {
+        "command": "npm publish --dry-run --ignore-scripts --tag alpha --json",
+        "ok": true,
+        "dryRun": true,
+        "requestedTag": "alpha"
+      },
+      {
+        "command": "node ./dist/cli/main.js agents --json",
+        "ok": true,
+        "agents": [
+          {
+            "id": "codex",
+            "available": true,
+            "authStatus": "unknown"
+          },
+          {
+            "id": "claude",
+            "available": true,
+            "authStatus": "missing",
+            "diagnosticCodes": [
+              "auth_missing"
+            ]
+          },
+          {
+            "id": "opencode",
+            "available": true,
+            "authStatus": "unknown"
+          }
+        ]
+      },
+      {
+        "command": "node ./dist/cli/main.js doctor --json",
+        "ok": true,
+        "agents": [
+          {
+            "id": "codex",
+            "available": true,
+            "authStatus": "unknown"
+          },
+          {
+            "id": "claude",
+            "available": true,
+            "authStatus": "missing",
+            "diagnosticCodes": [
+              "auth_missing"
+            ]
+          },
+          {
+            "id": "opencode",
+            "available": true,
+            "authStatus": "unknown"
+          }
+        ]
+      }
+    ]
+  },
+  "dryRun": {
+    "command": "npm publish --dry-run --ignore-scripts --tag alpha --json",
+    "ok": true,
+    "dryRun": true,
+    "requestedTag": "alpha",
+    "latestTagRequested": false,
+    "id": "agent-cli-runtime@0.1.0-alpha.4",
+    "name": "agent-cli-runtime",
+    "version": "0.1.0-alpha.4",
+    "filename": "agent-cli-runtime-0.1.0-alpha.4.tgz",
+    "entryCount": 151,
+    "bundledCount": 0,
+    "packageFileListChecked": true,
+    "disallowedPathCount": 0,
+    "disallowedPaths": [],
+    "containsReleaseEvidence": false,
+    "containsReference": false,
+    "containsPublishedVerification": false,
+    "containsTests": false,
+    "containsFixtures": false,
+    "containsRepoOnlyVerificationScripts": false
+  },
+  "publishDecision": {
+    "mode": "dry-run-only",
+    "readyForHumanPublishAuthorization": true,
+    "humanPublishAuthorization": false,
+    "realPublishAuthorized": false,
+    "npmPublishExecuted": false,
+    "registryMutated": false,
+    "distTagMutated": false,
+    "latestTagChanged": false,
+    "githubReleaseCreatedOrModified": false,
+    "postPublishVerification": {
+      "status": "not-run",
+      "reason": "real_publish_not_authorized"
+    }
+  },
+  "documentationState": {
+    "packageVisibleDocsAlreadyStateAlpha4Unpublished": true,
+    "packageVisibleDocsAlreadyRequireHumanPublishDecision": true,
+    "packageVisibleDocsChangedInP9Seven": false,
+    "reason": "Changing package-visible docs after P9-6 would invalidate the package-content equivalence proven for the P9-6 release target; P9-7 details stay repo-only."
+  },
+  "boundary": {
+    "repoOnlyEvidence": true,
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noNpmToken": true,
+    "noDistTagMutation": true,
+    "noLatestTagChange": true,
+    "noGithubRelease": true,
+    "noTrustedPublishing": true,
+    "noRawStdoutStderr": true,
+    "noRawCliOutput": true,
+    "noFullCommandOutput": true,
+    "noFullDryRunFileList": true,
+    "noFullPrompt": true,
+    "noPrivatePath": true,
+    "noLocalTempPath": true,
+    "noNpmHashOrDigestValues": true,
+    "noTarballSize": true,
+    "noUnpackedSize": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvAssignment": true,
+    "evidenceRecordingCommitMayDifferFromCheckedHead": true,
+    "postCommitPackageContentEquivalenceRequired": true,
+    "preserveAuthMissingClassification": true,
+    "preserveRealRunSkippedClassification": true,
+    "preserveNeedsVerificationClassification": true
+  }
+}

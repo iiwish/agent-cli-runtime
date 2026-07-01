@@ -6211,6 +6211,291 @@ setInterval(() => {}, 1000);
     }
   });
 
+  it("records P9-7 alpha.4 publish decision dry-run evidence without registry mutation", async () => {
+    const evidencePath = path.join(root, ".release-evidence", "p9-7-alpha4-publish-decision.json");
+    const evidenceText = await readFile(evidencePath, "utf8");
+    const evidence = JSON.parse(evidenceText) as {
+      schemaVersion: string;
+      stage: string;
+      evidenceKind: string;
+      packageName: string;
+      packageVersion: string;
+      targetVersion: string;
+      targetDistTag: string;
+      git: {
+        headSha: string;
+        originMainShaAtCheck: string;
+        p9SixReleaseTargetSha: string;
+        p9SixEvidenceCommitSha: string;
+      };
+      registryBefore: {
+        version: string;
+        distTags: Record<string, string>;
+        versions: string[];
+        targetVersionExists: boolean;
+        targetVersionCheck: { command: string; ok: boolean; errorCode: string };
+      };
+      p9SixEvidence: {
+        schemaVersion: string;
+        releaseTargetSha: string;
+        workflowHeadSha: string;
+        releaseTargetMatchesWorkflowHead: boolean;
+        mainEvidence: boolean;
+        artifacts: { count: number; names: string[] };
+        downloadedArtifacts: { verified: boolean; ok: boolean; diagnosticsCount: number; packageFiles: number };
+        remoteGateEvidence: {
+          gates: Array<{ script: string; ok: boolean; outputSchemaVersion: string }>;
+          noAuthenticatedRealRun: boolean;
+          noNpmPublish: boolean;
+          noNpmToken: boolean;
+        };
+      };
+      packageContentEquivalence: {
+        schemaVersion: string;
+        ok: boolean;
+        baseSha: string;
+        headSha: string;
+        packageContentEqual: boolean;
+        baseFileCount: number;
+        headFileCount: number;
+        changedPackageFiles: string[];
+        evidenceOnlyDrift: boolean;
+        freshReleaseCandidateRequired: boolean;
+        diagnosticCodes: string[];
+      };
+      localGates: {
+        allPassed: boolean;
+        commands: Array<{
+          command: string;
+          ok: boolean;
+          dryRun?: boolean;
+          requestedTag?: string;
+          agents?: Array<{ id: string; authStatus: string; diagnosticCodes?: string[] }>;
+        }>;
+      };
+      dryRun: {
+        ok: boolean;
+        dryRun: boolean;
+        requestedTag: string;
+        latestTagRequested: boolean;
+        id: string;
+        name: string;
+        version: string;
+        entryCount: number;
+        bundledCount: number;
+        packageFileListChecked: boolean;
+        disallowedPathCount: number;
+        disallowedPaths: string[];
+        containsReleaseEvidence: boolean;
+        containsReference: boolean;
+        containsPublishedVerification: boolean;
+        containsTests: boolean;
+        containsFixtures: boolean;
+        containsRepoOnlyVerificationScripts: boolean;
+      };
+      publishDecision: {
+        mode: string;
+        readyForHumanPublishAuthorization: boolean;
+        humanPublishAuthorization: boolean;
+        realPublishAuthorized: boolean;
+        npmPublishExecuted: boolean;
+        registryMutated: boolean;
+        distTagMutated: boolean;
+        latestTagChanged: boolean;
+        githubReleaseCreatedOrModified: boolean;
+        postPublishVerification: { status: string; reason: string };
+      };
+      documentationState: {
+        packageVisibleDocsAlreadyStateAlpha4Unpublished: boolean;
+        packageVisibleDocsAlreadyRequireHumanPublishDecision: boolean;
+        packageVisibleDocsChangedInP9Seven: boolean;
+      };
+      boundary: Record<string, boolean>;
+    };
+
+    expect(evidence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.alphaPublishDecision.v1",
+      stage: "P9-7",
+      evidenceKind: "alpha-4-publish-decision-dry-run",
+      packageName: "agent-cli-runtime",
+      packageVersion: "0.1.0-alpha.4",
+      targetVersion: "0.1.0-alpha.4",
+      targetDistTag: "alpha",
+    });
+    expect(evidence.git.headSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(evidence.git.originMainShaAtCheck).toBe(evidence.git.headSha);
+    expect(evidence.git.p9SixEvidenceCommitSha).toBe(evidence.git.headSha);
+    expect(evidence.git.p9SixReleaseTargetSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(evidence.git.p9SixReleaseTargetSha).not.toBe(evidence.git.headSha);
+
+    expect(evidence.registryBefore).toMatchObject({
+      version: "0.1.0-alpha.1",
+      distTags: {
+        alpha: "0.1.0-alpha.3",
+        latest: "0.1.0-alpha.1",
+      },
+      targetVersionExists: false,
+      targetVersionCheck: {
+        command: "npm view agent-cli-runtime@0.1.0-alpha.4 version --json",
+        ok: false,
+        errorCode: "E404",
+      },
+    });
+    expect(evidence.registryBefore.versions).toEqual([
+      "0.1.0-alpha.0",
+      "0.1.0-alpha.1",
+      "0.1.0-alpha.2",
+      "0.1.0-alpha.3",
+    ]);
+
+    expect(evidence.p9SixEvidence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.mainReleaseCandidateEvidence.v1",
+      releaseTargetSha: evidence.git.p9SixReleaseTargetSha,
+      workflowHeadSha: evidence.git.p9SixReleaseTargetSha,
+      releaseTargetMatchesWorkflowHead: true,
+      mainEvidence: true,
+      downloadedArtifacts: {
+        verified: true,
+        ok: true,
+        diagnosticsCount: 0,
+        packageFiles: 151,
+      },
+    });
+    expect(evidence.p9SixEvidence.artifacts.count).toBe(5);
+    expect(evidence.p9SixEvidence.artifacts.names.sort()).toEqual([...expectedReleaseCandidateArtifacts].sort());
+    expect(evidence.p9SixEvidence.remoteGateEvidence.gates.map((gate) => gate.script).sort()).toEqual([
+      "compat:real:evidence:verify",
+      "daemon:verify",
+      "runtime:safety",
+    ]);
+    expect(evidence.p9SixEvidence.remoteGateEvidence.gates.every((gate) => gate.ok)).toBe(true);
+    expect(evidence.p9SixEvidence.remoteGateEvidence).toMatchObject({
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+    });
+
+    expect(evidence.packageContentEquivalence).toMatchObject({
+      schemaVersion: "agent-cli-runtime.packageContentEquivalence.v1",
+      ok: true,
+      baseSha: evidence.git.p9SixReleaseTargetSha,
+      headSha: evidence.git.headSha,
+      packageContentEqual: true,
+      baseFileCount: 151,
+      headFileCount: 151,
+      changedPackageFiles: [],
+      evidenceOnlyDrift: true,
+      freshReleaseCandidateRequired: false,
+      diagnosticCodes: ["evidence_only_drift"],
+    });
+
+    const commands = evidence.localGates.commands.map((entry) => entry.command);
+    expect(evidence.localGates.allPassed).toBe(true);
+    expect(commands).toEqual(expect.arrayContaining([
+      "git diff --check",
+      "npm run typecheck",
+      "npm run lint",
+      "npm test",
+      "npm run build",
+      "npm run stable:surface:check",
+      "npm run package:check",
+      "npm run prepublish:check",
+      "npm run release:candidate -- --out-dir <local-release-candidate-dir>",
+      "npm run release:verify -- --dir <local-release-candidate-dir>",
+      "npm publish --dry-run --ignore-scripts --tag alpha --json",
+      "node ./dist/cli/main.js agents --json",
+      "node ./dist/cli/main.js doctor --json",
+    ]));
+    expect(evidence.localGates.commands.every((entry) => entry.ok)).toBe(true);
+    expect(evidence.localGates.commands.find((entry) => entry.command === "npm publish --dry-run --ignore-scripts --tag alpha --json")).toMatchObject({
+      ok: true,
+      dryRun: true,
+      requestedTag: "alpha",
+    });
+    expect(evidence.localGates.commands.find((entry) => entry.command === "node ./dist/cli/main.js doctor --json")?.agents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "claude", authStatus: "missing", diagnosticCodes: ["auth_missing"] }),
+    ]));
+
+    expect(evidence.dryRun).toMatchObject({
+      ok: true,
+      dryRun: true,
+      requestedTag: "alpha",
+      latestTagRequested: false,
+      id: "agent-cli-runtime@0.1.0-alpha.4",
+      name: "agent-cli-runtime",
+      version: "0.1.0-alpha.4",
+      entryCount: 151,
+      bundledCount: 0,
+      packageFileListChecked: true,
+      disallowedPathCount: 0,
+      disallowedPaths: [],
+      containsReleaseEvidence: false,
+      containsReference: false,
+      containsPublishedVerification: false,
+      containsTests: false,
+      containsFixtures: false,
+      containsRepoOnlyVerificationScripts: false,
+    });
+
+    expect(evidence.publishDecision).toMatchObject({
+      mode: "dry-run-only",
+      readyForHumanPublishAuthorization: true,
+      humanPublishAuthorization: false,
+      realPublishAuthorized: false,
+      npmPublishExecuted: false,
+      registryMutated: false,
+      distTagMutated: false,
+      latestTagChanged: false,
+      githubReleaseCreatedOrModified: false,
+      postPublishVerification: {
+        status: "not-run",
+        reason: "real_publish_not_authorized",
+      },
+    });
+    expect(evidence.documentationState).toMatchObject({
+      packageVisibleDocsAlreadyStateAlpha4Unpublished: true,
+      packageVisibleDocsAlreadyRequireHumanPublishDecision: true,
+      packageVisibleDocsChangedInP9Seven: false,
+    });
+    expect(evidence.boundary).toMatchObject({
+      repoOnlyEvidence: true,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmToken: true,
+      noDistTagMutation: true,
+      noLatestTagChange: true,
+      noGithubRelease: true,
+      noTrustedPublishing: true,
+      noRawStdoutStderr: true,
+      noRawCliOutput: true,
+      noFullCommandOutput: true,
+      noFullDryRunFileList: true,
+      noPrivatePath: true,
+      noLocalTempPath: true,
+      noNpmHashOrDigestValues: true,
+      noTarballSize: true,
+      noUnpackedSize: true,
+      noTokenValue: true,
+      noBearerValue: true,
+      noAuthEnvAssignment: true,
+      evidenceRecordingCommitMayDifferFromCheckedHead: true,
+      postCommitPackageContentEquivalenceRequired: true,
+      preserveAuthMissingClassification: true,
+      preserveRealRunSkippedClassification: true,
+      preserveNeedsVerificationClassification: true,
+    });
+
+    expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY|OTP)[A-Z_]*\s*=/u);
+    expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|"stdout"|"stderr"|promptText|fullPrompt|commandTranscript|workflowLog|logs|resolvedExecutablePath|<resolved_executable>/u);
+    expect(evidenceText).not.toMatch(/"shasum"\s*:|"integrity"\s*:|"sizeBytes"\s*:|"unpackedSize"\s*:/iu);
+    expect(evidenceText).not.toMatch(/agent-runtime-dogfood|agent-runtime-release-|tmp\.[A-Za-z0-9]+/u);
+
+    const evidenceReadme = await readFile(path.join(root, ".release-evidence", "README.md"), "utf8");
+    expect(evidenceReadme).toContain("P9-7 uses `.release-evidence/p9-7-alpha4-publish-decision.json`");
+    expect(evidenceReadme).toContain("dry-run-only human decision package");
+    expect(evidenceReadme).toContain("P9-7 details stay repo-only");
+  });
+
   it("keeps stage-neutral main release evidence tooling ready for P9-2 without reclassifying P8 history", async () => {
     const script = await readFile(mainReleaseCandidateEvidenceCreator, "utf8");
     const selfTest = JSON.parse((await execFileP(process.execPath, [
