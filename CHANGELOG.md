@@ -5,7 +5,7 @@
 - P9-7 alpha.4 npm publish:
   - publishes `0.1.0-alpha.4` to npm with the `alpha` dist-tag while leaving `latest` on `0.1.0-alpha.1`;
   - records that the immutable alpha.4 npm tarball contains stale release-prep package docs;
-  - records that GitHub Release `v0.1.0-alpha.4` is not created yet, so GitHub Release tarball parity evidence remains open;
+  - creates GitHub Release `v0.1.0-alpha.4` as a prerelease with the npm registry tarball asset, so `release:post-alpha:verify` tarball parity passes;
   - verifies npm registry metadata, published smoke, published daemon lifecycle, and published adapter fake-CLI contract gates;
   - keeps the post-publish registry and verification summary outside the npm package under `.release-evidence/`;
   - keeps GitHub Release creation/editing, dist-tag repair, deprecate/unpublish, npm token/trusted publishing configuration, authenticated real agent runs, run ids, artifact digests, tarball hashes, local temp paths, raw logs, prompts, and token-looking values outside this package.

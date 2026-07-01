@@ -1779,8 +1779,11 @@ describe("public contract", () => {
       expect(text, `${doc} must record the alpha.4 alpha dist-tag`).toMatch(
         /(?:alpha\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.4|0\.1\.0-alpha\.4[^\n]{0,120}(?:alpha\s*(?:dist-tag|tag)|dist-tag)/iu,
       );
-      expect(text, `${doc} must record the missing alpha.4 GitHub Release`).toMatch(
-        /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
+      expect(text, `${doc} must record the alpha.4 GitHub Release asset state`).toMatch(
+        /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.4[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.4[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+      );
+      expect(text, `${doc} must record the alpha.4 GitHub Release tarball parity state`).toMatch(
+        /(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,180}(?:pass|passes|passed|closed|ok|通过|闭合)/iu,
       );
       expect(text, `${doc} must record the alpha.4 stale package-docs incident`).toMatch(
         /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,160}(?:package docs|packaged docs|tarball docs|docs)|(?:package docs|packaged docs|tarball docs|docs)[^\n]{0,160}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,220}(?:0\.1\.0-alpha\.4|alpha\.4)/iu,
@@ -1791,8 +1794,8 @@ describe("public contract", () => {
       expect(text, `${doc} must not describe alpha.4 as unpublished or waiting for publish`).not.toMatch(
         /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:not published|unpublished|not yet published|release-prep package candidate|next package candidate|before any human publish decision|requires fresh P9-6|requires fresh main release-candidate evidence|未发布|尚未发布|发布准备中的 package candidate|进入 human publish decision)/iu,
       );
-      expect(text, `${doc} must not claim alpha.4 GitHub Release exists`).not.toMatch(
-        /(?:0\.1\.0-alpha\.4|alpha\.4|v0\.1\.0-alpha\.4)[^\n]{0,160}(?:has GitHub pre-release|has GitHub Release|GitHub pre-release `v0\.1\.0-alpha\.4`|GitHub Release `v0\.1\.0-alpha\.4` exists|创建了 GitHub pre-release `v0\.1\.0-alpha\.4`|已有 GitHub Release `v0\.1\.0-alpha\.4`)/iu,
+      expect(text, `${doc} must not describe alpha.4 GitHub Release as missing`).not.toMatch(
+        /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
       );
     }
   });
@@ -1808,7 +1811,7 @@ describe("public contract", () => {
       noAlpha3UnpublishedClaim: boolean;
       noAlpha4PublishedClaim: boolean;
       noAlpha4UnpublishedClaim: boolean;
-      noAlpha4GithubReleaseClaim: boolean;
+      noAlpha4GithubReleaseMissingClaim: boolean;
       noStaleAlpha3CurrentClaim: boolean;
       noDryRunStopPoint: boolean;
       noPublishReadyCandidate: boolean;
@@ -1823,7 +1826,7 @@ describe("public contract", () => {
       noAlpha3UnpublishedClaim: true,
       noAlpha4PublishedClaim: true,
       noAlpha4UnpublishedClaim: true,
-      noAlpha4GithubReleaseClaim: true,
+      noAlpha4GithubReleaseMissingClaim: true,
       noStaleAlpha3CurrentClaim: true,
       noDryRunStopPoint: true,
       noPublishReadyCandidate: true,
@@ -6515,7 +6518,7 @@ setInterval(() => {}, 1000);
     expect(evidenceReadme).toContain("remained unexecuted at that decision point");
   });
 
-  it("records P9-7 alpha.4 post-publish evidence with verification blockers explicit", async () => {
+  it("records P9-7 alpha.4 post-publish evidence with GitHub Release parity and remaining blocker explicit", async () => {
     const evidencePath = path.join(root, ".release-evidence", "p9-7-alpha4-post-publish.json");
     const evidenceText = await readFile(evidencePath, "utf8");
     const evidence = JSON.parse(evidenceText) as {
@@ -6562,11 +6565,16 @@ setInterval(() => {}, 1000);
         exists: boolean;
         apiStatus: number;
         ghReleaseViewStatus: string;
+        targetCommitish: string;
+        isPrerelease: boolean;
+        isDraft: boolean;
         tarballAssetPresent: boolean;
+        tarballAssetName: string;
         createdOrModified: boolean;
         createOrModifyAuthorized: boolean;
+        latestReleaseMarked: boolean;
         postAlphaVerificationBlocked: boolean;
-        blocker: string;
+        postAlphaVerificationOk: boolean;
       };
       documentationState: Record<string, boolean>;
       boundary: Record<string, boolean>;
@@ -6576,7 +6584,7 @@ setInterval(() => {}, 1000);
     expect(evidence).toMatchObject({
       schemaVersion: "agent-cli-runtime.alphaPostPublishEvidence.v1",
       stage: "P9-7",
-      evidenceKind: "alpha-4-post-publish-npm-success-verification-blocked",
+      evidenceKind: "alpha-4-post-publish-github-release-created-verification-blocked",
       packageName: "agent-cli-runtime",
       packageVersion: "0.1.0-alpha.4",
       targetVersion: "0.1.0-alpha.4",
@@ -6653,36 +6661,42 @@ setInterval(() => {}, 1000);
     expect(evidence.publishedVerification.registryPackageDocsInspection.diagnosticCodes).toEqual(expect.arrayContaining([
       "missing_alpha4_published_state",
       "missing_alpha4_alpha_tag",
-      "missing_alpha4_github_release_gap",
+      "missing_alpha4_github_release_state",
+      "missing_alpha4_github_release_parity",
+      "missing_alpha4_stale_docs_incident",
       "alpha4_unpublished_claim",
     ]));
     expect(evidence.publishedVerification.gates).toEqual(expect.arrayContaining([
       expect.objectContaining({ script: "smoke:published", ok: true, schemaVersion: "agent-cli-runtime.publishedSmoke.v1" }),
       expect.objectContaining({ script: "published:daemon:verify", ok: true, schemaVersion: "agent-runtime.publishedDaemonConsumer.v1" }),
       expect.objectContaining({ script: "published:adapters:verify", ok: true, schemaVersion: "agent-runtime.publishedAdapters.v1" }),
-      expect.objectContaining({ script: "release:post-alpha:verify", ok: false, schemaVersion: "agent-cli-runtime.postAlphaEvidence.v1", diagnosticCodes: ["post_alpha_verification_error"] }),
+      expect.objectContaining({ script: "release:post-alpha:verify", ok: true, schemaVersion: "agent-cli-runtime.postAlphaEvidence.v1" }),
     ]));
     expect(evidence.publishedVerification.verifierDiagnostics).toEqual([
-      { code: "failed_gate", script: "release:post-alpha:verify" },
       { code: "registry_packaged_docs_failed", script: "registryPackageDocsInspection" },
     ]);
 
     expect(evidence.githubRelease).toMatchObject({
       tagName: "v0.1.0-alpha.4",
-      exists: false,
-      apiStatus: 404,
-      ghReleaseViewStatus: "release_not_found",
-      tarballAssetPresent: false,
-      createdOrModified: false,
-      createOrModifyAuthorized: false,
-      postAlphaVerificationBlocked: true,
-      blocker: "github_release_v0.1.0-alpha.4_missing",
+      exists: true,
+      apiStatus: 200,
+      ghReleaseViewStatus: "ok",
+      targetCommitish: evidence.git.p9SixReleaseTargetSha,
+      isPrerelease: true,
+      isDraft: false,
+      tarballAssetPresent: true,
+      tarballAssetName: "agent-cli-runtime-0.1.0-alpha.4.tgz",
+      createdOrModified: true,
+      createOrModifyAuthorized: true,
+      latestReleaseMarked: false,
+      postAlphaVerificationBlocked: false,
+      postAlphaVerificationOk: true,
     });
     expect(evidence.documentationState).toMatchObject({
       packageVisibleDocsUpdatedForNpmPublishedState: true,
       publishedNpmTarballContainsStaleReleasePrepDocs: true,
-      packageVisibleDocsStateGitHubReleaseMissing: true,
-      packageVisibleDocsDoNotClaimGithubReleaseExists: true,
+      packageVisibleDocsStateGitHubReleasePresent: true,
+      packageVisibleDocsDoNotClaimGithubReleaseMissing: true,
     });
     expect(evidence.boundary).toMatchObject({
       repoOnlyEvidence: true,
@@ -6691,7 +6705,9 @@ setInterval(() => {}, 1000);
       noManualDistTagMutation: true,
       noDeprecate: true,
       noUnpublish: true,
-      noGithubReleaseCreateOrEdit: true,
+      githubReleaseCreated: true,
+      noGithubReleaseLatestMark: true,
+      noGithubAssetDigestRecorded: true,
       noTrustedPublishing: true,
       noAuthenticatedRealRun: true,
       noRawStdoutStderr: true,
@@ -6708,19 +6724,19 @@ setInterval(() => {}, 1000);
       preserveRealRunSkippedClassification: true,
       preserveNeedsVerificationClassification: true,
     });
-    expect(evidence.residualBlockers).toEqual(expect.arrayContaining([
+    expect(evidence.residualBlockers).toEqual([
       expect.objectContaining({ code: "registry_packaged_docs_stale" }),
-      expect.objectContaining({ code: "github_release_missing" }),
-    ]));
+    ]);
 
     expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY|OTP)[A-Z_]*\s*=/u);
     expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|"stdout"|"stderr"|promptText|fullPrompt|commandTranscript|workflowLog|logs|resolvedExecutablePath|<resolved_executable>|www\.npmjs\.com\/auth\/cli/u);
-    expect(evidenceText).not.toMatch(/"shasum"\s*:|"integrity"\s*:|"sizeBytes"\s*:|"unpackedSize"\s*:/iu);
+    expect(evidenceText).not.toMatch(/"shasum"\s*:|"integrity"\s*:|"sizeBytes"\s*:|"unpackedSize"\s*:|"digest"\s*:|sha256:[0-9a-f]{16,}/iu);
 
     const evidenceReadme = await readFile(path.join(root, ".release-evidence", "README.md"), "utf8");
     expect(evidenceReadme).toContain("P9-7 also uses `.release-evidence/p9-7-alpha4-post-publish.json`");
     expect(evidenceReadme).toContain("immutable alpha.4 npm tarball contains stale release-prep package docs");
-    expect(evidenceReadme).toContain("GitHub Release `v0.1.0-alpha.4` and its tarball asset have not been created");
+    expect(evidenceReadme).toContain("GitHub Release `v0.1.0-alpha.4` exists with the npm registry tarball asset");
+    expect(evidenceReadme).toContain("published smoke / daemon / adapter / `release:post-alpha:verify` gates pass");
   });
 
   it("keeps stage-neutral main release evidence tooling ready for P9-2 without reclassifying P8 history", async () => {
@@ -6866,7 +6882,7 @@ setInterval(() => {}, 1000);
     expect(releaseChecklist).toContain("P9 Alpha.4 Publish State");
     expect(releaseChecklist).toContain("0.1.0-alpha.4");
     expect(runbook).toContain("Published package: `agent-cli-runtime@0.1.0-alpha.4`");
-    expect(runbook).toContain("GitHub Release `v0.1.0-alpha.4` is not created yet");
+    expect(runbook).toContain("GitHub Release `v0.1.0-alpha.4` exists as a prerelease with the npm registry tarball asset");
 
     const productionReadiness = await readFile(path.join(root, "docs", "production-readiness.md"), "utf8");
     const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
@@ -6889,11 +6905,12 @@ setInterval(() => {}, 1000);
       expect(text, doc + " must record alpha.2 stale-docs incident").toMatch(/0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu);
       expect(text, doc + " must mention alpha.4 published npm state").toMatch(/(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:published on npm|published pre-alpha|npm package is published|已发布到 npm|已经发布到 npm)/iu);
       expect(text, doc + " must mention alpha.4 alpha dist-tag").toMatch(/(?:alpha\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.4|0\.1\.0-alpha\.4[^\n]{0,120}(?:alpha\s*(?:dist-tag|tag)|dist-tag)/iu);
-      expect(text, doc + " must mention missing alpha.4 GitHub Release").toMatch(/(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu);
+      expect(text, doc + " must mention alpha.4 GitHub Release asset state").toMatch(/(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.4[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.4[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu);
+      expect(text, doc + " must mention alpha.4 GitHub Release tarball parity state").toMatch(/(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,180}(?:pass|passes|passed|closed|ok|通过|闭合)/iu);
       expect(text, doc + " must mention alpha.4 stale package docs").toMatch(/(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,160}(?:package docs|packaged docs|tarball docs|docs)|(?:package docs|packaged docs|tarball docs|docs)[^\n]{0,160}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,220}(?:0\.1\.0-alpha\.4|alpha\.4)/iu);
       expect(text, doc + " must not keep alpha.3 as the current corrective line").not.toMatch(/(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu);
       expect(text, doc + " must not describe alpha.4 as unpublished").not.toMatch(/(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:not published|unpublished|not yet published|release-prep package candidate|next package candidate|before any human publish decision|requires fresh P9-6|requires fresh main release-candidate evidence|未发布|尚未发布|发布准备中的 package candidate|进入 human publish decision)/iu);
-      expect(text, doc + " must not claim alpha.4 GitHub Release exists").not.toMatch(/(?:0\.1\.0-alpha\.4|alpha\.4|v0\.1\.0-alpha\.4)[^\n]{0,160}(?:has GitHub pre-release|has GitHub Release|GitHub pre-release `v0\.1\.0-alpha\.4`|GitHub Release `v0\.1\.0-alpha\.4` exists|创建了 GitHub pre-release `v0\.1\.0-alpha\.4`|已有 GitHub Release `v0\.1\.0-alpha\.4`)/iu);
+      expect(text, doc + " must not describe alpha.4 GitHub Release as missing").not.toMatch(/(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu);
       expect(text).not.toMatch(/P6-6[^\n]*(?:run \d{8,}|artifact digest|artifact id|tarball shasum|npm pack shasum|pack shasum|包 shasum|local temp|临时路径)/iu);
     }
 
@@ -6920,7 +6937,7 @@ setInterval(() => {}, 1000);
     expect(compatibility).toContain("immutable npm tarball contains stale release-prep package docs");
     expect(compatibility).toContain("0.1.0-alpha.4");
     expect(compatibility).toContain("published on npm with the `alpha` dist-tag");
-    expect(compatibility).toContain("GitHub Release `v0.1.0-alpha.4` is not created yet");
+    expect(compatibility).toContain("GitHub Release `v0.1.0-alpha.4` exists as a prerelease with the npm registry tarball asset");
     expect(compatibility).toContain("0.1.0-alpha.3");
     expect(compatibility).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
     expect(compatibility).toContain("0.1.0-alpha.2");
@@ -6934,8 +6951,11 @@ setInterval(() => {}, 1000);
       expect(text, `${doc} must describe alpha.4 as the alpha dist-tag target`).toMatch(
         /(?:alpha\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.4|0\.1\.0-alpha\.4[^\n]{0,120}(?:alpha\s*(?:dist-tag|tag)|dist-tag)/iu,
       );
-      expect(text, `${doc} must state alpha.4 GitHub Release is missing`).toMatch(
-        /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
+      expect(text, `${doc} must state alpha.4 GitHub Release asset exists`).toMatch(
+        /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.4[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.4[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+      );
+      expect(text, `${doc} must state alpha.4 GitHub Release tarball parity passes`).toMatch(
+        /(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,180}(?:pass|passes|passed|closed|ok|通过|闭合)/iu,
       );
       expect(text, `${doc} must state alpha.4 packaged docs are stale`).toMatch(
         /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,160}(?:package docs|packaged docs|tarball docs|docs)|(?:package docs|packaged docs|tarball docs|docs)[^\n]{0,160}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,220}(?:0\.1\.0-alpha\.4|alpha\.4)/iu,
@@ -6943,8 +6963,8 @@ setInterval(() => {}, 1000);
       expect(text, `${doc} must not describe alpha.4 as unpublished`).not.toMatch(
         /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:not published|unpublished|not yet published|release-prep package candidate|next package candidate|before any human publish decision|requires fresh P9-6|requires fresh main release-candidate evidence|未发布|尚未发布|发布准备中的 package candidate|进入 human publish decision)/iu,
       );
-      expect(text, `${doc} must not claim alpha.4 GitHub Release exists`).not.toMatch(
-        /(?:0\.1\.0-alpha\.4|alpha\.4|v0\.1\.0-alpha\.4)[^\n]{0,160}(?:has GitHub pre-release|has GitHub Release|GitHub pre-release `v0\.1\.0-alpha\.4`|GitHub Release `v0\.1\.0-alpha\.4` exists|创建了 GitHub pre-release `v0\.1\.0-alpha\.4`|已有 GitHub Release `v0\.1\.0-alpha\.4`)/iu,
+      expect(text, `${doc} must not describe alpha.4 GitHub Release as missing`).not.toMatch(
+        /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
       );
       expect(text, `${doc} must not keep alpha.3 as current corrective package`).not.toMatch(
         /(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu,
@@ -7247,7 +7267,7 @@ setInterval(() => {}, 1000);
     expect(runbook).toContain("not configured");
     expect(runbook).toContain("npm registry metadata and GitHub Releases are the source of truth");
     expect(runbook).toContain("Published package: `agent-cli-runtime@0.1.0-alpha.4`");
-    expect(runbook).toContain("GitHub Release `v0.1.0-alpha.4` is not created yet");
+    expect(runbook).toContain("GitHub Release `v0.1.0-alpha.4` exists as a prerelease with the npm registry tarball asset");
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
     expect(ci).not.toMatch(/\bnpm publish\b/u);
@@ -7303,7 +7323,8 @@ setInterval(() => {}, 1000);
       expect(text).toMatch(/0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu);
       expect(text).toMatch(/(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:published on npm|published pre-alpha|npm package is published|已发布到 npm|已经发布到 npm)/iu);
       expect(text).toMatch(/(?:alpha\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.4|0\.1\.0-alpha\.4[^\n]{0,120}(?:alpha\s*(?:dist-tag|tag)|dist-tag)/iu);
-      expect(text).toMatch(/(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu);
+      expect(text).toMatch(/(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.4[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.4[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu);
+      expect(text).toMatch(/(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,180}(?:pass|passes|passed|closed|ok|通过|闭合)/iu);
       expect(text).toMatch(/(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,160}(?:package docs|packaged docs|tarball docs|docs)|(?:package docs|packaged docs|tarball docs|docs)[^\n]{0,160}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,220}(?:0\.1\.0-alpha\.4|alpha\.4)/iu);
       expect(text).toMatch(/(?:npm registry|GitHub)[^\n]*(?:source of truth|authoritative|为准|权威)/iu);
       expect(text).toMatch(/0\.1\.0-alpha\.0[^\n]*(?:deprecated|deprecate|deprecate|已 deprecate|已弃用)/iu);

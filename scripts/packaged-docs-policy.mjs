@@ -61,10 +61,10 @@ const alpha4StalePatterns = [
       /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:not published|unpublished|not yet published|release-prep package candidate|next package candidate|before any human publish decision|requires fresh P9-6|requires fresh main release-candidate evidence|未发布|尚未发布|发布准备中的 package candidate|进入 human publish decision)/iu,
   },
   {
-    code: "alpha4_github_release_claim",
-    message: "alpha.4 package docs must not claim GitHub Release v0.1.0-alpha.4 exists before it is created.",
+    code: "alpha4_github_release_missing_claim",
+    message: "alpha.4 package docs must not describe GitHub Release v0.1.0-alpha.4 as missing after it is created.",
     pattern:
-      /(?:0\.1\.0-alpha\.4|alpha\.4|v0\.1\.0-alpha\.4)[^\n]{0,160}(?:has GitHub pre-release|has GitHub Release|GitHub pre-release `v0\.1\.0-alpha\.4`|GitHub Release `v0\.1\.0-alpha\.4` exists|创建了 GitHub pre-release `v0\.1\.0-alpha\.4`|已有 GitHub Release `v0\.1\.0-alpha\.4`)/iu,
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
   },
   {
     code: "stale_alpha3_current_claim",
@@ -112,9 +112,14 @@ const alpha4RequiredPatterns = [
     pattern: /(?:alpha\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.4|0\.1\.0-alpha\.4[^\n]{0,120}(?:alpha\s*(?:dist-tag|tag)|dist-tag)/iu,
   },
   {
-    code: "missing_alpha4_github_release_gap",
-    message: "packaged docs must state that GitHub Release v0.1.0-alpha.4 has not been created.",
-    pattern: /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|未创建|尚未创建)/iu,
+    code: "missing_alpha4_github_release_state",
+    message: "packaged docs must state that GitHub Release v0.1.0-alpha.4 exists with the npm registry tarball asset.",
+    pattern: /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.4[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.4[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+  },
+  {
+    code: "missing_alpha4_github_release_parity",
+    message: "packaged docs must state that alpha.4 GitHub Release tarball parity now passes.",
+    pattern: /(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,180}(?:pass|passes|passed|closed|ok|通过|闭合)/iu,
   },
   {
     code: "missing_alpha4_stale_docs_incident",
@@ -220,7 +225,7 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
     noAlpha3UnpublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha3_unpublished_claim"),
     noAlpha4PublishedClaim: true,
     noAlpha4UnpublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_unpublished_claim"),
-    noAlpha4GithubReleaseClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_github_release_claim"),
+    noAlpha4GithubReleaseMissingClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_github_release_missing_claim"),
     noStaleAlpha3CurrentClaim: !diagnostics.some((diagnostic) => diagnostic.code === "stale_alpha3_current_claim"),
     noDryRunStopPoint: !diagnostics.some((diagnostic) => diagnostic.code === "dry_run_stop_point"),
     noPublishReadyCandidate: !diagnostics.some((diagnostic) => diagnostic.code === "publish_ready_candidate"),

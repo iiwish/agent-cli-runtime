@@ -1,8 +1,8 @@
 {
   "schemaVersion": "agent-cli-runtime.alphaPostPublishEvidence.v1",
   "stage": "P9-7",
-  "evidenceKind": "alpha-4-post-publish-npm-success-verification-blocked",
-  "checkedAt": "2026-07-01T10:34:11Z",
+  "evidenceKind": "alpha-4-post-publish-github-release-created-verification-blocked",
+  "checkedAt": "2026-07-01T10:57:30Z",
   "packageName": "agent-cli-runtime",
   "packageVersion": "0.1.0-alpha.4",
   "targetVersion": "0.1.0-alpha.4",
@@ -84,7 +84,9 @@
       "diagnosticCodes": [
         "missing_alpha4_published_state",
         "missing_alpha4_alpha_tag",
-        "missing_alpha4_github_release_gap",
+        "missing_alpha4_github_release_state",
+        "missing_alpha4_github_release_parity",
+        "missing_alpha4_stale_docs_incident",
         "alpha4_unpublished_claim"
       ]
     },
@@ -106,18 +108,11 @@
       },
       {
         "script": "release:post-alpha:verify",
-        "ok": false,
-        "schemaVersion": "agent-cli-runtime.postAlphaEvidence.v1",
-        "diagnosticCodes": [
-          "post_alpha_verification_error"
-        ]
+        "ok": true,
+        "schemaVersion": "agent-cli-runtime.postAlphaEvidence.v1"
       }
     ],
     "verifierDiagnostics": [
-      {
-        "code": "failed_gate",
-        "script": "release:post-alpha:verify"
-      },
       {
         "code": "registry_packaged_docs_failed",
         "script": "registryPackageDocsInspection"
@@ -129,20 +124,25 @@
   },
   "githubRelease": {
     "tagName": "v0.1.0-alpha.4",
-    "exists": false,
-    "apiStatus": 404,
-    "ghReleaseViewStatus": "release_not_found",
-    "tarballAssetPresent": false,
-    "createdOrModified": false,
-    "createOrModifyAuthorized": false,
-    "postAlphaVerificationBlocked": true,
-    "blocker": "github_release_v0.1.0-alpha.4_missing"
+    "exists": true,
+    "apiStatus": 200,
+    "ghReleaseViewStatus": "ok",
+    "targetCommitish": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+    "isPrerelease": true,
+    "isDraft": false,
+    "tarballAssetPresent": true,
+    "tarballAssetName": "agent-cli-runtime-0.1.0-alpha.4.tgz",
+    "createdOrModified": true,
+    "createOrModifyAuthorized": true,
+    "latestReleaseMarked": false,
+    "postAlphaVerificationBlocked": false,
+    "postAlphaVerificationOk": true
   },
   "documentationState": {
     "packageVisibleDocsUpdatedForNpmPublishedState": true,
     "publishedNpmTarballContainsStaleReleasePrepDocs": true,
-    "packageVisibleDocsStateGitHubReleaseMissing": true,
-    "packageVisibleDocsDoNotClaimGithubReleaseExists": true
+    "packageVisibleDocsStateGitHubReleasePresent": true,
+    "packageVisibleDocsDoNotClaimGithubReleaseMissing": true
   },
   "boundary": {
     "repoOnlyEvidence": true,
@@ -151,7 +151,9 @@
     "noManualDistTagMutation": true,
     "noDeprecate": true,
     "noUnpublish": true,
-    "noGithubReleaseCreateOrEdit": true,
+    "githubReleaseCreated": true,
+    "noGithubReleaseLatestMark": true,
+    "noGithubAssetDigestRecorded": true,
     "noTrustedPublishing": true,
     "noAuthenticatedRealRun": true,
     "noRawStdoutStderr": true,
@@ -172,10 +174,6 @@
     {
       "code": "registry_packaged_docs_stale",
       "message": "The immutable agent-cli-runtime@0.1.0-alpha.4 npm tarball contains stale release-prep package docs; only a later corrective release or maintainer-approved registry action can change consumer-visible package docs."
-    },
-    {
-      "code": "github_release_missing",
-      "message": "GitHub Release v0.1.0-alpha.4 and its tarball asset are required before release:post-alpha:verify and aggregate published verification can pass."
     }
   ]
 }
