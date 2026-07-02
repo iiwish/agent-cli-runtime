@@ -7408,6 +7408,227 @@ setInterval(() => {}, 1000);
     expect(evidenceText).not.toMatch(/\b(?:sizeBytes|sizeInBytes|shasum|integrity|unpackedSize|baseSha256|headSha256|basePackageDigest|headPackageDigest)\b/u);
   });
 
+  it("records P9-11 alpha.6 post-publish evidence without unsafe release details", async () => {
+    const evidenceText = await readFile(path.join(root, ".release-evidence", "p9-11-alpha6-post-publish.json"), "utf8");
+    const evidence = JSON.parse(evidenceText) as {
+      schemaVersion: string;
+      stage: string;
+      evidenceKind: string;
+      packageName: string;
+      packageVersion: string;
+      git: {
+        branch: string;
+        releaseTargetSha: string;
+        pushedForGithubReleaseTarget: boolean;
+      };
+      authorization: Record<string, boolean>;
+      prePublishGates: {
+        alpha6AbsentBeforePublish: boolean;
+        registryBeforePublish: { alpha: string; latest: string };
+        npmTest: string;
+        typecheck: string;
+        lint: string;
+        packageDocsCheck: string;
+        packageCheck: string;
+        npmPublishDryRunTagAlpha: string;
+        releaseCandidate: string;
+        releaseVerify: string;
+        packageContentDriftFromAlpha5: { packageContentEqual: boolean; freshReleaseCandidateRequired: boolean };
+        gitDiffCheck: string;
+      };
+      publish: {
+        command: string;
+        executed: boolean;
+        ok: boolean;
+        authType: string;
+        rawOutputRecorded: boolean;
+        authUrlRecorded: boolean;
+        otpRecorded: boolean;
+      };
+      distTagMutation: { commands: Array<{ command: string; executed: boolean; ok: boolean }> };
+      registryFinalState: {
+        source: string;
+        versionExists: boolean;
+        alpha: string;
+        latest: string;
+        defaultVersionFromLatestTag: string;
+        npmmirrorLagObserved: boolean;
+      };
+      githubRelease: {
+        tagName: string;
+        url: string;
+        targetCommitish: string;
+        isPrerelease: boolean;
+        isDraft: boolean;
+        tarballAssetName: string;
+        tarballAssetSource: string;
+        createdOrUpdated: boolean;
+      };
+      postPublishVerification: {
+        releasePostAlphaVerify: { command: string; schemaVersion: string; ok: boolean; distTags: { alpha: string; latest: string } };
+        publishedVerify: { command: string; schemaVersion: string; ok: boolean; checkedGates: string[]; diagnosticCodes: string[] };
+        publishedVerifyEvidence: { command: string; schemaVersion: string; ok: boolean; diagnosticCodes: string[] };
+        registryPackagedDocsInspection: { schemaVersion: string; version: string; ok: boolean; diagnosticCodes: string[] };
+      };
+      alpha5IncidentCarriedForward: {
+        version: string;
+        publishedOnNpm: boolean;
+        immutableTarballContainsStalePackageDocs: boolean;
+        publishedVerificationOk: boolean;
+        diagnosticCodes: string[];
+        notFinalCorrectiveAcceptance: boolean;
+      };
+      safetyBoundary: Record<string, boolean>;
+      verdict: Record<string, boolean>;
+    };
+
+    expect(evidence.schemaVersion).toBe("agent-cli-runtime.alpha6PostPublishEvidence.v1");
+    expect(evidence.stage).toBe("P9-11");
+    expect(evidence.evidenceKind).toBe("alpha-6-post-publish-corrective-release");
+    expect(evidence.packageName).toBe("agent-cli-runtime");
+    expect(evidence.packageVersion).toBe("0.1.0-alpha.6");
+    expect(evidence.git).toEqual({
+      branch: "codex/p9-10-alpha6-corrective",
+      releaseTargetSha: "b8b143503ce198f09d138333811af85f569210da",
+      pushedForGithubReleaseTarget: true,
+    });
+    expect(evidence.authorization).toMatchObject({
+      npmPublishAuthorized: true,
+      distTagMutationAuthorized: true,
+      latestRetagAuthorized: true,
+      githubReleaseAuthorized: true,
+      branchPushAuthorized: true,
+    });
+    expect(Object.values(evidence.authorization).every(Boolean)).toBe(true);
+
+    expect(evidence.prePublishGates).toMatchObject({
+      alpha6AbsentBeforePublish: true,
+      registryBeforePublish: { alpha: "0.1.0-alpha.5", latest: "0.1.0-alpha.5" },
+      npmTest: "passed",
+      typecheck: "passed",
+      lint: "passed",
+      packageDocsCheck: "passed",
+      packageCheck: "passed",
+      npmPublishDryRunTagAlpha: "passed",
+      releaseCandidate: "passed",
+      releaseVerify: "passed",
+      packageContentDriftFromAlpha5: {
+        packageContentEqual: false,
+        freshReleaseCandidateRequired: true,
+      },
+      gitDiffCheck: "passed",
+    });
+
+    expect(evidence.publish).toEqual({
+      command: "npm publish --ignore-scripts --tag alpha --registry=https://registry.npmjs.org/",
+      executed: true,
+      ok: true,
+      authType: "interactive-web",
+      rawOutputRecorded: false,
+      authUrlRecorded: false,
+      otpRecorded: false,
+    });
+    expect(evidence.distTagMutation.commands).toEqual([
+      {
+        command: "npm dist-tag add agent-cli-runtime@0.1.0-alpha.6 alpha --registry=https://registry.npmjs.org/",
+        executed: true,
+        ok: true,
+      },
+      {
+        command: "npm dist-tag add agent-cli-runtime@0.1.0-alpha.6 latest --registry=https://registry.npmjs.org/",
+        executed: true,
+        ok: true,
+      },
+    ]);
+
+    expect(evidence.registryFinalState).toEqual({
+      source: "https://registry.npmjs.org/agent-cli-runtime",
+      versionExists: true,
+      alpha: "0.1.0-alpha.6",
+      latest: "0.1.0-alpha.6",
+      defaultVersionFromLatestTag: "0.1.0-alpha.6",
+      npmmirrorLagObserved: true,
+    });
+    expect(evidence.githubRelease).toEqual({
+      tagName: "v0.1.0-alpha.6",
+      url: "https://github.com/iiwish/agent-cli-runtime/releases/tag/v0.1.0-alpha.6",
+      targetCommitish: "b8b143503ce198f09d138333811af85f569210da",
+      isPrerelease: true,
+      isDraft: false,
+      tarballAssetName: "agent-cli-runtime-0.1.0-alpha.6.tgz",
+      tarballAssetSource: "npm-registry",
+      createdOrUpdated: true,
+    });
+
+    expect(evidence.postPublishVerification.releasePostAlphaVerify).toMatchObject({
+      command: "npm_config_registry=https://registry.npmjs.org/ npm run release:post-alpha:verify",
+      schemaVersion: "agent-cli-runtime.postAlphaEvidence.v1",
+      ok: true,
+      distTags: { alpha: "0.1.0-alpha.6", latest: "0.1.0-alpha.6" },
+    });
+    expect(evidence.postPublishVerification.publishedVerify).toMatchObject({
+      command: "npm_config_registry=https://registry.npmjs.org/ npm run published:verify -- --out-dir <published-verification-dir>",
+      schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+      ok: true,
+      diagnosticCodes: [],
+    });
+    expect(evidence.postPublishVerification.publishedVerify.checkedGates).toEqual([
+      "smoke:published",
+      "published:daemon:verify",
+      "published:adapters:verify",
+      "release:post-alpha:verify",
+    ]);
+    expect(evidence.postPublishVerification.publishedVerifyEvidence).toEqual({
+      command: "npm_config_registry=https://registry.npmjs.org/ npm run published:verify:evidence -- --dir <published-verification-dir>",
+      schemaVersion: "agent-cli-runtime.publishedVerification.v1",
+      ok: true,
+      diagnosticCodes: [],
+    });
+    expect(evidence.postPublishVerification.registryPackagedDocsInspection).toEqual({
+      schemaVersion: "agent-cli-runtime.packagedDocsVerification.v1",
+      version: "0.1.0-alpha.6",
+      ok: true,
+      diagnosticCodes: [],
+    });
+
+    expect(evidence.alpha5IncidentCarriedForward).toEqual({
+      version: "0.1.0-alpha.5",
+      publishedOnNpm: true,
+      immutableTarballContainsStalePackageDocs: true,
+      publishedVerificationOk: false,
+      diagnosticCodes: ["registry_packaged_docs_failed"],
+      notFinalCorrectiveAcceptance: true,
+    });
+    expect(evidence.safetyBoundary).toMatchObject({
+      noNpmTokenRecorded: true,
+      noOtpRecorded: true,
+      noAuthUrlRecorded: true,
+      noRawStdoutStderrRecorded: true,
+      noFullPublishTranscriptRecorded: true,
+      noPrivatePathRecorded: true,
+      noLocalTempPathRecorded: true,
+      noTarballHashIntegrityOrShasumRecorded: true,
+      noTrustedPublishingConfigured: true,
+      noAuthenticatedRealRun: true,
+      noRuntimeApiSchedulerDaemonDatabaseOrUiChange: true,
+      packageBoundaryKeepsReleaseEvidenceOutOfNpmPackage: true,
+    });
+    expect(Object.values(evidence.safetyBoundary).every(Boolean)).toBe(true);
+    expect(evidence.verdict).toMatchObject({
+      alpha6Published: true,
+      distTagsFinalized: true,
+      githubReleaseClosed: true,
+      publishedVerificationPassed: true,
+      correctiveReleaseAccepted: true,
+      futureBetaOrStableRequiresFreshEvidence: true,
+    });
+    expect(Object.values(evidence.verdict).every(Boolean)).toBe(true);
+
+    expect(evidenceText).not.toMatch(/https:\/\/www\.npmjs\.com\/auth\/cli|\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(evidenceText).not.toMatch(/\b(?:sizeBytes|sizeInBytes|shasum|integrity|unpackedSize|baseSha256|headSha256|basePackageDigest|headPackageDigest|digest)\b/u);
+    expect(evidenceText).not.toMatch(/sha256:[0-9a-f]{16,}|sha512-/iu);
+  });
+
   it("records P7-3 alpha.2 publish dry-run evidence without real publish side effects", async () => {
     const evidenceText = await readFile(path.join(root, ".release-evidence", "p7-3-alpha-2-publish.json"), "utf8");
     const evidence = JSON.parse(evidenceText) as {
