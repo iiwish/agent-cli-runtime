@@ -7138,6 +7138,254 @@ setInterval(() => {}, 1000);
     }
   });
 
+  it("records P9-10 alpha.6 corrective candidate evidence without real publish side effects", async () => {
+    const evidenceText = await readFile(path.join(root, ".release-evidence", "p9-10-alpha6-corrective-candidate.json"), "utf8");
+    const evidence = JSON.parse(evidenceText) as {
+      schemaVersion: string;
+      stage: string;
+      evidenceKind: string;
+      packageName: string;
+      packageVersion: string;
+      targetVersion: string;
+      targetDistTag: string;
+      git: {
+        branch: string;
+        candidateHeadSha: string;
+        alpha5ReleaseTargetSha: string;
+        evidenceRecordingCommitMayDifferFromCandidateHead: boolean;
+      };
+      alpha5Incident: {
+        version: string;
+        publishedOnNpm: boolean;
+        npmAlphaDistTag: string;
+        npmLatestDistTag: string;
+        githubReleaseTag: string;
+        githubReleaseTarballParityPassed: boolean;
+        publishedVerificationOk: boolean;
+        publishedVerifyEvidenceOk: boolean;
+        registryPackagedDocsInspectionOk: boolean;
+        diagnosticCodes: string[];
+        alpha5NotFinalCorrectiveAcceptance: boolean;
+      };
+      registryPrecheck: {
+        alpha6VersionExists: boolean;
+        alpha6VersionQueryErrorCode: string;
+        distTags: { alpha: string; latest: string };
+        registryMutated: boolean;
+      };
+      packageDocs: {
+        localPackagedDocsCheck: {
+          ok: boolean;
+          schemaVersion: string;
+          version: string;
+          diagnosticsCount: number;
+          alpha5StaleDocsIncidentRecorded: boolean;
+          alpha5PublishedVerificationFailureRecorded: boolean;
+          alpha6UnpublishedStateRecorded: boolean;
+          alpha6FuturePublishGateRecorded: boolean;
+        };
+      };
+      dryRun: {
+        commands: Array<{ command: string; ok: boolean; dryRun: boolean; requestedTag: string; latestTagRequested: boolean; packageId: string; entryCount: number; volatilePackMetadataOmitted: boolean }>;
+        npmPublishExecuted: boolean;
+        registryMutated: boolean;
+        distTagMutated: boolean;
+        latestTagChanged: boolean;
+      };
+      releaseCandidates: {
+        headBoundRepoOnlySkipped: {
+          ok: boolean;
+          targetSha: string;
+          verificationOk: boolean;
+          schemaVersion: string;
+          version: string;
+          packageFiles: number;
+          diagnosticsCount: number;
+          artifactNames: string[];
+          realCompatibilityGate: { mode: string; targetSha: string; status: string; noAuthenticatedRealRun: boolean };
+        };
+      };
+      packageContentDrift: {
+        ok: boolean;
+        baseSha: string;
+        headSha: string;
+        basePackageVersion: string;
+        headPackageVersion: string;
+        packageContentEqual: boolean;
+        evidenceOnlyDrift: boolean;
+        freshReleaseCandidateRequired: boolean;
+        diagnosticCodes: string[];
+        changedPackageFiles: string[];
+      };
+      validation: { commands: Array<{ command: string; ok: boolean; expectedFailure?: boolean; errorCode?: string; freshReleaseCandidateRequired?: boolean; alpha?: string; latest?: string }> };
+      publishDecision: Record<string, boolean | string>;
+      boundary: Record<string, boolean>;
+    };
+
+    expect(evidence.schemaVersion).toBe("agent-cli-runtime.alpha6CorrectiveCandidateEvidence.v1");
+    expect(evidence.stage).toBe("P9-10");
+    expect(evidence.evidenceKind).toBe("alpha-6-corrective-release-candidate-dry-run");
+    expect(evidence.packageName).toBe("agent-cli-runtime");
+    expect(evidence.packageVersion).toBe("0.1.0-alpha.6");
+    expect(evidence.targetVersion).toBe("0.1.0-alpha.6");
+    expect(evidence.targetDistTag).toBe("alpha");
+    expect(evidence.git.branch).toBe("codex/p9-10-alpha6-corrective");
+    expect(evidence.git.candidateHeadSha).toMatch(/^[0-9a-f]{40}$/u);
+    expect(evidence.git.alpha5ReleaseTargetSha).toBe("500ca055b79481e560fd5bec084a1a96d20526e1");
+    expect(evidence.git.evidenceRecordingCommitMayDifferFromCandidateHead).toBe(true);
+
+    expect(evidence.alpha5Incident).toMatchObject({
+      version: "0.1.0-alpha.5",
+      publishedOnNpm: true,
+      npmAlphaDistTag: "0.1.0-alpha.5",
+      npmLatestDistTag: "0.1.0-alpha.5",
+      githubReleaseTag: "v0.1.0-alpha.5",
+      githubReleaseTarballParityPassed: true,
+      publishedVerificationOk: false,
+      publishedVerifyEvidenceOk: false,
+      registryPackagedDocsInspectionOk: false,
+      alpha5NotFinalCorrectiveAcceptance: true,
+    });
+    expect(evidence.alpha5Incident.diagnosticCodes).toEqual(["registry_packaged_docs_failed"]);
+
+    expect(evidence.registryPrecheck).toMatchObject({
+      alpha6VersionExists: false,
+      alpha6VersionQueryErrorCode: "E404",
+      distTags: { alpha: "0.1.0-alpha.5", latest: "0.1.0-alpha.5" },
+      registryMutated: false,
+    });
+    expect(evidence.packageDocs.localPackagedDocsCheck).toMatchObject({
+      ok: true,
+      schemaVersion: "agent-cli-runtime.packagedDocsVerification.v1",
+      version: "0.1.0-alpha.6",
+      diagnosticsCount: 0,
+      alpha5StaleDocsIncidentRecorded: true,
+      alpha5PublishedVerificationFailureRecorded: true,
+      alpha6UnpublishedStateRecorded: true,
+      alpha6FuturePublishGateRecorded: true,
+    });
+
+    expect(evidence.dryRun.commands).toContainEqual(expect.objectContaining({
+      command: "npm publish --dry-run --ignore-scripts --tag alpha --json",
+      ok: true,
+      dryRun: true,
+      requestedTag: "alpha",
+      latestTagRequested: false,
+      packageId: "agent-cli-runtime@0.1.0-alpha.6",
+      entryCount: 151,
+      volatilePackMetadataOmitted: true,
+    }));
+    expect(evidence.dryRun.npmPublishExecuted).toBe(false);
+    expect(evidence.dryRun.registryMutated).toBe(false);
+    expect(evidence.dryRun.distTagMutated).toBe(false);
+    expect(evidence.dryRun.latestTagChanged).toBe(false);
+
+    expect(evidence.releaseCandidates.headBoundRepoOnlySkipped).toMatchObject({
+      ok: true,
+      targetSha: evidence.git.candidateHeadSha,
+      verificationOk: true,
+      schemaVersion: "agent-cli-runtime.releaseVerification.v1",
+      version: "0.1.0-alpha.6",
+      packageFiles: 151,
+      diagnosticsCount: 0,
+      artifactNames: expectedReleaseCandidateArtifacts,
+      realCompatibilityGate: {
+        mode: "repo-only-skipped",
+        targetSha: evidence.git.candidateHeadSha,
+        status: "repo_only_not_run",
+        noAuthenticatedRealRun: true,
+      },
+    });
+
+    expect(evidence.packageContentDrift).toMatchObject({
+      ok: true,
+      baseSha: "500ca055b79481e560fd5bec084a1a96d20526e1",
+      headSha: evidence.git.candidateHeadSha,
+      basePackageVersion: "0.1.0-alpha.5",
+      headPackageVersion: "0.1.0-alpha.6",
+      packageContentEqual: false,
+      evidenceOnlyDrift: false,
+      freshReleaseCandidateRequired: true,
+      diagnosticCodes: ["package_content_drift"],
+    });
+    expect(evidence.packageContentDrift.changedPackageFiles.sort()).toEqual([
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/compatibility.md",
+      "docs/production-readiness.md",
+      "docs/release-checklist.md",
+      "docs/release-publish-runbook.md",
+      "docs/release-report.md",
+      "docs/ssot.md",
+      "package.json",
+    ].sort());
+
+    expect(evidence.validation.commands.map((entry) => entry.command)).toEqual([
+      "npm test",
+      "npm run typecheck",
+      "npm run lint --if-present",
+      "npm run package:docs:check",
+      "npm run package:check",
+      "npm publish --dry-run --ignore-scripts --tag alpha --json",
+      "npm run release:candidate -- --out-dir <head-bound-release-candidate-dir> --real-compatibility-mode repo-only-skipped --target-sha <candidate-head-sha>",
+      "npm run release:verify -- --dir <head-bound-release-candidate-dir>",
+      "npm run release:package-content:verify -- --base-ref <alpha5-release-target-sha> --head-ref HEAD",
+      "git diff --check",
+      "npm view agent-cli-runtime@0.1.0-alpha.6 version --json",
+      "npm dist-tag ls agent-cli-runtime",
+    ]);
+    expect(evidence.validation.commands.every((entry) => entry.ok || entry.expectedFailure)).toBe(true);
+    expect(evidence.validation.commands.find((entry) => entry.command.startsWith("npm view"))).toMatchObject({
+      ok: false,
+      expectedFailure: true,
+      errorCode: "E404",
+    });
+    expect(evidence.validation.commands.find((entry) => entry.command === "npm dist-tag ls agent-cli-runtime")).toMatchObject({
+      ok: true,
+      alpha: "0.1.0-alpha.5",
+      latest: "0.1.0-alpha.5",
+    });
+
+    expect(evidence.publishDecision).toMatchObject({
+      mode: "dry-run-and-evidence-only",
+      readyForMaintainerPublishAuthorizationRequest: true,
+      realPublishAuthorized: false,
+      npmPublishExecuted: false,
+      npmDeprecateExecuted: false,
+      npmUnpublishExecuted: false,
+      distTagMutationExecuted: false,
+      githubReleaseCreatedOrModified: false,
+      latestTagChanged: false,
+      postPublishVerificationRequiredAfterPublish: true,
+    });
+    expect(evidence.boundary).toMatchObject({
+      repoOnlyEvidence: true,
+      noAuthenticatedRealRun: true,
+      noNpmPublish: true,
+      noNpmDeprecate: true,
+      noNpmUnpublish: true,
+      noDistTagMutation: true,
+      noLatestTagChange: true,
+      noGithubReleaseMutation: true,
+      noTrustedPublishing: true,
+      noRawStdoutStderr: true,
+      noRawCliOutput: true,
+      noFullCommandOutput: true,
+      noPrivatePath: true,
+      noLocalTempPath: true,
+      noNpmHashOrDigestValues: true,
+      noTarballSize: true,
+      noUnpackedSize: true,
+      noTokenValue: true,
+      noBearerValue: true,
+      noAuthEnvAssignment: true,
+      noOtpValue: true,
+    });
+    expect(evidenceText).not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/Users\/|\/home\/|Bearer\s|sk-[A-Za-z0-9_-]{20,}|\b[A-Z_]*(?:TOKEN|API_KEY)[A-Z_]*\s*=/u);
+    expect(evidenceText).not.toMatch(/\b(?:sizeBytes|sizeInBytes|shasum|integrity|unpackedSize|baseSha256|headSha256|basePackageDigest|headPackageDigest)\b/u);
+  });
+
   it("records P7-3 alpha.2 publish dry-run evidence without real publish side effects", async () => {
     const evidenceText = await readFile(path.join(root, ".release-evidence", "p7-3-alpha-2-publish.json"), "utf8");
     const evidence = JSON.parse(evidenceText) as {
