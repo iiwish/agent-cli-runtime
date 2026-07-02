@@ -1,20 +1,21 @@
 # Changelog
 
-## 0.1.0-alpha.5 — corrective alpha candidate
+## 0.1.0-alpha.5 — published corrective alpha release
 
-- P9-8 alpha.5 corrective release candidate:
-  - prepares `0.1.0-alpha.5` as the corrective alpha target to replace stale alpha.4 package docs for consumers;
-  - `0.1.0-alpha.5` requires fresh release-candidate evidence before any explicit maintainer authorization for real publish;
-  - keeps `publishConfig.tag` on `alpha` and leaves npm `latest` policy unchanged;
-  - preserves the alpha.4 facts: `0.1.0-alpha.4` is published on npm with the `alpha` dist-tag, GitHub Release `v0.1.0-alpha.4` exists with the npm registry tarball asset, and `release:post-alpha:verify` tarball parity passes;
+- P9-9 alpha.5 real publish and post-publish closure:
+  - publishes `0.1.0-alpha.5` to npm as the corrective alpha release that replaces stale alpha.4 package docs for consumers;
+  - keeps `publishConfig.tag` on `alpha` and records that npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.5`;
+  - creates GitHub Release `v0.1.0-alpha.5` as a prerelease with the npm registry tarball asset, so `release:post-alpha:verify` tarball parity passes for alpha.5;
+  - verifies npm registry metadata, published smoke, published daemon lifecycle, published adapter fake-CLI contract gates, and registry packaged-docs inspection; `published:verify` and `published:verify:evidence` pass for alpha.5;
+  - preserves the alpha.4 facts: `0.1.0-alpha.4` is published on npm, GitHub Release `v0.1.0-alpha.4` exists with the npm registry tarball asset, and `release:post-alpha:verify` tarball parity passes;
   - records that the immutable alpha.4 npm tarball contains stale release-prep package docs, so aggregate published verification for alpha.4 remains blocked by registry packaged-docs inspection;
-  - after any authorized publish of alpha.5, requires `published:verify` and `published:verify:evidence` before accepting the corrective release;
+  - future beta or stable promotion requires fresh release evidence for that target;
   - keeps real npm publish, npm dist-tag/deprecate changes, GitHub Release creation or editing, npm token/trusted publishing configuration, authenticated real agent runs, run ids, artifact digests, tarball hashes, local temp paths, raw logs, prompts, and token-looking values outside this package.
 
 ## 0.1.0-alpha.4 — published pre-alpha release
 
 - P9-7 alpha.4 npm publish:
-  - publishes `0.1.0-alpha.4` to npm with the `alpha` dist-tag while leaving `latest` on `0.1.0-alpha.1`;
+  - publishes `0.1.0-alpha.4` to npm with the `alpha` dist-tag under the then-current pre-alpha tagging policy;
   - records that the immutable alpha.4 npm tarball contains stale release-prep package docs;
   - creates GitHub Release `v0.1.0-alpha.4` as a prerelease with the npm registry tarball asset, so `release:post-alpha:verify` tarball parity passes;
   - verifies npm registry metadata, published smoke, published daemon lifecycle, and published adapter fake-CLI contract gates;

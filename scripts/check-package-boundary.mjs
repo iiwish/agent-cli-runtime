@@ -172,14 +172,24 @@ const publishOverclaimPatterns = [
       /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)/iu,
   },
   {
-    name: "alpha.5 described as published before authorization",
+    name: "alpha.5 described as unpublished after publish",
     pattern:
-      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,180}(?:published on npm|published pre-alpha|npm package is published|已发布到 npm|已经发布到 npm)|(?:Published npm package|Published package|已发布包)[^\n]{0,120}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,220}(?:not published|unpublished|not yet published|before any explicit maintainer authorization for real publish|before any human publish decision|requires fresh release-candidate evidence before[^\n]{0,80}publish|未发布|尚未发布|发布前必须先|人工授权前)/iu,
   },
   {
-    name: "alpha.5 GitHub Release described as created before authorization",
+    name: "alpha.5 GitHub Release described as missing after creation",
     pattern:
-      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)|(?:v0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,220}(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:exist|exists|created|available)/iu,
+  },
+  {
+    name: "alpha.5 old latest alpha.1 claim",
+    pattern:
+      /(?:latest|npm latest|latest dist-tag)[^\n]{0,120}(?:remains|still|points at|points to|仍指向|仍停在|保持在)\s*`?0\.1\.0-alpha\.1`?/iu,
+  },
+  {
+    name: "alpha.4 current alpha tag claim after alpha.5 publish",
+    pattern:
+      /(?:alpha\.4 remains the npm `?alpha`? version|alpha\.4 remains the npm|alpha\.4[^\n]{0,120}current npm `?alpha`?|alpha\.4[^\n]{0,120}alpha dist-tag points|alpha\s*(?:dist-tag|tag)[^\n]{0,120}(?:points at|points to|指向)\s*`?0\.1\.0-alpha\.4`?|alpha\.4 是当前 npm `?alpha`? 版本|alpha\.4[^\n]{0,120}`?alpha`? dist-tag 指向)/iu,
   },
   {
     name: "self-expiring dry-run stop point",

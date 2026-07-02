@@ -76,16 +76,28 @@ const alpha4StalePatterns = [
 
 const alpha5StalePatterns = [
   {
-    code: "alpha5_published_claim",
-    message: "alpha.5 candidate package docs must not describe alpha.5 as already published.",
+    code: "alpha5_unpublished_claim",
+    message: "alpha.5 package docs must not describe alpha.5 as unpublished or still waiting for publish.",
     pattern:
-      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,180}(?:published on npm|published pre-alpha|npm package is published|已发布到 npm|已经发布到 npm)|(?:Published npm package|Published package|已发布包)[^\n]{0,120}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,220}(?:not published|unpublished|not yet published|before any explicit maintainer authorization for real publish|before any human publish decision|requires fresh release-candidate evidence before[^\n]{0,80}publish|未发布|尚未发布|发布前必须先|人工授权前)/iu,
   },
   {
-    code: "alpha5_github_release_created_claim",
-    message: "alpha.5 candidate package docs must not describe GitHub Release v0.1.0-alpha.5 as already created.",
+    code: "alpha5_github_release_missing_claim",
+    message: "alpha.5 package docs must not describe GitHub Release v0.1.0-alpha.5 as missing after it is created.",
     pattern:
-      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)|(?:v0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,220}(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:exist|exists|created|available)/iu,
+  },
+  {
+    code: "alpha5_old_latest_alpha1_claim",
+    message: "alpha.5 package docs must not claim latest remains on alpha.1 after the alpha.5 retag.",
+    pattern:
+      /(?:latest|npm latest|latest dist-tag)[^\n]{0,120}(?:remains|still|points at|points to|仍指向|仍停在|保持在)\s*`?0\.1\.0-alpha\.1`?/iu,
+  },
+  {
+    code: "alpha5_old_alpha4_current_tag_claim",
+    message: "alpha.5 package docs must not claim alpha.4 is the current alpha dist-tag target after the alpha.5 publish.",
+    pattern:
+      /(?:alpha\.4 remains the npm `?alpha`? version|alpha\.4 remains the npm|alpha\.4[^\n]{0,120}current npm `?alpha`?|alpha\.4[^\n]{0,120}alpha dist-tag points|alpha\s*(?:dist-tag|tag)[^\n]{0,120}(?:points at|points to|指向)\s*`?0\.1\.0-alpha\.4`?|alpha\.4 是当前 npm `?alpha`? 版本|alpha\.4[^\n]{0,120}`?alpha`? dist-tag 指向)/iu,
   },
 ];
 
@@ -148,35 +160,62 @@ const alpha4RequiredPatterns = [
   },
 ];
 
+const alpha4HistoricalRequiredPatterns = alpha4RequiredPatterns.filter(
+  (rule) => rule.code !== "missing_alpha4_alpha_tag",
+);
+
 const alpha5RequiredPatterns = [
   {
     code: "missing_alpha5",
-    message: "packaged docs must mention the alpha.5 corrective target.",
+    message: "packaged docs must mention the alpha.5 corrective release.",
     pattern: /0\.1\.0-alpha\.5/u,
   },
   {
-    code: "missing_alpha5_corrective_target",
-    message: "packaged docs must describe alpha.5 as the corrective alpha target for replacing consumer-visible stale alpha.4 docs.",
+    code: "missing_alpha5_corrective_release",
+    message: "packaged docs must describe alpha.5 as the corrective alpha release for replacing consumer-visible stale alpha.4 docs.",
     pattern:
-      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,240}(?:corrective alpha target|corrective alpha|replace consumer-visible package docs|replace stale alpha\.4 package docs|替换[^\n]{0,80}package docs|纠偏[^\n]{0,80}alpha)|(?:corrective alpha target|corrective alpha|replace consumer-visible package docs|replace stale alpha\.4 package docs|替换[^\n]{0,80}package docs|纠偏[^\n]{0,80}alpha)[^\n]{0,240}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,240}(?:corrective alpha release|corrective alpha|replace consumer-visible package docs|replace stale alpha\.4 package docs|替换[^\n]{0,80}package docs|纠偏[^\n]{0,80}alpha)|(?:corrective alpha release|corrective alpha|replace consumer-visible package docs|replace stale alpha\.4 package docs|替换[^\n]{0,80}package docs|纠偏[^\n]{0,80}alpha)[^\n]{0,240}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
   },
   {
-    code: "missing_alpha5_fresh_release_candidate",
-    message: "packaged docs must require fresh release-candidate evidence before alpha.5 publish authorization.",
+    code: "missing_alpha5_published_state",
+    message: "packaged docs must describe alpha.5 as published on npm.",
     pattern:
-      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,240}(?:fresh release-candidate|fresh RC|fresh local release-candidate|fresh release candidate|fresh release-candidate evidence|fresh release-candidate artifacts|fresh release-candidate artifact|fresh release-candidate workflow|fresh release-candidate gate|fresh release-candidate 证据|新鲜[^\n]{0,80}release-candidate|新生成[^\n]{0,80}release-candidate)/iu,
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,180}(?:published on npm|published pre-alpha|published corrective alpha release|npm package is published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)/iu,
   },
   {
-    code: "missing_alpha5_post_publish_verification",
-    message: "packaged docs must require published verification reruns after an authorized alpha.5 publish.",
+    code: "missing_alpha5_alpha_tag",
+    message: "packaged docs must state that the alpha dist-tag points at alpha.5.",
     pattern:
-      /(?:after any authorized publish|after authorized publish|after publish|post-publish|发布后|真实发布后)[^\n]{0,220}(?:published:verify|published:verify:evidence)|(?:published:verify|published:verify:evidence)[^\n]{0,220}(?:after any authorized publish|after authorized publish|after publish|post-publish|发布后|真实发布后)/iu,
+      /(?:alpha\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.5|0\.1\.0-alpha\.5[^\n]{0,120}(?:alpha\s*(?:dist-tag|tag)|dist-tag)/iu,
   },
   {
-    code: "missing_alpha5_human_gate",
-    message: "packaged docs must keep alpha.5 real publish human-gated.",
+    code: "missing_alpha5_latest_tag",
+    message: "packaged docs must state that the latest dist-tag points at alpha.5.",
     pattern:
-      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,240}(?:explicit maintainer authorization|human-gated|human gate|maintainer authorization|明确授权|人工授权|人工门禁)|(?:explicit maintainer authorization|human-gated|human gate|maintainer authorization|明确授权|人工授权|人工门禁)[^\n]{0,240}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
+      /(?:latest\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.5|0\.1\.0-alpha\.5[^\n]{0,120}(?:latest\s*(?:dist-tag|tag)|dist-tag)/iu,
+  },
+  {
+    code: "missing_alpha5_github_release_state",
+    message: "packaged docs must state that GitHub Release v0.1.0-alpha.5 exists with the npm registry tarball asset.",
+    pattern:
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.5[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.5[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+  },
+  {
+    code: "missing_alpha5_github_release_parity",
+    message: "packaged docs must state that alpha.5 GitHub Release tarball parity passes.",
+    pattern: /(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)/iu,
+  },
+  {
+    code: "missing_alpha5_published_verification",
+    message: "packaged docs must state that published verification passes for alpha.5.",
+    pattern:
+      /(?:published:verify|published:verify:evidence|published verification|published verifier|发布后验证)[^\n]{0,220}(?:pass|passes|passed|ok|通过)/iu,
+  },
+  {
+    code: "missing_future_fresh_evidence_gate",
+    message: "packaged docs must require fresh evidence before any future beta or stable promotion.",
+    pattern:
+      /(?:future beta|future stable|beta\/stable|beta or stable|后续 beta|后续 stable|未来 beta|未来 stable)[^\n]{0,220}(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)/iu,
   },
 ];
 
@@ -223,7 +262,7 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
     versionStalePatterns = alpha4StalePatterns;
   } else if (version === "0.1.0-alpha.5") {
     versionRequiredPatterns = [
-      ...alpha4RequiredPatterns,
+      ...alpha4HistoricalRequiredPatterns,
       ...alpha5RequiredPatterns,
     ];
     versionStalePatterns = [
@@ -288,8 +327,12 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
     noAlpha4PublishedClaim: true,
     noAlpha4UnpublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_unpublished_claim"),
     noAlpha4GithubReleaseMissingClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha4_github_release_missing_claim"),
-    noAlpha5PublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha5_published_claim"),
-    noAlpha5GithubReleaseCreatedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha5_github_release_created_claim"),
+    noAlpha5PublishedClaim: true,
+    noAlpha5GithubReleaseCreatedClaim: true,
+    noAlpha5UnpublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha5_unpublished_claim"),
+    noAlpha5GithubReleaseMissingClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha5_github_release_missing_claim"),
+    noAlpha5OldLatestAlpha1Claim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha5_old_latest_alpha1_claim"),
+    noAlpha5OldAlpha4CurrentTagClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha5_old_alpha4_current_tag_claim"),
     noStaleAlpha3CurrentClaim: !diagnostics.some((diagnostic) => diagnostic.code === "stale_alpha3_current_claim"),
     noDryRunStopPoint: !diagnostics.some((diagnostic) => diagnostic.code === "dry_run_stop_point"),
     noPublishReadyCandidate: !diagnostics.some((diagnostic) => diagnostic.code === "publish_ready_candidate"),
