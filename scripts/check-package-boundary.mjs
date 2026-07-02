@@ -184,12 +184,37 @@ const publishOverclaimPatterns = [
   {
     name: "alpha.5 old latest alpha.1 claim",
     pattern:
-      /(?:latest|npm latest|latest dist-tag)[^\n]{0,120}(?:remains|still|points at|points to|仍指向|仍停在|保持在)\s*`?0\.1\.0-alpha\.1`?/iu,
+      /(?:latest|npm latest|latest dist-tag)[^\n]{0,120}(?:remains|still|points at|points to|仍指向|仍停在|保持在)\s*(?:on\s*)?`?0\.1\.0-alpha\.1`?/iu,
   },
   {
     name: "alpha.4 current alpha tag claim after alpha.5 publish",
     pattern:
       /(?:alpha\.4 remains the npm `?alpha`? version|alpha\.4 remains the npm|alpha\.4[^\n]{0,120}current npm `?alpha`?|alpha\.4[^\n]{0,120}alpha dist-tag points|alpha\s*(?:dist-tag|tag)[^\n]{0,120}(?:points at|points to|指向)\s*`?0\.1\.0-alpha\.4`?|alpha\.4 是当前 npm `?alpha`? 版本|alpha\.4[^\n]{0,120}`?alpha`? dist-tag 指向)/iu,
+  },
+  {
+    name: "alpha.5 published verification pass claim after stale-docs incident",
+    pattern:
+      /(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)[^\n]{0,160}(?:0\.1\.0-alpha\.5|alpha\.5)|(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)/iu,
+  },
+  {
+    name: "alpha.6 described as published before authorization",
+    pattern:
+      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:published on npm|published pre-alpha|published corrective alpha release|is published|already published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)/iu,
+  },
+  {
+    name: "alpha.6 current dist-tag claim before publish",
+    pattern:
+      /(?:alpha|latest|dist-tags?)[^\n]{0,160}(?:points at|points to|指向|均指向)\s*`?0\.1\.0-alpha\.6`?|0\.1\.0-alpha\.6[^\n]{0,160}(?:alpha|latest|dist-tags?)[^\n]{0,160}(?:points at|points to|指向|均指向)\s*`?0\.1\.0-alpha\.6`?/iu,
+  },
+  {
+    name: "alpha.6 GitHub Release described as created before authorization",
+    pattern:
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.6[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.6[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+  },
+  {
+    name: "alpha.6 published verification pass claim before publish",
+    pattern:
+      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)|(?:published:verify|published:verify:evidence|published verification|published verifier|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)[^\n]{0,160}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
   },
   {
     name: "self-expiring dry-run stop point",

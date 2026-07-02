@@ -1,7 +1,7 @@
 {
   "schemaVersion": "agent-cli-runtime.alpha5PostPublishEvidence.v1",
   "stage": "P9-9",
-  "evidenceKind": "alpha5-post-publish",
+  "evidenceKind": "alpha5-post-publish-stale-docs-incident",
   "checkedAt": "2026-07-02T02:27:42Z",
   "packageName": "agent-cli-runtime",
   "packageVersion": "0.1.0-alpha.5",
@@ -71,23 +71,37 @@
     "publishedVerify": {
       "command": "npm run published:verify -- --out-dir <tmp-published-verification>",
       "schemaVersion": "agent-cli-runtime.publishedVerification.v1",
-      "ok": true,
+      "ok": false,
       "checkedGates": [
         "smoke:published",
         "published:daemon:verify",
         "published:adapters:verify",
         "release:post-alpha:verify"
+      ],
+      "diagnosticCodes": [
+        "registry_packaged_docs_failed"
       ]
     },
     "publishedVerifyEvidence": {
       "command": "npm run published:verify:evidence -- --dir <tmp-published-verification>",
       "schemaVersion": "agent-cli-runtime.publishedVerification.v1",
-      "ok": true
+      "ok": false,
+      "diagnosticCodes": [
+        "registry_packaged_docs_failed"
+      ]
     },
     "registryPackagedDocsInspection": {
       "schemaVersion": "agent-cli-runtime.packagedDocsVerification.v1",
       "version": "0.1.0-alpha.5",
-      "ok": true
+      "ok": false,
+      "diagnosticCodes": [
+        "missing_alpha5_published_state",
+        "missing_alpha5_latest_tag",
+        "missing_alpha5_github_release_state",
+        "missing_alpha5_github_release_parity",
+        "alpha5_unpublished_claim"
+      ],
+      "incident": "immutable_alpha5_npm_tarball_contains_stale_package_docs"
     }
   },
   "safetyBoundary": {
@@ -104,5 +118,10 @@
     "noRuntimeApiSchedulerDaemonDatabaseOrUiChange": true,
     "packageBoundaryKeepsReleaseEvidenceOutOfNpmPackage": true
   },
-  "diagnostics": []
+  "diagnostics": [
+    {
+      "code": "registry_packaged_docs_failed",
+      "message": "The published alpha.5 npm tarball is immutable and contains stale package docs; publish alpha.6 after fresh evidence instead of accepting alpha.5 as final corrective release."
+    }
+  ]
 }

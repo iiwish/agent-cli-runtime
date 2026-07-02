@@ -1,22 +1,24 @@
-# Release Report: 0.1.0-alpha.5 Published Corrective Alpha
+# Release Report: 0.1.0-alpha.6 Corrective Candidate
 
-Status: `0.1.0-alpha.5` is the published corrective alpha release; npm `alpha` and `latest` point at alpha.5
+Status: `0.1.0-alpha.6` is the next corrective alpha target and is not published; npm `alpha` and `latest` point at alpha.5
 Last updated: 2026-07-02
 
 This report is the packaged, stable release-state summary. Volatile release evidence such as current workflow run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, command transcripts, raw logs, raw CLI output, prompt text, and token-looking values belongs outside the npm package under `.release-evidence/` or durable GitHub Release assets. P8 main release-candidate files remain historical repo-only evidence for their exact target SHAs; package-content drift decisions and current main release-candidate decisions are recorded under `.release-evidence/` with stage-specific repo-only summaries.
 
 ## Current State
 
-- Published corrective alpha release: `agent-cli-runtime@0.1.0-alpha.5`.
-- Alpha.5 replaces stale alpha.4 package docs for package consumers.
+- Corrective alpha target: `agent-cli-runtime@0.1.0-alpha.6`; alpha.6 is not published.
+- Real alpha.6 publish, npm dist-tag mutation, and GitHub Release creation require fresh release-candidate evidence, `npm run package:docs:check`, `npm publish --dry-run --ignore-scripts --tag alpha`, and explicit maintainer authorization.
+- `agent-cli-runtime@0.1.0-alpha.5` is published on npm.
 - npm `alpha` dist-tag points at `0.1.0-alpha.5`.
 - npm `latest` dist-tag points at `0.1.0-alpha.5`.
 - GitHub Release `v0.1.0-alpha.5` exists as a prerelease with the npm registry tarball asset, and GitHub Release tarball parity verification passes for alpha.5.
-- `published:verify` and `published:verify:evidence` pass against the published alpha.5 npm registry package.
+- The immutable `0.1.0-alpha.5` npm tarball contains stale package docs, so aggregate `published:verify` and `published:verify:evidence` fail with `registry_packaged_docs_failed`.
+- Alpha.5 is a published stale-docs incident, not final corrective release acceptance.
 - Historical published npm package with stale docs: `agent-cli-runtime@0.1.0-alpha.4`.
 - The immutable `0.1.0-alpha.4` npm tarball contains stale release-prep package docs; npm registry metadata is authoritative for the alpha.4 version and dist-tags.
 - GitHub Release `v0.1.0-alpha.4` exists as a prerelease with the npm registry tarball asset, and GitHub Release tarball parity verification passes for alpha.4.
-- P9-6 records the fresh main release-candidate workflow evidence for the alpha.4 package content. P9-7 records the dry-run decision and post-publish registry state. P9-9 records alpha.5 publish, latest retag, GitHub Release parity, and published verification state under `.release-evidence/`.
+- P9-6 records the fresh main release-candidate workflow evidence for the alpha.4 package content. P9-7 records the dry-run decision and post-publish registry state. P9-9 records alpha.5 publish, latest retag, GitHub Release parity, and stale-docs published verification failure under `.release-evidence/`. P9-10 records alpha.6 corrective candidate evidence under `.release-evidence/`.
 - `agent-cli-runtime@0.1.0-alpha.3` remains the previous corrective pre-alpha release for package consumers.
 - `agent-cli-runtime@0.1.0-alpha.2` is published on npm and has GitHub pre-release `v0.1.0-alpha.2`, but its immutable npm tarball contains stale pre-publish package docs.
 - `agent-cli-runtime@0.1.0-alpha.1` remains an earlier published alpha with GitHub pre-release `v0.1.0-alpha.1`.
@@ -26,16 +28,16 @@ This report is the packaged, stable release-state summary. Volatile release evid
 
 ## Verdict
 
-`0.1.0-alpha.5` is the published corrective alpha release for replacing consumer-visible stale alpha.4 package docs. npm registry state is closed for this release: `alpha` and `latest` both point at `0.1.0-alpha.5`. GitHub Release `v0.1.0-alpha.5` exists as a prerelease with the npm registry tarball asset, `release:post-alpha:verify` tarball parity passes, and aggregate `published:verify:evidence` passes for the alpha.5 registry package.
+`0.1.0-alpha.6` is the corrective alpha target and is not published. It replaces the consumer-visible stale package docs from alpha.5. npm registry state remains: `alpha` and `latest` both point at `0.1.0-alpha.5`. GitHub Release `v0.1.0-alpha.5` exists as a prerelease with the npm registry tarball asset and `release:post-alpha:verify` tarball parity passes, but aggregate `published:verify:evidence` fails for alpha.5 because registry packaged docs are stale.
 
 The P9 line keeps these release gates in force:
 
 - `npm run stable:surface:check` keeps the package-root value export limited to `createAgentRuntime` and keeps repo-only gates out of the public runtime API;
 - `npm run package:check` verifies the package boundary and scans the docs that enter the tarball;
 - `npm run release:package-content:verify -- --base-ref <release-target-sha> --head-ref HEAD` records package-visible drift decisions for future release targets;
-- `npm run published:verify -- --out-dir published-verification` verifies the registry package and passes for alpha.5.
+- `npm run published:verify -- --out-dir published-verification` verifies the registry package; for alpha.5 it fails with `registry_packaged_docs_failed` because the immutable tarball docs are stale.
 
-The alpha.3 stale-docs corrective path remains history. Alpha.4 package content is published on npm, and GitHub Release parity evidence is closed; the stale package docs already shipped inside the immutable alpha.4 npm tarball remain historical incident context. Alpha.5 is the corrective alpha release for that blocker. Future beta or stable promotion requires fresh release evidence for the target version.
+The alpha.3 stale-docs corrective path remains history. Alpha.4 package content is published on npm, and GitHub Release parity evidence is closed; the stale package docs already shipped inside the immutable alpha.4 npm tarball remain historical incident context. Alpha.5 is published but failed final corrective acceptance because its immutable npm tarball also contains stale package docs. Alpha.6 publish, beta promotion, or stable promotion requires fresh release evidence for the target version.
 
 The release remains local-first runtime/kernel scope:
 
@@ -43,9 +45,9 @@ The release remains local-first runtime/kernel scope:
 - no authenticated real Codex/Claude/OpenCode run is launched by default gates;
 - no daemon, hosted control plane, API server, database/WAL, web UI, telemetry system, or remote worker is added.
 
-## P9 Alpha.5 Post-Publish Verification
+## P9-10 Alpha.6 Candidate Verification
 
-The alpha.5 post-publish release path uses:
+The alpha.6 corrective candidate path uses:
 
 ```bash
 git diff --check
@@ -59,13 +61,12 @@ npm run prepublish:check
 npm pack --dry-run
 npm pack --dry-run --json --ignore-scripts
 npm publish --dry-run --ignore-scripts --tag alpha
-npm publish --tag alpha
-npm view agent-cli-runtime@0.1.0-alpha.5 version dist-tags --json
+npm view agent-cli-runtime@0.1.0-alpha.6 version --json
 npm dist-tag ls agent-cli-runtime
 tmp_dir="$(mktemp -d)"
-npm run release:candidate -- --out-dir "$tmp_dir"
+npm run release:candidate -- --out-dir "$tmp_dir" --real-compatibility-mode repo-only-skipped --target-sha <HEAD>
 npm run release:verify -- --dir "$tmp_dir"
-npm run release:package-content:verify -- --base-ref <p9-6-release-target-sha> --head-ref HEAD
+npm run release:package-content:verify -- --base-ref <alpha5-release-target-sha> --head-ref HEAD
 git diff --check
 ```
 
@@ -85,7 +86,7 @@ npm run published:verify:evidence -- --dir published-verification
 
 `published:verify` creates the evidence file. `published:verify:evidence` verifies an existing local output directory or downloaded `agent-cli-runtime-published-verification` artifact directory; a bare verifier run without `published-verification/published-verification.json` exits `1` with redacted actionable JSON by design.
 
-For `0.1.0-alpha.5`, the registry package, smoke, daemon, adapters, registry packaged-docs inspection, and `release:post-alpha:verify` checks pass against npmjs and GitHub Release `v0.1.0-alpha.5`. For `0.1.0-alpha.4`, registry package and GitHub Release parity checks pass, but registry packaged-docs inspection remains historical failure evidence because the immutable tarball contains stale release-prep package docs. Do not reuse alpha.5 evidence as beta or stable evidence.
+For `0.1.0-alpha.5`, npm registry metadata, published smoke, daemon, adapters, and `release:post-alpha:verify` tarball parity pass against npmjs and GitHub Release `v0.1.0-alpha.5`, but registry packaged-docs inspection fails because the immutable tarball contains stale package docs. For `0.1.0-alpha.4`, registry package and GitHub Release parity checks pass, but registry packaged-docs inspection remains historical failure evidence because the immutable tarball contains stale release-prep package docs. Do not reuse alpha.5 evidence as alpha.6, beta, or stable evidence.
 
 ## Release-Candidate Artifacts
 

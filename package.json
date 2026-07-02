@@ -1,6 +1,6 @@
 {
   "name": "agent-cli-runtime",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "description": "Local-first TypeScript runtime for scheduling Codex CLI, Claude Code, OpenCode, and compatible coding-agent CLIs.",
   "type": "module",
   "license": "Apache-2.0",
