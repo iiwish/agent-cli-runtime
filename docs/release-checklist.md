@@ -1,25 +1,38 @@
 # Release Checklist (pre-alpha / developer preview)
 
-Status: `0.1.0-alpha.4` release-prep pre-alpha candidate
-Last updated: 2026-06-30
+Status: `0.1.0-alpha.6` is the published corrective alpha release; npm `alpha` and `latest` point at alpha.6
+Last updated: 2026-07-02
 
-## P9-5 Alpha.4 Release Prep
+## P9-11 Alpha.6 Published Corrective Release State
 
-- [x] Prepare package metadata for `0.1.0-alpha.4` in `package.json` and `package-lock.json`.
-- [x] Keep `0.1.0-alpha.4` as release-prep package candidate wording, not published-package wording.
-- [x] Keep P9 stable surface gate coverage visible through `npm run stable:surface:check`.
-- [x] Keep P9-4 fresh main release-candidate evidence package-out and exact-SHA scoped.
-- [x] Record that package-content comparison against the P9-4 release target must show package-visible drift and `freshReleaseCandidateRequired: true` for alpha.4 version/docs changes.
-- [x] Record that P9-6 must generate fresh main release-candidate evidence after the P9-5 merge before any human publish decision.
+- [x] Prepare package metadata for `0.1.0-alpha.6` in `package.json` and `package-lock.json`.
+- [x] Keep `publishConfig.tag` set to `alpha`.
+- [x] Document `0.1.0-alpha.6` as the published corrective alpha release.
+- [x] Record that future beta or stable promotion requires fresh release-candidate evidence, package-docs verification, dry-run, and explicit maintainer authorization.
+- [x] Record that `agent-cli-runtime@0.1.0-alpha.5` remains published on npm as a stale-docs incident.
+- [x] Record that npm `alpha` dist-tag points at `0.1.0-alpha.6`.
+- [x] Record that npm `latest` dist-tag points at `0.1.0-alpha.6`.
+- [x] Record that GitHub Release `v0.1.0-alpha.6` exists as a prerelease with the npm registry tarball asset and that `release:post-alpha:verify` tarball parity passes.
+- [x] Record that GitHub Release `v0.1.0-alpha.5` exists as a prerelease with the npm registry tarball asset and that `release:post-alpha:verify` tarball parity passes.
+- [x] Record that the immutable `0.1.0-alpha.5` npm tarball contains stale package docs, so aggregate published verification (`published:verify` / `published:verify:evidence`) fails with `registry_packaged_docs_failed`.
+- [x] Record alpha.5 as a stale-docs incident, not final corrective release acceptance.
+- [x] Record that `0.1.0-alpha.4` is historical published on npm state and that its immutable npm tarball contains stale release-prep package docs.
+- [x] Record that GitHub Release `v0.1.0-alpha.4` exists as a prerelease with the npm registry tarball asset and tarball parity passes.
 - [x] Record that `0.1.0-alpha.2` is published but its immutable npm tarball contains stale pre-publish package docs.
-- [x] Keep `0.1.0-alpha.3` documented as the previous corrective pre-alpha release for package consumers.
+- [x] Keep `0.1.0-alpha.3` documented as the historical corrective pre-alpha release.
 - [x] Keep `0.1.0-alpha.1` and GitHub pre-release `v0.1.0-alpha.1` documented as earlier alpha history.
 - [x] Keep `0.1.0-alpha.0` documented as deprecated because its immutable package docs shipped stale pre-publish state.
 - [x] Keep npm registry metadata and GitHub Releases as the source of truth for available versions and dist-tags.
+- [x] Keep P9 stable surface gate coverage visible through `npm run stable:surface:check`.
+- [x] Keep package docs free of stale alpha.6 pre-publish claims, claims that alpha.5 is still waiting for publish, latest-alpha1 claims, or alpha4-current-tag claims.
 - [x] Add a local packaged-docs gate that runs an actual pack, unpacks the tarball, and scans the docs that enter the package.
 - [x] Add a published verification gate that downloads and unpacks `agent-cli-runtime@<version>` from the npm registry before accepting package-docs state.
 - [x] Keep `.release-evidence/` and `.reference/` outside npm package contents.
 - [x] Keep volatile run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, raw logs, raw CLI output, full prompts, and token-looking values outside packaged docs.
+- [x] Publish `agent-cli-runtime@0.1.0-alpha.6` to npm after explicit maintainer authorization.
+- [x] Move npm `alpha` and `latest` to alpha.6 after authorized alpha.6 publish.
+- [x] Create or edit GitHub Release `v0.1.0-alpha.6` after explicit maintainer authorization.
+- [x] Rerun `published:verify` and `published:verify:evidence` after authorized alpha.6 publish.
 
 ## Local Verification
 
@@ -64,17 +77,25 @@ Acceptance:
 
 ## Human Publish Gate
 
-Do not run a real publish, deprecate an existing version, or create/modify a GitHub Release without explicit maintainer authorization. Before any later publish:
+Do not run another real publish, deprecate an existing version, modify dist-tags, unpublish, or create/modify a GitHub Release without explicit maintainer authorization. For alpha.4:
 
-- [ ] Trigger a fresh manual release-candidate workflow for the exact commit being considered.
-- [ ] Download all five artifacts into a local review directory.
-- [ ] Run `npm run release:verify -- --dir <normalized-artifact-dir>` on the downloaded artifacts.
-- [ ] Confirm the workflow head SHA equals the commit selected for publish.
-- [ ] Run `npm publish --dry-run --ignore-scripts --tag alpha`.
-- [ ] Run `npm run package:docs:check` and confirm it inspected the local packed tarball.
-- [ ] Obtain separate explicit maintainer authorization for the real publish.
-- [ ] Run real `npm publish --tag alpha` only after that authorization.
-- [ ] After publish, verify npm registry state, run the published package verification workflow, and confirm registry tarball docs pass `agent-cli-runtime.packagedDocsVerification.v1`.
+- [x] Trigger fresh main release-candidate evidence for the release target.
+- [x] Confirm package content equivalence from the P9-6 release target to the evidence-recording publish HEAD.
+- [x] Run `npm publish --dry-run --ignore-scripts --tag alpha`.
+- [x] Run real `npm publish --tag alpha` only after explicit maintainer authorization.
+- [x] Verify npm registry state: `agent-cli-runtime@0.1.0-alpha.4` exists, `alpha` points at alpha.4, and `latest` remains alpha.1.
+- [x] Run published verification against npmjs.
+- [x] Confirm registry tarball docs are inspected by `agent-cli-runtime.packagedDocsVerification.v1`.
+- [x] Create GitHub Release `v0.1.0-alpha.4` and attach the npm registry tarball asset after separate explicit maintainer authorization.
+- [x] Rerun `release:post-alpha:verify` after GitHub Release assets exist; tarball parity passes.
+- [x] Rerun aggregate `published:verify:evidence` after GitHub Release assets exist; it still fails only because the immutable npm tarball contains stale release-prep package docs.
+- [x] `0.1.0-alpha.5` publish was executed after fresh release-candidate evidence and explicit maintainer authorization.
+- [x] Published alpha.5 verification was rerun with `published:verify` and `published:verify:evidence` against the npm registry package and fails because registry packaged docs are stale.
+- [x] Move npm `latest` to `0.1.0-alpha.5` after alpha.5 publish and verify both `alpha` and `latest` point at alpha.5.
+- [x] Create GitHub Release `v0.1.0-alpha.5` as a prerelease with the npm registry tarball asset after explicit maintainer authorization.
+- [x] Rerun `release:post-alpha:verify` after GitHub Release assets exist; tarball parity passes for alpha.5.
+- [x] The alpha.6 publish used fresh release evidence for its authorized registry and release mutation.
+- [ ] For any future beta promotion or stable promotion, regenerate fresh release evidence for that target before a new registry or release mutation.
 
 ## Release-Candidate Artifact Contract
 

@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "agent-cli-runtime.alpha5PostPublishEvidence.v1",
+  "stage": "P9-9",
+  "evidenceKind": "alpha5-post-publish-stale-docs-incident",
+  "checkedAt": "2026-07-02T02:27:42Z",
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.5",
+  "git": {
+    "branch": "codex/p9-8-alpha5-corrective",
+    "headSha": "500ca055b79481e560fd5bec084a1a96d20526e1",
+    "pushedForGithubReleaseTarget": true
+  },
+  "authorization": {
+    "npmPublishAuthorized": true,
+    "latestRetagAuthorized": true,
+    "githubReleaseAuthorized": true,
+    "branchPushAuthorized": true
+  },
+  "prePublishGates": {
+    "worktreeCleanBeforePublish": true,
+    "alpha5AbsentBeforePublish": true,
+    "registryBeforePublish": {
+      "alpha": "0.1.0-alpha.4",
+      "latest": "0.1.0-alpha.1"
+    },
+    "npmTest": "passed",
+    "typecheck": "passed",
+    "lint": "passed",
+    "packageDocsCheck": "passed",
+    "packageCheck": "passed",
+    "npmPublishDryRunTagAlpha": "passed",
+    "releaseCandidate": "passed",
+    "releaseVerify": "passed",
+    "gitDiffCheck": "passed"
+  },
+  "publish": {
+    "command": "npm publish --tag alpha --registry=https://registry.npmjs.org/",
+    "executed": true,
+    "ok": true,
+    "authType": "interactive-web",
+    "rawOutputRecorded": false
+  },
+  "distTagMutation": {
+    "command": "npm dist-tag add agent-cli-runtime@0.1.0-alpha.5 latest --registry=https://registry.npmjs.org/",
+    "executed": true,
+    "ok": true
+  },
+  "registryFinalState": {
+    "versionExists": true,
+    "alpha": "0.1.0-alpha.5",
+    "latest": "0.1.0-alpha.5",
+    "defaultVersionFromLatestTag": "0.1.0-alpha.5"
+  },
+  "githubRelease": {
+    "tagName": "v0.1.0-alpha.5",
+    "url": "https://github.com/iiwish/agent-cli-runtime/releases/tag/v0.1.0-alpha.5",
+    "targetCommitish": "500ca055b79481e560fd5bec084a1a96d20526e1",
+    "isPrerelease": true,
+    "isDraft": false,
+    "latestReleaseRequested": false,
+    "tarballAssetName": "agent-cli-runtime-0.1.0-alpha.5.tgz",
+    "tarballAssetSource": "npm-registry",
+    "createdOrUpdated": true
+  },
+  "postPublishVerification": {
+    "releasePostAlphaVerify": {
+      "command": "npm run release:post-alpha:verify",
+      "schemaVersion": "agent-cli-runtime.postAlphaEvidence.v1",
+      "ok": true
+    },
+    "publishedVerify": {
+      "command": "npm run published:verify -- --out-dir <tmp-published-verification>",
+      "schemaVersion": "agent-cli-runtime.publishedVerification.v1",
+      "ok": false,
+      "checkedGates": [
+        "smoke:published",
+        "published:daemon:verify",
+        "published:adapters:verify",
+        "release:post-alpha:verify"
+      ],
+      "diagnosticCodes": [
+        "registry_packaged_docs_failed"
+      ]
+    },
+    "publishedVerifyEvidence": {
+      "command": "npm run published:verify:evidence -- --dir <tmp-published-verification>",
+      "schemaVersion": "agent-cli-runtime.publishedVerification.v1",
+      "ok": false,
+      "diagnosticCodes": [
+        "registry_packaged_docs_failed"
+      ]
+    },
+    "registryPackagedDocsInspection": {
+      "schemaVersion": "agent-cli-runtime.packagedDocsVerification.v1",
+      "version": "0.1.0-alpha.5",
+      "ok": false,
+      "diagnosticCodes": [
+        "missing_alpha5_published_state",
+        "missing_alpha5_latest_tag",
+        "missing_alpha5_github_release_state",
+        "missing_alpha5_github_release_parity",
+        "alpha5_unpublished_claim"
+      ],
+      "incident": "immutable_alpha5_npm_tarball_contains_stale_package_docs"
+    }
+  },
+  "safetyBoundary": {
+    "noNpmTokenRecorded": true,
+    "noOtpRecorded": true,
+    "noAuthUrlRecorded": true,
+    "noRawStdoutStderrRecorded": true,
+    "noFullPublishTranscriptRecorded": true,
+    "noPrivatePathRecorded": true,
+    "noLocalTempPathRecorded": true,
+    "noTarballHashIntegrityOrShasumRecorded": true,
+    "noTrustedPublishingConfigured": true,
+    "noAuthenticatedRealRun": true,
+    "noRuntimeApiSchedulerDaemonDatabaseOrUiChange": true,
+    "packageBoundaryKeepsReleaseEvidenceOutOfNpmPackage": true
+  },
+  "diagnostics": [
+    {
+      "code": "registry_packaged_docs_failed",
+      "message": "The published alpha.5 npm tarball is immutable and contains stale package docs; publish alpha.6 after fresh evidence instead of accepting alpha.5 as final corrective release."
+    }
+  ]
+}

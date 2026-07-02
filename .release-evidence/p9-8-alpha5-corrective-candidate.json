@@ -1,0 +1,210 @@
+{
+  "schemaVersion": "agent-cli-runtime.alpha5CorrectiveCandidateEvidence.v1",
+  "stage": "P9-8",
+  "evidenceKind": "alpha-5-corrective-release-candidate-dry-run",
+  "checkedAt": "2026-07-01T13:01:45Z",
+  "packageName": "agent-cli-runtime",
+  "packageVersion": "0.1.0-alpha.5",
+  "targetVersion": "0.1.0-alpha.5",
+  "targetDistTag": "alpha",
+  "git": {
+    "branch": "codex/p9-8-alpha5-corrective",
+    "candidateHeadSha": "4322f70a7c65d092bab70febb56a8987f3eedc8b",
+    "baseReleaseTargetSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+    "evidenceRecordingCommitMayDifferFromCandidateHead": true
+  },
+  "correctivePurpose": {
+    "reason": "replace_consumer_visible_stale_alpha4_package_docs",
+    "alpha4PublishedOnNpm": true,
+    "alpha4GithubReleaseParityPassed": true,
+    "alpha4PublishedVerificationBlockedByStalePackageDocs": true,
+    "alpha5Published": false,
+    "realPublishAuthorized": false
+  },
+  "packageDocs": {
+    "localPackagedDocsCheck": {
+      "command": "npm run package:docs:check",
+      "ok": true,
+      "schemaVersion": "agent-cli-runtime.packagedDocsVerification.v1",
+      "packageSource": "local-pack",
+      "version": "0.1.0-alpha.5",
+      "diagnosticsCount": 0,
+      "noAlpha5PublishedClaim": true,
+      "noAlpha5GithubReleaseCreatedClaim": true
+    },
+    "alpha4PublishedTarballIncidentPreserved": {
+      "source": ".release-evidence/p9-7-alpha4-post-publish.json",
+      "version": "0.1.0-alpha.4",
+      "publishedVerificationOk": false,
+      "blockerCode": "registry_packaged_docs_stale",
+      "notAnAlpha5Failure": true
+    }
+  },
+  "dryRun": {
+    "commands": [
+      {
+        "command": "npm publish --dry-run --ignore-scripts --tag alpha",
+        "ok": true,
+        "dryRun": true,
+        "requestedTag": "alpha",
+        "latestTagRequested": false
+      },
+      {
+        "command": "npm publish --dry-run --ignore-scripts --tag alpha --json",
+        "ok": true,
+        "dryRun": true,
+        "requestedTag": "alpha",
+        "latestTagRequested": false,
+        "packageId": "agent-cli-runtime@0.1.0-alpha.5",
+        "volatilePackMetadataOmitted": true
+      }
+    ],
+    "npmPublishExecuted": false,
+    "registryMutated": false,
+    "distTagMutated": false,
+    "latestTagChanged": false
+  },
+  "releaseCandidates": {
+    "localStrict": {
+      "command": "npm run release:candidate -- --out-dir <local-release-candidate-dir>",
+      "ok": true,
+      "verificationCommand": "npm run release:verify -- --dir <local-release-candidate-dir>",
+      "verificationOk": true,
+      "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+      "version": "0.1.0-alpha.5",
+      "diagnosticsCount": 0,
+      "artifactNames": [
+        "agent-cli-runtime-tarball",
+        "agent-cli-runtime-pack-metadata",
+        "agent-cli-runtime-package-files",
+        "agent-cli-runtime-gate-evidence",
+        "agent-cli-runtime-release-verification"
+      ],
+      "realCompatibilityGate": {
+        "mode": "local-strict",
+        "targetSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+        "status": "matched_existing_repo_only_matrix",
+        "notCurrentHeadRealCompatibilityRefresh": true
+      }
+    },
+    "headBoundRepoOnlySkipped": {
+      "command": "npm run release:candidate -- --out-dir <local-release-candidate-dir> --real-compatibility-mode repo-only-skipped --target-sha <candidate-head-sha>",
+      "ok": true,
+      "verificationCommand": "npm run release:verify -- --dir <local-release-candidate-dir>",
+      "verificationOk": true,
+      "schemaVersion": "agent-cli-runtime.releaseVerification.v1",
+      "version": "0.1.0-alpha.5",
+      "diagnosticsCount": 0,
+      "artifactNames": [
+        "agent-cli-runtime-tarball",
+        "agent-cli-runtime-pack-metadata",
+        "agent-cli-runtime-package-files",
+        "agent-cli-runtime-gate-evidence",
+        "agent-cli-runtime-release-verification"
+      ],
+      "realCompatibilityGate": {
+        "mode": "repo-only-skipped",
+        "targetSha": "4322f70a7c65d092bab70febb56a8987f3eedc8b",
+        "status": "repo_only_not_run",
+        "reason": "real_compatibility_matrix_is_repo_only",
+        "noAuthenticatedRealRun": true
+      }
+    }
+  },
+  "packageContentDrift": {
+    "command": "npm run release:package-content:verify -- --base-ref 5532fd7394834fb9f1eea28508b45d7bdb8fd9e5 --head-ref HEAD",
+    "schemaVersion": "agent-cli-runtime.packageContentEquivalence.v1",
+    "ok": true,
+    "baseSha": "5532fd7394834fb9f1eea28508b45d7bdb8fd9e5",
+    "headSha": "4322f70a7c65d092bab70febb56a8987f3eedc8b",
+    "basePackageVersion": "0.1.0-alpha.4",
+    "headPackageVersion": "0.1.0-alpha.5",
+    "packageContentEqual": false,
+    "evidenceOnlyDrift": false,
+    "freshReleaseCandidateRequired": true,
+    "diagnosticCodes": [
+      "package_content_drift"
+    ],
+    "changedPackageFiles": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "docs/compatibility.md",
+      "docs/production-readiness.md",
+      "docs/release-checklist.md",
+      "docs/release-publish-runbook.md",
+      "docs/release-report.md",
+      "docs/ssot.md",
+      "package.json"
+    ]
+  },
+  "validation": {
+    "commands": [
+      {
+        "command": "npm test",
+        "ok": true,
+        "testsPassed": 237,
+        "testsSkipped": 1
+      },
+      {
+        "command": "npm run typecheck",
+        "ok": true
+      },
+      {
+        "command": "npm run lint --if-present",
+        "ok": true
+      },
+      {
+        "command": "npm run package:check",
+        "ok": true,
+        "packageFileCount": 151
+      },
+      {
+        "command": "npm run package:docs:check",
+        "ok": true
+      },
+      {
+        "command": "git diff --check",
+        "ok": true
+      }
+    ]
+  },
+  "publishDecision": {
+    "mode": "dry-run-and-evidence-only",
+    "readyForMaintainerPublishAuthorizationRequest": true,
+    "realPublishAuthorized": false,
+    "npmPublishExecuted": false,
+    "npmDeprecateExecuted": false,
+    "distTagMutationExecuted": false,
+    "githubReleaseCreatedOrModified": false,
+    "latestTagChanged": false,
+    "postPublishVerificationRequiredAfterPublish": true
+  },
+  "boundary": {
+    "repoOnlyEvidence": true,
+    "packageVisibleDocsContainStableStateOnly": true,
+    "noAuthenticatedRealRun": true,
+    "noNpmPublish": true,
+    "noNpmDeprecate": true,
+    "noNpmUnpublish": true,
+    "noDistTagMutation": true,
+    "noLatestTagChange": true,
+    "noGithubReleaseMutation": true,
+    "noTrustedPublishing": true,
+    "noRawStdoutStderr": true,
+    "noRawCliOutput": true,
+    "noFullCommandOutput": true,
+    "noPrivatePath": true,
+    "noLocalTempPath": true,
+    "noNpmHashOrDigestValues": true,
+    "noTarballSize": true,
+    "noUnpackedSize": true,
+    "noTokenValue": true,
+    "noBearerValue": true,
+    "noAuthEnvAssignment": true,
+    "noOtpValue": true,
+    "preserveAuthMissingClassification": true,
+    "preserveRealRunSkippedClassification": true,
+    "preserveNeedsVerificationClassification": true
+  }
+}

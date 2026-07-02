@@ -162,9 +162,49 @@ const publishOverclaimPatterns = [
       /(?:Status:[^\n]*0\.1\.0-alpha\.3[^\n]*corrective pre-alpha release|Corrective package line:\s*`?agent-cli-runtime@0\.1\.0-alpha\.3`?|Version\s+`?0\.1\.0-alpha\.3`?\s+is the corrective pre-alpha release for package consumers|`?0\.1\.0-alpha\.3`?\s+是面向 package consumer 的 corrective pre-alpha release|`?0\.1\.0-alpha\.3`?\s+是 corrective pre-alpha release)/iu,
   },
   {
-    name: "alpha.4 described as already published during release prep",
+    name: "alpha.4 described as unpublished after publish",
     pattern:
-      /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,120}(?:is already published|is published on npm|published on npm|has GitHub pre-release|已发布到 npm|已经发布到 npm)/iu,
+      /(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:not published|unpublished|not yet published|release-prep package candidate|next package candidate|before any human publish decision|requires fresh P9-6|requires fresh main release-candidate evidence|未发布|尚未发布|发布准备中的 package candidate|进入 human publish decision)/iu,
+  },
+  {
+    name: "alpha.4 GitHub Release described as missing after creation",
+    pattern:
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)|(?:v0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,220}(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:exist|exists|created|available)|(?:v0\.1\.0-alpha\.4)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)/iu,
+  },
+  {
+    name: "alpha.5 described as unpublished after publish",
+    pattern:
+      /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,220}(?:not published|unpublished|not yet published|before any explicit maintainer authorization for real publish|before any human publish decision|requires fresh release-candidate evidence before[^\n]{0,80}publish|未发布|尚未发布|发布前必须先|人工授权前)/iu,
+  },
+  {
+    name: "alpha.5 GitHub Release described as missing after creation",
+    pattern:
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:v0\.1\.0-alpha\.5)[^\n]{0,160}(?:not created|not yet created|missing|absent|blocked until[^\n]{0,120}(?:exist|exists)|未创建|尚未创建)|(?:v0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,220}(?:blocked until|remains blocked until)[^\n]{0,160}(?:GitHub Release|GitHub pre-release)[^\n]{0,160}(?:exist|exists|created|available)/iu,
+  },
+  {
+    name: "alpha.5 old latest alpha.1 claim",
+    pattern:
+      /(?:latest|npm latest|latest dist-tag)[^\n]{0,120}(?:remains|still|points at|points to|仍指向|仍停在|保持在)\s*(?:on\s*)?`?0\.1\.0-alpha\.1`?/iu,
+  },
+  {
+    name: "alpha.4 current alpha tag claim after alpha.5 publish",
+    pattern:
+      /(?:alpha\.4 remains the npm `?alpha`? version|alpha\.4 remains the npm|alpha\.4[^\n]{0,120}current npm `?alpha`?|alpha\.4[^\n]{0,120}alpha dist-tag points|alpha\s*(?:dist-tag|tag)[^\n]{0,120}(?:points at|points to|指向)\s*`?0\.1\.0-alpha\.4`?|alpha\.4 是当前 npm `?alpha`? 版本|alpha\.4[^\n]{0,120}`?alpha`? dist-tag 指向)/iu,
+  },
+  {
+    name: "alpha.5 published verification pass claim after stale-docs incident",
+    pattern:
+      /(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)[^\n]{0,160}(?:0\.1\.0-alpha\.5|alpha\.5)|(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)/iu,
+  },
+  {
+    name: "alpha.6 described as unpublished after corrective publish",
+    pattern:
+      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu,
+  },
+  {
+    name: "alpha.6 publish described as a future gated action after corrective publish",
+    pattern:
+      /(?:future|later|next|后续|未来)[^\n]{0,120}(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:publish|发布)|(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:real alpha\.6 publish|alpha\.6 publish|npm publish|真实发布|发布前)[^\n]{0,220}(?:requires|require|must|explicit maintainer authorization|explicit authorization|future|before|需要|必须|明确授权|后续|未来)/iu,
   },
   {
     name: "self-expiring dry-run stop point",
