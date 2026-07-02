@@ -324,15 +324,15 @@ This runtime spawns and manages powerful coding agents on your local machine. We
 This project is in **pre-alpha / developer preview**.
 
 ### 🏷️ Package Release History
-*   `agent-cli-runtime@0.1.0-alpha.6` - **Next corrective alpha target**. It is not published. Real alpha.6 publish, npm dist-tag mutation, and GitHub Release creation require fresh release-candidate evidence, `npm run package:docs:check`, `npm publish --dry-run --ignore-scripts --tag alpha`, and explicit maintainer authorization.
-*   `agent-cli-runtime@0.1.0-alpha.5` - Published on npm. npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.5`. GitHub Release `v0.1.0-alpha.5` exists as a prerelease with the npm registry tarball asset, and `release:post-alpha:verify` tarball parity passes. Its immutable npm tarball contains stale package docs, so aggregate published verification (`published:verify` / `published:verify:evidence`) fails with `registry_packaged_docs_failed`; alpha.5 is not final corrective release acceptance.
+*   `agent-cli-runtime@0.1.0-alpha.6` - **Published corrective alpha release**. Published on npm; npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.6`. GitHub Release `v0.1.0-alpha.6` exists as a prerelease with the npm registry tarball asset, and `release:post-alpha:verify` tarball parity passes.
+*   `agent-cli-runtime@0.1.0-alpha.5` - Published on npm. npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.6`. GitHub Release `v0.1.0-alpha.5` exists as a prerelease with the npm registry tarball asset, and `release:post-alpha:verify` tarball parity passes. Its immutable npm tarball contains stale package docs, so aggregate published verification (`published:verify` / `published:verify:evidence`) fails with `registry_packaged_docs_failed`; alpha.5 is not final corrective release acceptance.
 *   `agent-cli-runtime@0.1.0-alpha.4` - Historical version published on npm. The immutable npm tarball contains stale release-prep package docs. GitHub Release `v0.1.0-alpha.4` exists with the npm registry tarball asset, and GitHub Release tarball parity passes.
 *   `agent-cli-runtime@0.1.0-alpha.3` - Historical corrective pre-alpha release.
 *   `agent-cli-runtime@0.1.0-alpha.2` - Published historical version whose immutable npm tarball contains stale pre-publish package docs.
 *   `agent-cli-runtime@0.1.0-alpha.1` - Earlier published alpha with GitHub pre-release `v0.1.0-alpha.1`.
 *   `agent-cli-runtime@0.1.0-alpha.0` - Deprecated because its immutable package docs shipped stale pre-publish status text.
 
-npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags. Volatile run, target-SHA, registry, and artifact evidence stays outside the npm package under `.release-evidence/`. Future alpha.6 publish, beta promotion, or stable promotion requires fresh release evidence for that target, including package docs, registry state, GitHub Release parity, and published verification.
+npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags. Volatile run, target-SHA, registry, and artifact evidence stays outside the npm package under `.release-evidence/`. Future beta promotion or stable promotion requires fresh release evidence for that target, including package docs, registry state, GitHub Release parity, and published verification.
 
 `published:usability:audit` is a repository-only post-publish audit script. It is intentionally excluded from npm package contents and verifies an already published package from the npm registry.
 

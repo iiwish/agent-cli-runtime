@@ -1,25 +1,25 @@
 # Changelog
 
-## 0.1.0-alpha.6 — corrective alpha target
+## 0.1.0-alpha.6 — published corrective alpha release
 
 - P9-10 alpha.6 corrective release prep:
-  - prepares `0.1.0-alpha.6` as the next corrective alpha target; it is not published;
+  - publishes `0.1.0-alpha.6` as the corrective alpha release;
   - keeps `publishConfig.tag` on `alpha`;
-  - records that real alpha.6 publish, npm dist-tag mutation, and GitHub Release creation require fresh release-candidate evidence, `npm run package:docs:check`, `npm publish --dry-run --ignore-scripts --tag alpha`, and explicit maintainer authorization;
-  - records current registry state: `0.1.0-alpha.5` is published on npm, and npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.5`;
+  - records that npm `alpha` and `latest` dist-tags point at `0.1.0-alpha.6`, with GitHub Release `v0.1.0-alpha.6` carrying the npm registry tarball asset and `release:post-alpha:verify` tarball parity passing;
+  - records current registry state: `0.1.0-alpha.5` is published on npm, and npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.6`;
   - records that GitHub Release `v0.1.0-alpha.5` exists as a prerelease with the npm registry tarball asset and `release:post-alpha:verify` tarball parity passes;
   - records the alpha.5 stale-docs incident: the immutable alpha.5 npm tarball contains stale package docs, so aggregate published verification (`published:verify` / `published:verify:evidence`) fails with `registry_packaged_docs_failed`;
   - keeps alpha.4 as historical published state with stale release-prep package docs and GitHub Release tarball parity closed;
   - keeps `0.1.0-alpha.3` as historical corrective pre-alpha release, `0.1.0-alpha.2` as a stale pre-publish package-docs incident, `0.1.0-alpha.1` as earlier alpha history, and `0.1.0-alpha.0` as deprecated stale-docs history;
   - keeps npm registry metadata and GitHub Releases as the source of truth for available versions and dist-tags;
-  - requires fresh release evidence before alpha.6 publish, beta promotion, or stable promotion;
+  - requires fresh release evidence before future beta promotion or stable promotion;
   - keeps `.release-evidence/`, current run ids, artifact ids, artifact digests, tarball hashes, pack hashes, local temporary paths, raw logs, prompts, and token-looking values outside packaged docs.
 
 ## 0.1.0-alpha.5 — published alpha with stale package docs
 
 - P9-9 alpha.5 real publish and post-publish closure:
   - publishes `0.1.0-alpha.5` to npm as the corrective alpha release that replaces stale alpha.4 package docs for consumers;
-  - keeps `publishConfig.tag` on `alpha` and records that npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.5`;
+  - keeps `publishConfig.tag` on `alpha` and records that npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.6`;
   - creates GitHub Release `v0.1.0-alpha.5` as a prerelease with the npm registry tarball asset, so `release:post-alpha:verify` tarball parity passes for alpha.5;
   - verifies npm registry metadata, published smoke, published daemon lifecycle, published adapter fake-CLI contract gates, and GitHub Release tarball parity, but registry packaged-docs inspection fails because the immutable alpha.5 npm tarball contains stale package docs; `published:verify` and `published:verify:evidence` fail with `registry_packaged_docs_failed`;
   - preserves the alpha.4 facts: `0.1.0-alpha.4` is published on npm, GitHub Release `v0.1.0-alpha.4` exists with the npm registry tarball asset, and `release:post-alpha:verify` tarball parity passes;

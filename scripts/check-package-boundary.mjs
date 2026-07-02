@@ -197,24 +197,14 @@ const publishOverclaimPatterns = [
       /(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)[^\n]{0,160}(?:0\.1\.0-alpha\.5|alpha\.5)|(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)/iu,
   },
   {
-    name: "alpha.6 described as published before authorization",
+    name: "alpha.6 described as unpublished after corrective publish",
     pattern:
-      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:published on npm|published pre-alpha|published corrective alpha release|is published|already published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)/iu,
+      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu,
   },
   {
-    name: "alpha.6 current dist-tag claim before publish",
+    name: "alpha.6 publish described as a future gated action after corrective publish",
     pattern:
-      /(?:alpha|latest|dist-tags?)[^\n]{0,160}(?:points at|points to|指向|均指向)\s*`?0\.1\.0-alpha\.6`?|0\.1\.0-alpha\.6[^\n]{0,160}(?:alpha|latest|dist-tags?)[^\n]{0,160}(?:points at|points to|指向|均指向)\s*`?0\.1\.0-alpha\.6`?/iu,
-  },
-  {
-    name: "alpha.6 GitHub Release described as created before authorization",
-    pattern:
-      /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.6[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.6[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
-  },
-  {
-    name: "alpha.6 published verification pass claim before publish",
-    pattern:
-      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)|(?:published:verify|published:verify:evidence|published verification|published verifier|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)[^\n]{0,160}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
+      /(?:future|later|next|后续|未来)[^\n]{0,120}(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:publish|发布)|(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:real alpha\.6 publish|alpha\.6 publish|npm publish|真实发布|发布前)[^\n]{0,220}(?:requires|require|must|explicit maintainer authorization|explicit authorization|future|before|需要|必须|明确授权|后续|未来)/iu,
   },
   {
     name: "self-expiring dry-run stop point",

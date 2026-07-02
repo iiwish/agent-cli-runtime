@@ -109,28 +109,16 @@ const alpha5StalePatterns = [
 
 const alpha6StalePatterns = [
   {
-    code: "alpha6_published_claim",
-    message: "alpha.6 package docs must not describe alpha.6 as already published.",
+    code: "alpha6_unpublished_claim",
+    message: "alpha.6 package docs must not describe alpha.6 as unpublished after the corrective release.",
     pattern:
-      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:published on npm|published pre-alpha|published corrective alpha release|is published|already published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)/iu,
+      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu,
   },
   {
-    code: "alpha6_dist_tag_claim",
-    message: "alpha.6 package docs must not claim npm dist-tags already point at alpha.6.",
+    code: "alpha6_future_publish_claim",
+    message: "alpha.6 package docs must not describe the alpha.6 publish itself as a future gated action.",
     pattern:
-      /(?:alpha|latest|dist-tags?)[^\n]{0,160}(?:points at|points to|指向|均指向)\s*`?0\.1\.0-alpha\.6`?|0\.1\.0-alpha\.6[^\n]{0,160}(?:alpha|latest|dist-tags?)[^\n]{0,160}(?:points at|points to|指向|均指向)\s*`?0\.1\.0-alpha\.6`?/iu,
-  },
-  {
-    code: "alpha6_github_release_created_claim",
-    message: "alpha.6 package docs must not describe GitHub Release v0.1.0-alpha.6 as already created.",
-    pattern:
-      /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.6[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.6[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
-  },
-  {
-    code: "alpha6_published_verification_pass_claim",
-    message: "alpha.6 package docs must not claim published verification passes before alpha.6 is published.",
-    pattern:
-      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)|(?:published:verify|published:verify:evidence|published verification|published verifier|发布后验证)[^\n]{0,260}(?:pass|passes|passed|ok|通过)[^\n]{0,160}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
+      /(?:future|later|next|后续|未来)[^\n]{0,120}(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:publish|发布)|(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:real alpha\.6 publish|alpha\.6 publish|npm publish|真实发布|发布前)[^\n]{0,220}(?:requires|require|must|explicit maintainer authorization|explicit authorization|future|before|需要|必须|明确授权|后续|未来)/iu,
   },
 ];
 
@@ -252,35 +240,51 @@ const alpha5RequiredPatterns = [
   },
   {
     code: "missing_future_fresh_evidence_gate",
-    message: "packaged docs must require fresh evidence before alpha.6 publish and any future beta or stable promotion.",
+    message: "packaged docs must require fresh evidence before any future beta or stable promotion.",
     pattern:
       /(?:alpha\.6|0\.1\.0-alpha\.6|future beta|future stable|beta\/stable|beta or stable|后续 alpha\.6|后续 beta|后续 stable|未来 beta|未来 stable)[^\n]{0,260}(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)|(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)[^\n]{0,260}(?:alpha\.6|0\.1\.0-alpha\.6|future beta|future stable|beta\/stable|beta or stable|后续 alpha\.6|后续 beta|后续 stable|未来 beta|未来 stable)/iu,
   },
 ];
 
+const alpha5HistoricalRequiredPatterns = alpha5RequiredPatterns.filter(
+  (rule) => rule.code !== "missing_alpha5_alpha_tag" && rule.code !== "missing_alpha5_latest_tag",
+);
+
 const alpha6RequiredPatterns = [
   {
     code: "missing_alpha6",
-    message: "packaged docs must mention the alpha.6 corrective target.",
+    message: "packaged docs must mention the alpha.6 corrective release.",
     pattern: /0\.1\.0-alpha\.6/u,
   },
   {
-    code: "missing_alpha6_corrective_target",
-    message: "packaged docs must describe alpha.6 as the next corrective alpha target.",
+    code: "missing_alpha6_published_state",
+    message: "packaged docs must describe alpha.6 as the published corrective alpha release.",
     pattern:
-      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)|(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)[^\n]{0,260}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
+      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:published corrective alpha release|published on npm|published pre-alpha|is published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release|已作为 corrective alpha release 发布)|(?:published corrective alpha release|published on npm|published pre-alpha|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
   },
   {
-    code: "missing_alpha6_unpublished_state",
-    message: "packaged docs must state that alpha.6 is not yet published.",
+    code: "missing_alpha6_alpha_tag",
+    message: "packaged docs must state that the alpha dist-tag points at alpha.6.",
     pattern:
-      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu,
+      /(?:(?:`?alpha`?)\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,160}0\.1\.0-alpha\.6|0\.1\.0-alpha\.6[^\n]{0,160}(?:(?:`?alpha`?)\s*(?:dist-tag|tag)|dist-tag)/iu,
   },
   {
-    code: "missing_alpha6_authorization_gate",
-    message: "packaged docs must state that alpha.6 real publish and registry or GitHub mutations require explicit authorization.",
+    code: "missing_alpha6_latest_tag",
+    message: "packaged docs must state that the latest dist-tag points at alpha.6.",
     pattern:
-      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:explicit maintainer authorization|explicit authorization|human authorization|明确授权|人工授权)[^\n]{0,220}(?:publish|dist-tag|GitHub Release|registry|发布|标签|mutation|变更)|(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:publish|dist-tag|GitHub Release|registry|发布|标签|mutation|变更)[^\n]{0,260}(?:explicit maintainer authorization|explicit authorization|human authorization|明确授权|人工授权)|(?:publish|dist-tag|GitHub Release|registry|发布|标签|mutation|变更)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:explicit maintainer authorization|explicit authorization|human authorization|明确授权|人工授权)/iu,
+      /(?:(?:`?latest`?)\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,160}0\.1\.0-alpha\.6|0\.1\.0-alpha\.6[^\n]{0,160}(?:(?:`?latest`?)\s*(?:dist-tag|tag)|dist-tag)/iu,
+  },
+  {
+    code: "missing_alpha6_github_release_state",
+    message: "packaged docs must state that GitHub Release v0.1.0-alpha.6 exists with the npm registry tarball asset.",
+    pattern:
+      /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.6[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)|v0\.1\.0-alpha\.6[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)/iu,
+  },
+  {
+    code: "missing_alpha6_github_release_parity",
+    message: "packaged docs must state that alpha.6 GitHub Release tarball parity passes.",
+    pattern:
+      /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)|(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
   },
 ];
 
@@ -337,7 +341,7 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
   } else if (version === "0.1.0-alpha.6") {
     versionRequiredPatterns = [
       ...alpha4HistoricalRequiredPatterns,
-      ...alpha5RequiredPatterns,
+      ...alpha5HistoricalRequiredPatterns,
       ...alpha6RequiredPatterns,
     ];
     versionStalePatterns = [
@@ -412,12 +416,14 @@ export function inspectPackagedDocs(packageDir, { packageSource, packageSpec = n
     noAlpha5PublishedVerificationPassClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha5_published_verification_pass_claim"),
     alpha5StaleDocsIncidentRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha5_stale_docs_incident"),
     alpha5PublishedVerificationFailureRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha5_published_verification_failure"),
-    noAlpha6PublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha6_published_claim"),
-    noAlpha6DistTagClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha6_dist_tag_claim"),
-    noAlpha6GithubReleaseCreatedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha6_github_release_created_claim"),
-    noAlpha6PublishedVerificationPassClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha6_published_verification_pass_claim"),
-    alpha6UnpublishedStateRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_unpublished_state"),
-    alpha6FuturePublishGateRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_authorization_gate" || diagnostic.code === "missing_future_fresh_evidence_gate"),
+    noAlpha6UnpublishedClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha6_unpublished_claim"),
+    noAlpha6FuturePublishClaim: !diagnostics.some((diagnostic) => diagnostic.code === "alpha6_future_publish_claim"),
+    alpha6PublishedStateRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_published_state"),
+    alpha6AlphaTagRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_alpha_tag"),
+    alpha6LatestTagRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_latest_tag"),
+    alpha6GithubReleaseStateRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_github_release_state"),
+    alpha6GithubReleaseParityRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_github_release_parity"),
+    alpha6FuturePromotionGateRecorded: !diagnostics.some((diagnostic) => diagnostic.code === "missing_future_fresh_evidence_gate"),
     noStaleAlpha3CurrentClaim: !diagnostics.some((diagnostic) => diagnostic.code === "stale_alpha3_current_claim"),
     noDryRunStopPoint: !diagnostics.some((diagnostic) => diagnostic.code === "dry_run_stop_point"),
     noPublishReadyCandidate: !diagnostics.some((diagnostic) => diagnostic.code === "publish_ready_candidate"),

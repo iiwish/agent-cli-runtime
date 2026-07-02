@@ -324,15 +324,15 @@ agent-runtime store-repair --storage-dir .agent-runtime --apply --json     # 自
 当前仓库处于 **pre-alpha / developer preview**（开发者预览阶段）。
 
 ### 🏷️ npm 版本发布简史
-*   `agent-cli-runtime@0.1.0-alpha.6` - **下一次 corrective alpha target**。它尚未发布。alpha.6 真实发布、npm dist-tag 变更和 GitHub Release 创建都需要 fresh release-candidate evidence、`npm run package:docs:check`、`npm publish --dry-run --ignore-scripts --tag alpha`，以及维护者明确授权。
-*   `agent-cli-runtime@0.1.0-alpha.5` - 已发布到 npm。npm `alpha` 与 `latest` dist-tags 均指向 `0.1.0-alpha.5`。GitHub Release `v0.1.0-alpha.5` 已作为 prerelease 存在并带有 npm registry tarball asset，`release:post-alpha:verify` tarball parity 通过。但它的 immutable npm tarball 内含 stale package docs，因此 aggregate published verification（`published:verify` / `published:verify:evidence`）因 `registry_packaged_docs_failed` 失败；alpha.5 不能作为最终 corrective release 验收。
+*   `agent-cli-runtime@0.1.0-alpha.6` - **已发布的 corrective alpha release**。已发布到 npm；npm `alpha` 与 `latest` dist-tags 均指向 `0.1.0-alpha.6`。GitHub Release `v0.1.0-alpha.6` 已作为 prerelease 存在并带有 npm registry tarball asset，`release:post-alpha:verify` tarball parity 通过。
+*   `agent-cli-runtime@0.1.0-alpha.5` - 已发布到 npm。npm `alpha` 与 `latest` dist-tags 均指向 `0.1.0-alpha.6`。GitHub Release `v0.1.0-alpha.5` 已作为 prerelease 存在并带有 npm registry tarball asset，`release:post-alpha:verify` tarball parity 通过。但它的 immutable npm tarball 内含 stale package docs，因此 aggregate published verification（`published:verify` / `published:verify:evidence`）因 `registry_packaged_docs_failed` 失败；alpha.5 不能作为最终 corrective release 验收。
 *   `agent-cli-runtime@0.1.0-alpha.4` - 历史已发布到 npm 的版本。immutable npm tarball 内含 stale release-prep package docs。GitHub Release `v0.1.0-alpha.4` 已存在并带有 npm registry tarball asset，GitHub Release tarball parity 通过。
 *   `agent-cli-runtime@0.1.0-alpha.3` - 历史 corrective pre-alpha release。
 *   `agent-cli-runtime@0.1.0-alpha.2` - 历史已发布版本，其 immutable npm tarball 内含 stale pre-publish package docs。
 *   `agent-cli-runtime@0.1.0-alpha.1` - 更早的已发布 alpha，并有 GitHub pre-release `v0.1.0-alpha.1`。
 *   `agent-cli-runtime@0.1.0-alpha.0` - 已弃用，因为 immutable package docs 带有过期发布前状态。
 
-npm registry metadata 和 GitHub Releases 是可用版本与 dist-tags 的 source of truth。易漂移的 run、target-SHA、registry 与 artifact evidence 留在 npm 包外的 `.release-evidence/`。后续 alpha.6 发布、beta promotion 或 stable promotion 都必须为目标版本重新生成 fresh release evidence，包括 package docs、registry state、GitHub Release parity 和 published verification。
+npm registry metadata 和 GitHub Releases 是可用版本与 dist-tags 的 source of truth。易漂移的 run、target-SHA、registry 与 artifact evidence 留在 npm 包外的 `.release-evidence/`。后续 beta promotion 或 stable promotion 都必须为目标版本重新生成 fresh release evidence，包括 package docs、registry state、GitHub Release parity 和 published verification。
 
 `published:usability:audit` 是 repo-only 的 post-publish 审计脚本。它有意不进入 npm package 内容，只用于从 npm registry 验证已经发布的 package。
 

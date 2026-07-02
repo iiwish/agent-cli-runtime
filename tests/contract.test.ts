@@ -1735,7 +1735,7 @@ describe("public contract", () => {
     expect(manifest.keywords).toEqual(expect.arrayContaining(["agent", "cli", "codex", "claude", "opencode", "runtime"]));
   });
 
-  it("keeps alpha.6 package metadata aligned with the corrective candidate state", async () => {
+  it("keeps alpha.6 package metadata aligned with the published corrective release state", async () => {
     const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as {
       name: string;
       version: string;
@@ -1772,23 +1772,23 @@ describe("public contract", () => {
       expect(text).toContain("0.1.0-alpha.5");
       expect(text).toContain("0.1.0-alpha.4");
       expect(text).toContain("0.1.0-alpha.3");
-      expect(text, `${doc} must describe alpha.6 as the corrective target`).toMatch(
-        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)|(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)[^\n]{0,260}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
+      expect(text, `${doc} must describe alpha.6 as the published corrective release`).toMatch(
+        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:published corrective alpha release|published on npm|is published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release|已作为 corrective alpha release 发布)|(?:published corrective alpha release|published on npm|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
       );
-      expect(text, `${doc} must describe alpha.6 as not published`).toMatch(
-        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu,
+      expect(text, `${doc} must record alpha.6 alpha dist-tag`).toMatch(
+        /(?:(?:`?alpha`?)\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,160}0\.1\.0-alpha\.6|0\.1\.0-alpha\.6[^\n]{0,160}(?:(?:`?alpha`?)\s*(?:dist-tag|tag)|dist-tag)/iu,
       );
-      expect(text, `${doc} must keep alpha.6 behind explicit authorization`).toMatch(
-        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:publish|dist-tag|GitHub Release|registry|发布|标签|mutation|变更)[^\n]{0,260}(?:explicit maintainer authorization|explicit authorization|human authorization|明确授权|人工授权)|(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:explicit maintainer authorization|explicit authorization|human authorization|明确授权|人工授权)[^\n]{0,220}(?:publish|dist-tag|GitHub Release|registry|发布|标签|mutation|变更)/iu,
+      expect(text, `${doc} must record alpha.6 latest dist-tag`).toMatch(
+        /(?:(?:`?latest`?)\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,160}0\.1\.0-alpha\.6|0\.1\.0-alpha\.6[^\n]{0,160}(?:(?:`?latest`?)\s*(?:dist-tag|tag)|dist-tag)/iu,
+      );
+      expect(text, `${doc} must record alpha.6 GitHub Release asset state`).toMatch(
+        /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.6[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)|v0\.1\.0-alpha\.6[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)/iu,
+      );
+      expect(text, `${doc} must record alpha.6 GitHub Release tarball parity`).toMatch(
+        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)|(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
       );
       expect(text, `${doc} must describe alpha.5 as published`).toMatch(
         /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,180}(?:published on npm|published pre-alpha|published package|已发布到 npm|已经发布到 npm)|(?:published on npm|published pre-alpha|已发布到 npm|已经发布到 npm)[^\n]{0,180}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
-      );
-      expect(text, `${doc} must record alpha.5 alpha dist-tag`).toMatch(
-        /(?:(?:`?alpha`?)\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.5|0\.1\.0-alpha\.5[^\n]{0,120}(?:(?:`?alpha`?)\s*(?:dist-tag|tag)|dist-tag)/iu,
-      );
-      expect(text, `${doc} must record alpha.5 latest dist-tag`).toMatch(
-        /(?:(?:`?latest`?)\s*(?:dist-tag|tag)|dist-tags)[^\n]{0,120}0\.1\.0-alpha\.5|0\.1\.0-alpha\.5[^\n]{0,120}(?:(?:`?latest`?)\s*(?:dist-tag|tag)|dist-tag)/iu,
       );
       expect(text, `${doc} must record alpha.5 GitHub Release asset state`).toMatch(
         /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.5[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.5[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
@@ -1799,8 +1799,8 @@ describe("public contract", () => {
       expect(text, `${doc} must record alpha.5 published verification failure`).toMatch(
         /(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:fail|fails|failed|blocked|registry_packaged_docs_failed|失败|未通过)[^\n]{0,180}(?:0\.1\.0-alpha\.5|alpha\.5|stale|package docs|docs)|(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:fail|fails|failed|blocked|registry_packaged_docs_failed|失败|未通过)/iu,
       );
-      expect(text, `${doc} must require fresh alpha.6, beta, or stable evidence`).toMatch(
-        /(?:alpha\.6|0\.1\.0-alpha\.6|future beta|future stable|beta\/stable|beta or stable|beta promotion|stable promotion|后续 alpha\.6|后续 beta|后续 stable|未来 beta|未来 stable)[^\n]{0,260}(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)|(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)[^\n]{0,260}(?:alpha\.6|0\.1\.0-alpha\.6|future beta|future stable|beta\/stable|beta or stable|beta promotion|stable promotion|后续 alpha\.6|后续 beta|后续 stable|未来 beta|未来 stable)/iu,
+      expect(text, `${doc} must require fresh beta or stable evidence`).toMatch(
+        /(?:future beta|future stable|beta\/stable|beta or stable|beta promotion|stable promotion|后续 beta|后续 stable|未来 beta|未来 stable)[^\n]{0,260}(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)|(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)[^\n]{0,260}(?:future beta|future stable|beta\/stable|beta or stable|beta promotion|stable promotion|后续 beta|后续 stable|未来 beta|未来 stable)/iu,
       );
       expect(text, `${doc} must record the alpha.2 stale-docs incident`).toMatch(
         /0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu,
@@ -1829,11 +1829,11 @@ describe("public contract", () => {
       expect(text, `${doc} must not describe alpha.5 as unpublished or waiting for publish`).not.toMatch(
         /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,220}(?:not published|unpublished|not yet published|before any explicit maintainer authorization for real publish|before any human publish decision|requires fresh release-candidate evidence before[^\n]{0,80}publish|未发布|尚未发布|发布前必须先|人工授权前)/iu,
       );
-      expect(text, `${doc} must not describe alpha.6 as published`).not.toMatch(
-        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:published on npm|published pre-alpha|published corrective alpha release|is published|already published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)/iu,
+      expect(text, `${doc} must not describe alpha.6 as unpublished`).not.toMatch(
+        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu,
       );
-      expect(text, `${doc} must not describe alpha.6 GitHub Release as created`).not.toMatch(
-        /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.6[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.6[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu,
+      expect(text, `${doc} must not describe alpha.6 publish as a future gated action`).not.toMatch(
+        /(?:future|later|next|后续|未来)[^\n]{0,120}(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:publish|发布)|(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:real alpha\.6 publish|alpha\.6 publish|npm publish|真实发布|发布前)[^\n]{0,220}(?:requires|require|must|explicit maintainer authorization|explicit authorization|future|before|需要|必须|明确授权|后续|未来)/iu,
       );
       expect(text, `${doc} must not keep old latest alpha.1 claim`).not.toMatch(
         /(?:latest|npm latest|latest dist-tag)[^\n]{0,120}(?:remains|still|points at|points to|仍指向|仍停在|保持在)\s*(?:on\s*)?`?0\.1\.0-alpha\.1`?/iu,
@@ -1865,12 +1865,14 @@ describe("public contract", () => {
       noAlpha5PublishedVerificationPassClaim: boolean;
       alpha5StaleDocsIncidentRecorded: boolean;
       alpha5PublishedVerificationFailureRecorded: boolean;
-      noAlpha6PublishedClaim: boolean;
-      noAlpha6DistTagClaim: boolean;
-      noAlpha6GithubReleaseCreatedClaim: boolean;
-      noAlpha6PublishedVerificationPassClaim: boolean;
-      alpha6UnpublishedStateRecorded: boolean;
-      alpha6FuturePublishGateRecorded: boolean;
+      noAlpha6UnpublishedClaim: boolean;
+      noAlpha6FuturePublishClaim: boolean;
+      alpha6PublishedStateRecorded: boolean;
+      alpha6AlphaTagRecorded: boolean;
+      alpha6LatestTagRecorded: boolean;
+      alpha6GithubReleaseStateRecorded: boolean;
+      alpha6GithubReleaseParityRecorded: boolean;
+      alpha6FuturePromotionGateRecorded: boolean;
       noStaleAlpha3CurrentClaim: boolean;
       noDryRunStopPoint: boolean;
       noPublishReadyCandidate: boolean;
@@ -1895,12 +1897,14 @@ describe("public contract", () => {
       noAlpha5PublishedVerificationPassClaim: true,
       alpha5StaleDocsIncidentRecorded: true,
       alpha5PublishedVerificationFailureRecorded: true,
-      noAlpha6PublishedClaim: true,
-      noAlpha6DistTagClaim: true,
-      noAlpha6GithubReleaseCreatedClaim: true,
-      noAlpha6PublishedVerificationPassClaim: true,
-      alpha6UnpublishedStateRecorded: true,
-      alpha6FuturePublishGateRecorded: true,
+      noAlpha6UnpublishedClaim: true,
+      noAlpha6FuturePublishClaim: true,
+      alpha6PublishedStateRecorded: true,
+      alpha6AlphaTagRecorded: true,
+      alpha6LatestTagRecorded: true,
+      alpha6GithubReleaseStateRecorded: true,
+      alpha6GithubReleaseParityRecorded: true,
+      alpha6FuturePromotionGateRecorded: true,
       noStaleAlpha3CurrentClaim: true,
       noDryRunStopPoint: true,
       noPublishReadyCandidate: true,
@@ -1920,13 +1924,12 @@ describe("public contract", () => {
     expect(result.docs.every((doc) => doc.ok)).toBe(true);
   }, 60_000);
 
-  it("rejects alpha.6 package docs that overclaim publish state or miss alpha.5 stale-docs failure", async () => {
+  it("rejects alpha.6 package docs that keep pre-publish state or miss alpha.5 stale-docs failure", async () => {
     const { inspectPackagedDocs, PACKAGED_DOCS } = await import("../scripts/packaged-docs-policy.mjs");
     const packageDir = await tempDir("packaged-docs-stale-alpha6-release-");
     const staleText = [
-      "0.1.0-alpha.6 is the next corrective alpha target.",
-      "0.1.0-alpha.6 is published on npm.",
-      "GitHub Release v0.1.0-alpha.6 exists as a prerelease with the npm registry tarball asset.",
+      "0.1.0-alpha.6 is the next corrective alpha target and is not published.",
+      "0.1.0-alpha.6 npm publish requires explicit maintainer authorization.",
       "0.1.0-alpha.5 is not published yet.",
       "latest dist-tag remains on 0.1.0-alpha.1.",
       "alpha dist-tag points at 0.1.0-alpha.4.",
@@ -1949,15 +1952,25 @@ describe("public contract", () => {
 
       const result = inspectPackagedDocs(packageDir, { packageSource: "fixture" });
       expect(result.ok).toBe(false);
-      expect(result.noAlpha6PublishedClaim).toBe(false);
-      expect(result.noAlpha6GithubReleaseCreatedClaim).toBe(false);
+      expect(result.noAlpha6UnpublishedClaim).toBe(false);
+      expect(result.noAlpha6FuturePublishClaim).toBe(false);
+      expect(result.alpha6PublishedStateRecorded).toBe(false);
+      expect(result.alpha6AlphaTagRecorded).toBe(false);
+      expect(result.alpha6LatestTagRecorded).toBe(false);
+      expect(result.alpha6GithubReleaseStateRecorded).toBe(false);
+      expect(result.alpha6GithubReleaseParityRecorded).toBe(false);
       expect(result.noAlpha5UnpublishedClaim).toBe(false);
       expect(result.noAlpha5OldLatestAlpha1Claim).toBe(false);
       expect(result.noAlpha5OldAlpha4CurrentTagClaim).toBe(false);
       expect(result.alpha5StaleDocsIncidentRecorded).toBe(false);
       expect(result.alpha5PublishedVerificationFailureRecorded).toBe(false);
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "alpha6_published_claim")).toBe(true);
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "alpha6_github_release_created_claim")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "alpha6_unpublished_claim")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "alpha6_future_publish_claim")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_published_state")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_alpha_tag")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_latest_tag")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_github_release_state")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing_alpha6_github_release_parity")).toBe(true);
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "alpha5_unpublished_claim")).toBe(true);
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "alpha5_old_latest_alpha1_claim")).toBe(true);
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "alpha5_old_alpha4_current_tag_claim")).toBe(true);
@@ -6978,7 +6991,7 @@ setInterval(() => {}, 1000);
     expect(evidenceText).not.toMatch(/rawStdout|rawStderr|rawOutput|"stdout"|"stderr"|promptText|fullPrompt|workflowLog|logs|resolvedExecutablePath|<resolved_executable>|worktree/u);
   });
 
-  it("keeps alpha.6 corrective candidate docs stable and package-safe", async () => {
+  it("keeps alpha.6 published corrective release docs stable and package-safe", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
@@ -6994,8 +7007,8 @@ setInterval(() => {}, 1000);
     const runbook = await readFile(path.join(root, "docs", "release-publish-runbook.md"), "utf8");
 
     expect(releaseReport).toContain("0.1.0-alpha.6");
-    expect(releaseReport).toContain("Corrective alpha target: `agent-cli-runtime@0.1.0-alpha.6`; alpha.6 is not published");
-    expect(releaseReport).toContain("`agent-cli-runtime@0.1.0-alpha.5` is published on npm");
+    expect(releaseReport).toContain("Published corrective alpha release: `agent-cli-runtime@0.1.0-alpha.6`; alpha.6 is published");
+    expect(releaseReport).toContain("`agent-cli-runtime@0.1.0-alpha.5` remains published on npm as a stale-docs incident");
     expect(releaseReport).toContain("Historical published npm package with stale docs: `agent-cli-runtime@0.1.0-alpha.4`");
     expect(releaseReport).toContain("agent-cli-runtime.releaseVerification.v1");
     expect(releaseReport).toContain("agent-cli-runtime.releaseGateEvidence.v1");
@@ -7003,21 +7016,22 @@ setInterval(() => {}, 1000);
     expect(releaseReport).toContain("agent-cli-runtime.packageContentEquivalence.v1");
     expect(releaseReport).toContain("compat:real:evidence:verify");
     expect(releaseReport).toContain(".release-evidence/");
-    expect(releaseChecklist).toContain("P9-10 Alpha.6 Corrective Candidate State");
+    expect(releaseChecklist).toContain("P9-11 Alpha.6 Published Corrective Release State");
     expect(releaseChecklist).toContain("0.1.0-alpha.6");
     expect(releaseChecklist).toContain("0.1.0-alpha.5");
     expect(releaseChecklist).toContain("0.1.0-alpha.4");
-    expect(runbook).toContain("Corrective target: `agent-cli-runtime@0.1.0-alpha.6`; alpha.6 is not published");
-    expect(runbook).toContain("Published alpha.5 package: `agent-cli-runtime@0.1.0-alpha.5`");
+    expect(runbook).toContain("Corrective target: `agent-cli-runtime@0.1.0-alpha.6`; alpha.6 is published");
+    expect(runbook).toContain("Published alpha.5 stale-docs incident package: `agent-cli-runtime@0.1.0-alpha.5`");
     expect(runbook).toContain("Historical published package with stale docs: `agent-cli-runtime@0.1.0-alpha.4`");
-    expect(runbook).toContain("npm `latest` dist-tag points at `0.1.0-alpha.5`");
+    expect(runbook).toContain("npm `latest` dist-tag points at `0.1.0-alpha.6`");
+    expect(runbook).toContain("GitHub Release `v0.1.0-alpha.6` exists as a prerelease with the npm registry tarball asset");
     expect(runbook).toContain("GitHub Release `v0.1.0-alpha.4` exists as a prerelease with the npm registry tarball asset");
 
     const productionReadiness = await readFile(path.join(root, "docs", "production-readiness.md"), "utf8");
     const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
-    expect(productionReadiness).toContain("Version `0.1.0-alpha.6` is the next corrective alpha target and is not published");
+    expect(productionReadiness).toContain("Version `0.1.0-alpha.6` is the published corrective alpha release");
     expect(productionReadiness).toContain("installed-package CLI smoke");
-    expect(changelog).toContain("0.1.0-alpha.6 — corrective alpha target");
+    expect(changelog).toContain("0.1.0-alpha.6 — published corrective alpha release");
     expect(changelog).toContain("P9-10 alpha.6 corrective release prep");
     expect(changelog).toContain("0.1.0-alpha.5 — published alpha with stale package docs");
     expect(changelog).toContain("P9-9 alpha.5 real publish and post-publish closure");
@@ -7032,20 +7046,24 @@ setInterval(() => {}, 1000);
       expect(text).toContain(".release-evidence/");
       expect(text).toContain("0.1.0-alpha.6");
       expect(text).toContain("0.1.0-alpha.5");
-      expect(text).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
+      if (!doc.startsWith("README")) {
+        expect(text).toContain("npm publish --dry-run --ignore-scripts --tag alpha");
+      }
       expect(text, doc + " must not include real local temp paths").not.toMatch(/\/tmp\/|\/private\/tmp\/|\/var\/folders\//u);
       expect(text, doc + " must not include artifact digests").not.toMatch(/sha256:[0-9a-f]{16,}/iu);
       expect(text, doc + " must not include raw tarball or pack hashes").not.toMatch(/(?:tarball sha256|tarball shasum|npm pack shasum|pack shasum)\s*[:：]?\s*[0-9a-f]{16,}/iu);
       expect(text, doc + " must keep executable shell snippets executable").not.toMatch(/mktemp -d\s+<local-temp-dir>|>\s*<local-temp-dir>|readFileSync\(['"]<local-temp-dir>['"]/u);
       expect(text, doc + " must record alpha.2 stale-docs incident").toMatch(/0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu);
-      expect(text, doc + " must mention alpha.6 corrective target").toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)|(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)[^\n]{0,260}(?:0\.1\.0-alpha\.6|alpha\.6)/iu);
-      expect(text, doc + " must mention alpha.6 unpublished state").toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu);
-      expect(text, doc + " must mention alpha.5 alpha dist-tag").toMatch(/(?:alpha\s*(?:dist-tag|tag)|alpha)[^\n]{0,140}0\.1\.0-alpha\.5/iu);
-      expect(text, doc + " must mention alpha.5 latest dist-tag").toMatch(/(?:latest\s*(?:dist-tag|tag)|latest)[^\n]{0,140}0\.1\.0-alpha\.5/iu);
+      expect(text, doc + " must mention alpha.6 published corrective release").toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:published corrective alpha release|published on npm|is published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release|已作为 corrective alpha release 发布)|(?:published corrective alpha release|published on npm|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu);
+      expect(text, doc + " must mention alpha.6 alpha dist-tag").toMatch(/(?:alpha\s*(?:dist-tag|tag)|alpha)[^\n]{0,160}0\.1\.0-alpha\.6/iu);
+      expect(text, doc + " must mention alpha.6 latest dist-tag").toMatch(/(?:latest\s*(?:dist-tag|tag)|latest)[^\n]{0,160}0\.1\.0-alpha\.6/iu);
+      expect(text, doc + " must mention alpha.6 GitHub Release asset state").toMatch(/(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.6[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)|v0\.1\.0-alpha\.6[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)/iu);
+      expect(text, doc + " must mention alpha.6 GitHub Release tarball parity").toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)|(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu);
       expect(text, doc + " must mention alpha.5 stale package docs").toMatch(/(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,260}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,180}(?:package docs|packaged docs|tarball docs|docs)|(?:package docs|packaged docs|tarball docs|docs)[^\n]{0,180}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,260}(?:0\.1\.0-alpha\.5|alpha\.5)/iu);
       expect(text, doc + " must mention alpha.5 published verification failure").toMatch(/(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:fail|fails|failed|blocked|registry_packaged_docs_failed|失败|未通过)[^\n]{0,180}(?:0\.1\.0-alpha\.5|alpha\.5|stale|package docs|docs)|(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:fail|fails|failed|blocked|registry_packaged_docs_failed|失败|未通过)/iu);
       expect(text, doc + " must not describe alpha.5 as unpublished").not.toMatch(/(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,220}(?:not published|unpublished|not yet published|before any explicit maintainer authorization for real publish|before any human publish decision|requires fresh release-candidate evidence before[^\n]{0,80}publish|未发布|尚未发布|发布前必须先|人工授权前)/iu);
-      expect(text, doc + " must not describe alpha.6 as published").not.toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:published on npm|published pre-alpha|published corrective alpha release|is published|already published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)/iu);
+      expect(text, doc + " must not describe alpha.6 as unpublished").not.toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu);
+      expect(text, doc + " must not describe alpha.6 publish as a future gated action").not.toMatch(/(?:future|later|next|后续|未来)[^\n]{0,120}(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,120}(?:publish|发布)|(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:real alpha\.6 publish|alpha\.6 publish|npm publish|真实发布|发布前)[^\n]{0,220}(?:requires|require|must|explicit maintainer authorization|explicit authorization|future|before|需要|必须|明确授权|后续|未来)/iu);
       expect(text, doc + " must mention alpha.4 published npm state").toMatch(/(?:0\.1\.0-alpha\.4|alpha\.4)[^\n]{0,180}(?:published on npm|published pre-alpha|npm package is published|已发布到 npm|已经发布到 npm)/iu);
       expect(text, doc + " must mention alpha.4 GitHub Release asset state").toMatch(/(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.4[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)|v0\.1\.0-alpha\.4[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传)/iu);
       expect(text, doc + " must mention alpha.4 GitHub Release tarball parity state").toMatch(/(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,180}(?:pass|passes|passed|closed|ok|通过|闭合)/iu);
@@ -7062,7 +7080,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("locks packaged docs to the P9-10 alpha.6 corrective candidate boundary", async () => {
+  it("locks packaged docs to the P9-11 alpha.6 published corrective release boundary", async () => {
     const packagedDocs = [
       "CHANGELOG.md",
       "README.md",
@@ -7077,9 +7095,10 @@ setInterval(() => {}, 1000);
     const compatibility = await readFile(path.join(root, "docs", "compatibility.md"), "utf8");
 
     expect(compatibility).toContain("0.1.0-alpha.6");
-    expect(compatibility).toContain("next corrective alpha target");
+    expect(compatibility).toContain("published corrective alpha release");
     expect(compatibility).toContain("0.1.0-alpha.5");
-    expect(compatibility).toContain("npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.5`");
+    expect(compatibility).toContain("npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.6`");
+    expect(compatibility).toContain("GitHub Release `v0.1.0-alpha.6` exists as a prerelease with the npm registry tarball asset");
     expect(compatibility).toContain("registry_packaged_docs_failed");
     expect(compatibility).toContain("immutable npm tarball contains stale release-prep package docs");
     expect(compatibility).toContain("0.1.0-alpha.4");
@@ -7092,17 +7111,20 @@ setInterval(() => {}, 1000);
 
     for (const doc of packagedDocs) {
       const text = await readFile(path.join(root, doc), "utf8");
-      expect(text, `${doc} must describe alpha.6 as corrective target`).toMatch(
-        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)|(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)[^\n]{0,260}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
-      );
-      expect(text, `${doc} must describe alpha.6 as not published`).toMatch(
-        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu,
+      expect(text, `${doc} must describe alpha.6 as published corrective release`).toMatch(
+        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:published corrective alpha release|published on npm|is published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release|已作为 corrective alpha release 发布)|(?:published corrective alpha release|published on npm|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
       );
       expect(text, `${doc} must describe alpha.5 as published`).toMatch(
         /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,180}(?:published on npm|published pre-alpha|published package|已发布到 npm|已经发布到 npm)|(?:published on npm|published pre-alpha|已发布到 npm|已经发布到 npm)[^\n]{0,180}(?:0\.1\.0-alpha\.5|alpha\.5)/iu,
       );
-      expect(text, `${doc} must mention alpha.5 latest dist-tag`).toMatch(
-        /(?:latest\s*(?:dist-tag|tag)|dist-tags|latest)[^\n]{0,140}0\.1\.0-alpha\.5/iu,
+      expect(text, `${doc} must mention alpha.6 latest dist-tag`).toMatch(
+        /(?:latest\s*(?:dist-tag|tag)|dist-tags|latest)[^\n]{0,160}0\.1\.0-alpha\.6/iu,
+      );
+      expect(text, `${doc} must mention alpha.6 GitHub Release asset state`).toMatch(
+        /(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.6[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)|v0\.1\.0-alpha\.6[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)/iu,
+      );
+      expect(text, `${doc} must mention alpha.6 GitHub Release tarball parity`).toMatch(
+        /(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)|(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu,
       );
       expect(text, `${doc} must mention alpha.5 stale-docs published verification failure`).toMatch(
         /(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:fail|fails|failed|blocked|registry_packaged_docs_failed|失败|未通过)|(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:fail|fails|failed|blocked|registry_packaged_docs_failed|失败|未通过)[^\n]{0,180}(?:0\.1\.0-alpha\.5|alpha\.5|stale|package docs|docs)/iu,
@@ -7673,9 +7695,10 @@ setInterval(() => {}, 1000);
     expect(runbook).toContain("provenance");
     expect(runbook).toContain("not configured");
     expect(runbook).toContain("npm registry metadata and GitHub Releases are the source of truth");
-    expect(runbook).toContain("Corrective target: `agent-cli-runtime@0.1.0-alpha.6`; alpha.6 is not published");
-    expect(runbook).toContain("Published alpha.5 package: `agent-cli-runtime@0.1.0-alpha.5`");
+    expect(runbook).toContain("Corrective target: `agent-cli-runtime@0.1.0-alpha.6`; alpha.6 is published");
+    expect(runbook).toContain("Published alpha.5 stale-docs incident package: `agent-cli-runtime@0.1.0-alpha.5`");
     expect(runbook).toContain("Historical published package with stale docs: `agent-cli-runtime@0.1.0-alpha.4`");
+    expect(runbook).toContain("GitHub Release `v0.1.0-alpha.6` exists as a prerelease with the npm registry tarball asset");
     expect(runbook).toContain("GitHub Release `v0.1.0-alpha.5` exists as a prerelease with the npm registry tarball asset");
     expect(releaseCandidate).not.toMatch(/\bnpm publish\b/u);
     expect(releaseCandidate).not.toContain("NODE_AUTH_TOKEN");
@@ -7713,7 +7736,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  it("documents alpha.6 corrective target and alpha.5 historical stale-docs source-of-truth", async () => {
+  it("documents alpha.6 published corrective release and alpha.5 historical stale-docs source-of-truth", async () => {
     const docs = [
       "README.md",
       "README.zh-CN.md",
@@ -7731,10 +7754,12 @@ setInterval(() => {}, 1000);
       expect(text).toContain("0.1.0-alpha.4");
       expect(text).toContain("0.1.0-alpha.5");
       expect(text).toContain("0.1.0-alpha.6");
-      expect(text).toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)|(?:corrective alpha target|corrective target|next corrective|下一次 corrective|下一个 corrective|纠偏[^\n]{0,80}目标|候选目标)[^\n]{0,260}(?:0\.1\.0-alpha\.6|alpha\.6)/iu);
-      expect(text).toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu);
-      expect(text).toMatch(/(?:alpha\s*(?:dist-tag|tag)|alpha)[^\n]{0,140}0\.1\.0-alpha\.5/iu);
-      expect(text).toMatch(/(?:latest\s*(?:dist-tag|tag)|latest)[^\n]{0,140}0\.1\.0-alpha\.5/iu);
+      expect(text).toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:published corrective alpha release|published on npm|is published|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release|已作为 corrective alpha release 发布)|(?:published corrective alpha release|published on npm|已发布到 npm|已经发布到 npm|已发布的 corrective alpha release)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu);
+      expect(text).not.toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,220}(?:not published|not yet published|has not been published|unpublished|尚未发布|未发布)/iu);
+      expect(text).toMatch(/(?:alpha\s*(?:dist-tag|tag)|alpha)[^\n]{0,160}0\.1\.0-alpha\.6/iu);
+      expect(text).toMatch(/(?:latest\s*(?:dist-tag|tag)|latest)[^\n]{0,160}0\.1\.0-alpha\.6/iu);
+      expect(text).toMatch(/(?:GitHub Release|GitHub pre-release)[^\n]{0,180}v0\.1\.0-alpha\.6[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)|v0\.1\.0-alpha\.6[^\n]{0,180}(?:GitHub Release|GitHub pre-release)[^\n]{0,220}(?:created|exists|prerelease|pre-release|tarball asset|已创建|已有|已上传|已作为 prerelease 存在)/iu);
+      expect(text).toMatch(/(?:0\.1\.0-alpha\.6|alpha\.6)[^\n]{0,260}(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)|(?:release:post-alpha:verify|GitHub Release tarball parity|tarball parity|parity verification)[^\n]{0,220}(?:pass|passes|passed|closed|ok|通过|闭合)[^\n]{0,220}(?:0\.1\.0-alpha\.6|alpha\.6)/iu);
       expect(text).toMatch(/(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,260}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,180}(?:package docs|packaged docs|tarball docs|docs)|(?:package docs|packaged docs|tarball docs|docs)[^\n]{0,180}(?:stale|pre-publish|release-prep|过期|发布前)[^\n]{0,260}(?:0\.1\.0-alpha\.5|alpha\.5)/iu);
       expect(text).toMatch(/(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:fail|fails|failed|blocked|registry_packaged_docs_failed|失败|未通过)[^\n]{0,180}(?:0\.1\.0-alpha\.5|alpha\.5|stale|package docs|docs)|(?:0\.1\.0-alpha\.5|alpha\.5)[^\n]{0,260}(?:published:verify|published:verify:evidence|published verification|published verifier|aggregate published verification|发布后验证)[^\n]{0,260}(?:fail|fails|failed|blocked|registry_packaged_docs_failed|失败|未通过)/iu);
       expect(text).toMatch(/0\.1\.0-alpha\.2[^\n]*(?:stale|pre-publish|过期|发布前)/iu);
@@ -7745,7 +7770,7 @@ setInterval(() => {}, 1000);
       expect(text).toMatch(/(?:npm registry|GitHub)[^\n]*(?:source of truth|authoritative|为准|权威)/iu);
       expect(text).toMatch(/0\.1\.0-alpha\.0[^\n]*(?:deprecated|deprecate|deprecate|已 deprecate|已弃用)/iu);
       expect(text).toMatch(/v0\.1\.0-alpha\.1/u);
-      expect(text).toMatch(/(?:alpha\.6|0\.1\.0-alpha\.6|future beta|future stable|beta\/stable|beta or stable|beta promotion|stable promotion|后续 alpha\.6|后续 beta|后续 stable|未来 beta|未来 stable)[^\n]{0,260}(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)|(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)[^\n]{0,260}(?:alpha\.6|0\.1\.0-alpha\.6|future beta|future stable|beta\/stable|beta or stable|beta promotion|stable promotion|后续 alpha\.6|后续 beta|后续 stable|未来 beta|未来 stable)/iu);
+      expect(text).toMatch(/(?:future beta|future stable|beta\/stable|beta or stable|beta promotion|stable promotion|后续 beta|后续 stable|未来 beta|未来 stable)[^\n]{0,260}(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)|(?:fresh release evidence|fresh evidence|fresh release-candidate|fresh published verification|fresh gate|新鲜[^\n]{0,80}证据|重新生成[^\n]{0,80}证据)[^\n]{0,260}(?:future beta|future stable|beta\/stable|beta or stable|beta promotion|stable promotion|后续 beta|后续 stable|未来 beta|未来 stable)/iu);
     }
   });
 
