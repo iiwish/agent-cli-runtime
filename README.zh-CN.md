@@ -1,5 +1,8 @@
 # Agent CLI Runtime
 
+> [!IMPORTANT]
+> **维护模式。** 本仓库已归档，不再进行主动开发。现有版本继续保留，但不承诺后续兼容性或功能更新。新的多 Agent 集成建议优先采用 [Agent Client Protocol](https://agentclientprotocol.com/) 或所选 Agent 的官方 SDK。
+
 <div align="center">
   <p align="center">
     <b>本地 Coding Agent CLI 的通用适配层与执行引擎</b>
@@ -7,7 +10,7 @@
   <p align="center">
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
     <a href="https://www.npmjs.com/package/agent-cli-runtime"><img src="https://img.shields.io/npm/v/agent-cli-runtime.svg" alt="NPM Version"></a>
-    <a href="#项目状态"><img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: pre-alpha"></a>
+    <a href="#项目状态"><img src="https://img.shields.io/badge/status-maintenance-yellow.svg" alt="Status: maintenance"></a>
   </p>
   <p align="center">
     <b><a href="./README.md">English</a></b> | <b><a href="./README.zh-CN.md">简体中文</a></b>
@@ -319,9 +322,9 @@ agent-runtime store-repair --storage-dir .agent-runtime --apply --json     # 自
 
 ---
 
-## 🚦 项目状态与路线图
+## 🚦 项目状态
 
-当前仓库处于 **pre-alpha / developer preview**（开发者预览阶段）。
+本项目处于 **维护模式**。当前没有新增功能、Agent 适配更新、beta 发布或 stable 发布计划。已发布的 alpha 版本继续供现有用户使用，但不提供持续支持承诺。
 
 ### 🏷️ npm 版本发布简史
 *   `agent-cli-runtime@0.1.0-alpha.6` - **已发布的 corrective alpha release**。已发布到 npm；npm `alpha` 与 `latest` dist-tags 均指向 `0.1.0-alpha.6`。GitHub Release `v0.1.0-alpha.6` 已作为 prerelease 存在并带有 npm registry tarball asset，`release:post-alpha:verify` tarball parity 通过。
@@ -332,7 +335,7 @@ agent-runtime store-repair --storage-dir .agent-runtime --apply --json     # 自
 *   `agent-cli-runtime@0.1.0-alpha.1` - 更早的已发布 alpha，并有 GitHub pre-release `v0.1.0-alpha.1`。
 *   `agent-cli-runtime@0.1.0-alpha.0` - 已弃用，因为 immutable package docs 带有过期发布前状态。
 
-npm registry metadata 和 GitHub Releases 是可用版本与 dist-tags 的 source of truth。易漂移的 run、target-SHA、registry 与 artifact evidence 留在 npm 包外的 `.release-evidence/`。后续 beta promotion 或 stable promotion 都必须为目标版本重新生成 fresh release evidence，包括 package docs、registry state、GitHub Release parity 和 published verification。
+npm registry metadata 和 GitHub Releases 是可用版本与 dist-tags 的 source of truth。易漂移的 run、target-SHA、registry 与 artifact evidence 留在 npm 包外的 `.release-evidence/`。任何未来 beta 或 stable promotion 均需为目标重新生成新鲜发布证据。
 
 `published:usability:audit` 是 repo-only 的 post-publish 审计脚本。它有意不进入 npm package 内容，只用于从 npm registry 验证已经发布的 package。
 

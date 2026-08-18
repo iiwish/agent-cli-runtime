@@ -1,5 +1,8 @@
 # Agent CLI Runtime
 
+> [!IMPORTANT]
+> **Maintenance mode.** This repository is archived and is not under active development. Existing releases remain available without compatibility guarantees or planned feature updates. For new multi-agent integrations, prefer [Agent Client Protocol](https://agentclientprotocol.com/) or the official SDK of your selected agent.
+
 <div align="center">
   <p align="center">
     <b>The Universal Adapter & Execution Engine for Local Coding Agents</b>
@@ -7,7 +10,7 @@
   <p align="center">
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
     <a href="https://www.npmjs.com/package/agent-cli-runtime"><img src="https://img.shields.io/npm/v/agent-cli-runtime.svg" alt="NPM Version"></a>
-    <a href="#status"><img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: pre-alpha"></a>
+    <a href="#release-status"><img src="https://img.shields.io/badge/status-maintenance-yellow.svg" alt="Status: maintenance"></a>
   </p>
   <p align="center">
     <b><a href="./README.md">English</a></b> | <b><a href="./README.zh-CN.md">简体中文</a></b>
@@ -319,9 +322,9 @@ This runtime spawns and manages powerful coding agents on your local machine. We
 
 ---
 
-## 🚦 Release Status & Roadmap
+## 🚦 Release Status
 
-This project is in **pre-alpha / developer preview**.
+This project is in **maintenance mode**. No new features, adapter compatibility updates, beta releases, or stable releases are planned. The published alpha packages remain available for existing users without ongoing support guarantees.
 
 ### 🏷️ Package Release History
 *   `agent-cli-runtime@0.1.0-alpha.6` - **Published corrective alpha release**. Published on npm; npm `alpha` and `latest` dist-tags both point at `0.1.0-alpha.6`. GitHub Release `v0.1.0-alpha.6` exists as a prerelease with the npm registry tarball asset, and `release:post-alpha:verify` tarball parity passes.
@@ -332,7 +335,7 @@ This project is in **pre-alpha / developer preview**.
 *   `agent-cli-runtime@0.1.0-alpha.1` - Earlier published alpha with GitHub pre-release `v0.1.0-alpha.1`.
 *   `agent-cli-runtime@0.1.0-alpha.0` - Deprecated because its immutable package docs shipped stale pre-publish status text.
 
-npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags. Volatile run, target-SHA, registry, and artifact evidence stays outside the npm package under `.release-evidence/`. Future beta promotion or stable promotion requires fresh release evidence for that target, including package docs, registry state, GitHub Release parity, and published verification.
+npm registry metadata and GitHub Releases are the source of truth for available versions and dist-tags. Volatile run, target-SHA, registry, and artifact evidence stays outside the npm package under `.release-evidence/`. Any future beta or stable promotion requires fresh release evidence for that target.
 
 `published:usability:audit` is a repository-only post-publish audit script. It is intentionally excluded from npm package contents and verifies an already published package from the npm registry.
 

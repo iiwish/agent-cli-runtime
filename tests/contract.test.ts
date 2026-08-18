@@ -1394,6 +1394,7 @@ describe("public contract", () => {
     const selfDirtyMatrixFile = path.join(dir, "self-dirty-matrix.json");
     await writeFile(selfDirtyMatrixFile, JSON.stringify({
       ...matrix,
+      checkedAt: new Date().toISOString(),
       gitDirty: false,
       gitInputDirty: false,
       gitOutputDirty: true,
